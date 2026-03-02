@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Nunito:wght@400;600;700;800&family=Playfair+Display:wght@600;700&display=swap');
+
+body {
+  font-family: 'Nunito', sans-serif;
+  background-color: #faf7f2;
+  color: #2d2d2d;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #e5e0d8; border-radius: 3px; }
+
+/* Animations */
+@keyframes fadeUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-up {
+  animation: fadeUp 0.4s ease forwards;
+}
+
+.animate-fade-up-delay-1 { animation: fadeUp 0.4s ease 0.05s forwards; opacity: 0; }
+.animate-fade-up-delay-2 { animation: fadeUp 0.4s ease 0.1s forwards; opacity: 0; }
+.animate-fade-up-delay-3 { animation: fadeUp 0.4s ease 0.15s forwards; opacity: 0; }

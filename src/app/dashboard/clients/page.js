@@ -1,225 +1,246 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useCoach } from "../layout";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useCoach } from "../../layout";
+import { useRouter, useParams } from "next/navigation";
+import AssignSequence from "./AssignSequence";
 
+const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
 const statusLabels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
-const statusColors = { active: "#4a7c59", new: "#c9a84c", plateau: "#c4855c", milestone: "#8b6baf", lapsed: "#c25b50", archived: "#6b7280" };
 
-export default function ClientsPage() {
+function getRelationshipScore(client) {
+  const daysSinceContact = client.last_contact_date
+    ? Math.floor((Date.now() - new Date(client.last_contact_date)) / 86400000)
+    : 999;
+  let score = 0;
+  if (client.weight_start && client.weight_current && client.weight_start > client.weight_current) {
+    const pctLost = ((client.weight_start - client.weight_current) / client.weight_start) * 100;
+    score += Math.min(35, Math.round(pctLost * 3.5));
+  } else { score += 5; }
+  const ss = { active: 25, new: 20, milestone: 30, plateau: 12, lapsed: 5, archived: 0 };
+  score += ss[client.status] || 10;
+  if (daysSinceContact < 3) score += 35;
+  else if (daysSinceContact < 7) score += 28;
+  else if (daysSinceContact < 14) score += 20;
+  else if (daysSinceContact < 30) score += 10;
+  else score += 2;
+  return Math.min(100, score);
+}
+
+function getScoreColor(s) { return s >= 70 ? "#4a7c59" : s >= 40 ? "#c4855c" : "#c25b50"; }
+
+export default function ClientDetailPage() {
   const { coach, supabase } = useCoach();
   const router = useRouter();
-  const searchParams = useSearchParams();
-  const [clients, setClients] = useState([]);
+  const params = useParams();
+  const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [showAdd, setShowAdd] = useState(searchParams.get("add") === "1");
-  const [showCSV, setShowCSV] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
-  const [form, setForm] = useState({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
+  const [activities, setActivities] = useState([]);
+  const [showAssign, setShowAssign] = useState(false);
 
-  useEffect(() => { loadClients(); }, []);
+  useEffect(() => { loadClient(); }, [params.id]);
 
-  const loadClients = async () => {
-    const { data } = await supabase.from("clients").select("*").eq("coach_id", coach.id).order("created_at", { ascending: false });
-    if (data) setClients(data);
+  const loadClient = async () => {
+    const { data } = await supabase.from("clients").select("*").eq("id", params.id).eq("coach_id", coach.id).single();
+    if (data) { setClient(data); setForm(data); }
+    else { router.push("/dashboard/clients"); return; }
+
+    const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
+    if (acts) setActivities(acts);
     setLoading(false);
   };
 
-  const addClient = async (e) => {
-    e.preventDefault();
-    if (!form.full_name.trim()) return;
+  const saveChanges = async () => {
     setSaving(true);
-
-    const newClient = {
-      coach_id: coach.id,
-      full_name: form.full_name.trim(),
-      email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
-      plan: form.plan || "Optimal 5&1",
+    const updates = {
+      full_name: form.full_name,
+      email: form.email || null,
+      phone: form.phone || null,
+      plan: form.plan || null,
+      weight_current: form.weight_current ? Number(form.weight_current) : null,
       weight_start: form.weight_start ? Number(form.weight_start) : null,
-      weight_current: form.weight_start ? Number(form.weight_start) : null,
-      notes: form.notes.trim() || null,
-      status: "new",
-      start_date: new Date().toISOString().split("T")[0],
+      notes: form.notes || null,
+      status: form.status,
+      updated_at: new Date().toISOString(),
     };
-
-    const { data, error } = await supabase.from("clients").insert(newClient).select().single();
-    if (data) {
-      setClients(prev => [data, ...prev]);
-      await supabase.from("activities").insert({ coach_id: coach.id, client_id: data.id, action: "Added new client", details: data.full_name });
-    }
-    setForm({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
-    setShowAdd(false);
+    const { data } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
+    if (data) { setClient(data); setForm(data); }
+    await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Updated client info", details: client.full_name });
+    setEditing(false);
     setSaving(false);
   };
 
-  const handleCSVImport = async (text) => {
-    const lines = text.split("\n").filter(l => l.trim());
-    if (lines.length < 2) return;
-
-    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
-    const nameIdx = headers.findIndex(h => h.includes("name"));
-    const emailIdx = headers.findIndex(h => h.includes("email"));
-    const phoneIdx = headers.findIndex(h => h.includes("phone"));
-    const planIdx = headers.findIndex(h => h.includes("plan"));
-    const weightIdx = headers.findIndex(h => h.includes("weight"));
-
-    const newClients = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map(c => c.trim());
-      const name = nameIdx >= 0 ? cols[nameIdx] : cols[0];
-      if (!name) continue;
-
-      newClients.push({
-        coach_id: coach.id,
-        full_name: name,
-        email: emailIdx >= 0 ? cols[emailIdx] || null : null,
-        phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null,
-        plan: planIdx >= 0 ? cols[planIdx] || "Optimal 5&1" : "Optimal 5&1",
-        weight_start: weightIdx >= 0 ? Number(cols[weightIdx]) || null : null,
-        weight_current: weightIdx >= 0 ? Number(cols[weightIdx]) || null : null,
-        status: "new",
-        start_date: new Date().toISOString().split("T")[0],
-      });
-    }
-
-    if (newClients.length > 0) {
-      const { data } = await supabase.from("clients").insert(newClients).select();
-      if (data) {
-        setClients(prev => [...data, ...prev]);
-        await supabase.from("activities").insert({ coach_id: coach.id, action: "Imported " + data.length + " clients via CSV" });
-      }
-    }
-    setShowCSV(false);
+  const logQuickAction = async (actionType) => {
+    const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : "Logged a note";
+    await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: client.full_name });
+    await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
+    setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
+    const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
+    if (acts) setActivities(acts);
   };
 
-  const filtered = clients.filter(c => {
-    const matchSearch = c.full_name.toLowerCase().includes(search.toLowerCase()) || (c.email || "").toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || c.status === filter;
-    return matchSearch && matchFilter;
-  });
+  const deleteClient = async () => {
+    if (!confirm("Are you sure you want to delete " + client.full_name + "? This cannot be undone.")) return;
+    await supabase.from("clients").delete().eq("id", client.id);
+    await supabase.from("activities").insert({ coach_id: coach.id, action: "Deleted client", details: client.full_name });
+    router.push("/dashboard/clients");
+  };
 
-  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold">Loading clients...</div>;
+  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold">Loading client...</div>;
+  if (!client) return null;
+
+  const score = getRelationshipScore(client);
+  const weightLost = client.weight_start && client.weight_current ? client.weight_start - client.weight_current : 0;
 
   return (
     <div className="animate-fade-up">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <h1 className="font-display text-2xl md:text-3xl font-bold">My Clients</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setShowCSV(true)} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition">📂 Import CSV</button>
-          <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition">➕ Add Client</button>
+      <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition">
+        ← Back to All Clients
+      </button>
+
+      {/* HEADER */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "linear-gradient(135deg, #e8f0ea, #eaf2f6)" }}>
+            {statusEmojis[client.status]}
+          </div>
+          <div>
+            <h1 className="font-display text-2xl font-bold">{client.full_name}</h1>
+            <p className="text-sm text-gray-400">{client.email || "No email"} · {client.phone || "No phone"}</p>
+            <div className="flex gap-2 mt-2 flex-wrap">
+              {statusOptions.map(s => (
+                <button key={s} onClick={async () => {
+                  await supabase.from("clients").update({ status: s }).eq("id", client.id);
+                  setClient(prev => ({ ...prev, status: s }));
+                  setForm(prev => ({ ...prev, status: s }));
+                  await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Changed status to " + statusLabels[s], details: client.full_name });
+                }}
+                  className={"px-2 py-1 rounded-lg text-xs font-bold transition " + (client.status === s ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}>
+                  {statusEmojis[s]} {statusLabels[s]}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div className="text-center px-6 py-3 bg-[#faf7f2] rounded-2xl">
+          <div className="text-4xl font-extrabold" style={{ color: getScoreColor(score) }}>{score}</div>
+          <div className="text-xs font-bold text-gray-400 uppercase">Relationship Score</div>
         </div>
       </div>
 
-      {/* ADD FORM */}
-      {showAdd && (
-        <form onSubmit={addClient} className="bg-white rounded-2xl p-6 shadow-sm mb-5 animate-fade-up">
-          <h3 className="font-bold text-lg mb-4">Add New Client</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
+      {/* QUICK ACTIONS */}
+      <div className="grid grid-cols-4 gap-3 mb-5">
+        <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
+          <span className="text-2xl">📞</span><span className="font-bold text-sm">Log a Call</span>
+        </button>
+        <button onClick={() => logQuickAction("text")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
+          <span className="text-2xl">💬</span><span className="font-bold text-sm">Log a Text</span>
+        </button>
+        <button onClick={() => logQuickAction("note")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
+          <span className="text-2xl">📝</span><span className="font-bold text-sm">Log a Note</span>
+        </button>
+        <button onClick={() => setShowAssign(true)} className="bg-blue-600 text-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:bg-blue-700 hover:shadow-md transition">
+          <span className="text-2xl">▶️</span><span className="font-bold text-sm">Start Sequence</span>
+        </button>
+      </div>
+
+      {/* ASSIGN SEQUENCE MODAL */}
+      {showAssign && (
+        <AssignSequence
+          supabase={supabase}
+          clientId={client.id}
+          coachId={coach.id}
+          onAssigned={() => {
+            setShowAssign(false);
+            loadClient();
+          }}
+          onClose={() => setShowAssign(false)}
+        />
+      )}
+
+      <div className="grid md:grid-cols-2 gap-5">
+        {/* DETAILS */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-4">
+            <h2 className="text-lg font-extrabold">📊 Details</h2>
+            <button onClick={() => editing ? saveChanges() : setEditing(true)} className={"px-4 py-2 rounded-xl font-bold text-sm transition " + (editing ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
+              {saving ? "Saving..." : editing ? "Save Changes" : "Edit"}
+            </button>
+          </div>
+
+          <div className="space-y-3">
             {[
-              { key: "full_name", label: "Full Name *", placeholder: "Jane Doe", type: "text" },
-              { key: "email", label: "Email", placeholder: "jane@email.com", type: "email" },
-              { key: "phone", label: "Phone", placeholder: "555-0100", type: "text" },
-              { key: "plan", label: "Plan", placeholder: "Optimal 5&1", type: "text" },
-              { key: "weight_start", label: "Starting Weight", placeholder: "e.g. 180", type: "number" },
-              { key: "notes", label: "Notes", placeholder: "Any details...", type: "text" },
+              { key: "full_name", label: "Name" },
+              { key: "email", label: "Email" },
+              { key: "phone", label: "Phone" },
+              { key: "plan", label: "Plan" },
+              { key: "weight_start", label: "Starting Weight" },
+              { key: "weight_current", label: "Current Weight" },
             ].map(f => (
-              <div key={f.key}>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">{f.label}</label>
-                <input type={f.type} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition" />
+              <div key={f.key} className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+                <span className="text-xs font-bold text-gray-400 uppercase">{f.label}</span>
+                {editing ? (
+                  <input value={form[f.key] || ""} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
+                    className="text-right text-sm font-semibold bg-white px-3 py-1 rounded-lg border border-gray-200 w-40 focus:outline-none focus:border-brand-500" />
+                ) : (
+                  <span className="text-sm font-semibold">{client[f.key] || "—"}{(f.key.includes("weight") && client[f.key]) ? " lbs" : ""}</span>
+                )}
               </div>
             ))}
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button type="submit" disabled={saving} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50">{saving ? "Saving..." : "Save Client"}</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm">Cancel</button>
-          </div>
-        </form>
-      )}
 
-      {/* CSV MODAL */}
-      {showCSV && <CSVModal onImport={handleCSVImport} onClose={() => setShowCSV(false)} />}
-
-      {/* SEARCH + FILTER */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search clients..."
-          className="flex-1 px-4 py-3 text-sm border-2 border-gray-200 rounded-xl bg-white focus:border-brand-500 focus:outline-none transition" />
-        <div className="flex gap-1 bg-white rounded-xl p-1 border-2 border-gray-200">
-          {[{ id: "all", label: "All" }, { id: "new", label: "🌱 New" }, { id: "active", label: "✅ Active" }, { id: "plateau", label: "🏔️ Plateau" }, { id: "lapsed", label: "💛 Lapsed" }].map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              className={"px-3 py-1.5 rounded-lg text-xs font-bold transition " + (filter === f.id ? "bg-brand-100 text-brand-500" : "text-gray-400 hover:bg-gray-50")}>
-              {f.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* CLIENT LIST */}
-      <div className="space-y-2">
-        {filtered.map(client => (
-          <button key={client.id} onClick={() => router.push("/dashboard/clients/" + client.id)}
-            className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition text-left">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-xl">{statusEmojis[client.status] || "📋"}</div>
-              <div>
-                <div className="font-bold">{client.full_name}</div>
-                <div className="text-xs text-gray-400">{client.email || "No email"} · {client.plan || "No plan"}</div>
+            {/* Weight progress bar */}
+            {client.weight_start && client.weight_current && (
+              <div className="p-3 bg-brand-50 rounded-xl">
+                <div className="flex justify-between text-xs font-bold mb-1">
+                  <span className="text-gray-400">Progress</span>
+                  <span className="text-brand-500">{weightLost > 0 ? weightLost + " lbs lost" : "Just starting"}</span>
+                </div>
+                <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                  <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: Math.min(100, Math.max(5, (weightLost / client.weight_start) * 100 * 3)) + "%" }} />
+                </div>
               </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-xs text-gray-400">Started {client.start_date ? new Date(client.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
-              </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-lg" style={{ backgroundColor: statusColors[client.status] + "15", color: statusColors[client.status] }}>{statusLabels[client.status]}</span>
-              <span className="text-gray-300 text-lg">→</span>
-            </div>
+            )}
+          </div>
+
+          {/* Notes */}
+          <div className="mt-4">
+            <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
+            {editing ? (
+              <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
+                className="w-full mt-1 px-4 py-3 text-sm border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none" />
+            ) : (
+              <p className="mt-1 text-sm text-gray-600 bg-[#faf7f2] p-3 rounded-xl">{client.notes || "No notes yet."}</p>
+            )}
+          </div>
+
+          {/* Delete */}
+          <button onClick={deleteClient} className="mt-4 px-4 py-2 text-xs font-bold text-red-400 hover:text-red-600 transition">
+            Delete this client
           </button>
-        ))}
-      </div>
-
-      {filtered.length === 0 && (
-        <div className="text-center py-16 text-gray-400">
-          <div className="text-5xl mb-4">👥</div>
-          <p className="text-lg font-semibold">{clients.length === 0 ? "No clients yet. Add your first one!" : "No clients match your search."}</p>
         </div>
-      )}
-    </div>
-  );
-}
 
-function CSVModal({ onImport, onClose }) {
-  const [text, setText] = useState("");
-  const [file, setFile] = useState(null);
-
-  const handleFile = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = (ev) => setText(ev.target.result);
-    reader.readAsText(f);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl animate-fade-up">
-        <h3 className="font-bold text-lg mb-2">Import Clients from CSV</h3>
-        <p className="text-sm text-gray-400 mb-4">Upload a CSV file with columns: name, email, phone, plan, weight. The first row should be headers.</p>
-
-        <input type="file" accept=".csv,.txt" onChange={handleFile} className="mb-3 text-sm" />
-
-        <textarea value={text} onChange={e => setText(e.target.value)} rows={6} placeholder={"name,email,phone,plan,weight\nJane Doe,jane@email.com,555-0100,Optimal 5&1,180"}
-          className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl mb-4 focus:border-brand-500 focus:outline-none font-mono" />
-
-        <div className="flex gap-3">
-          <button onClick={() => onImport(text)} disabled={!text.trim()} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50">Import Clients</button>
-          <button onClick={onClose} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm">Cancel</button>
+        {/* ACTIVITY HISTORY */}
+        <div className="bg-white rounded-2xl p-6 shadow-sm">
+          <h2 className="text-lg font-extrabold mb-4">📋 Activity History</h2>
+          {activities.length === 0 ? (
+            <div className="text-center py-10 text-gray-400">
+              <div className="text-4xl mb-3">📝</div>
+              <p className="text-sm">No activity yet. Use the quick actions above to start tracking!</p>
+            </div>
+          ) : (
+            <div className="space-y-2 max-h-96 overflow-y-auto">
+              {activities.map(act => (
+                <div key={act.id} className="p-3 bg-[#faf7f2] rounded-xl">
+                  <div className="font-semibold text-sm">{act.action}</div>
+                  <div className="text-xs text-gray-400 mt-1">{new Date(act.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                </div>
+              ))}
+            </div>
+          )}
         </div>
       </div>
     </div>

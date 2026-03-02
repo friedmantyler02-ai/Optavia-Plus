@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
+import AssignSequence from "./AssignSequence";
 
 const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
@@ -39,6 +40,7 @@ export default function ClientDetailPage() {
   const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
+  const [showAssign, setShowAssign] = useState(false);
 
   useEffect(() => { loadClient(); }, [params.id]);
 
@@ -46,7 +48,6 @@ export default function ClientDetailPage() {
     const { data } = await supabase.from("clients").select("*").eq("id", params.id).eq("coach_id", coach.id).single();
     if (data) { setClient(data); setForm(data); }
     else { router.push("/dashboard/clients"); return; }
-
     const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
     if (acts) setActivities(acts);
     setLoading(false);
@@ -77,7 +78,7 @@ export default function ClientDetailPage() {
     await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: client.full_name });
     await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
     setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
-    const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", client.id).order("created_at", { ascending: false }).limit(20);
+    const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
     if (acts) setActivities(acts);
   };
 
@@ -99,8 +100,6 @@ export default function ClientDetailPage() {
       <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition">
         ← Back to All Clients
       </button>
-
-      {/* HEADER */}
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div className="flex items-center gap-4">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "linear-gradient(135deg, #e8f0ea, #eaf2f6)" }}>
@@ -109,7 +108,7 @@ export default function ClientDetailPage() {
           <div>
             <h1 className="font-display text-2xl font-bold">{client.full_name}</h1>
             <p className="text-sm text-gray-400">{client.email || "No email"} · {client.phone || "No phone"}</p>
-            <div className="flex gap-2 mt-2">
+            <div className="flex gap-2 mt-2 flex-wrap">
               {statusOptions.map(s => (
                 <button key={s} onClick={async () => {
                   await supabase.from("clients").update({ status: s }).eq("id", client.id);
@@ -129,9 +128,7 @@ export default function ClientDetailPage() {
           <div className="text-xs font-bold text-gray-400 uppercase">Relationship Score</div>
         </div>
       </div>
-
-      {/* QUICK ACTIONS */}
-      <div className="grid grid-cols-3 gap-3 mb-5">
+      <div className="grid grid-cols-4 gap-3 mb-5">
         <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
           <span className="text-2xl">📞</span><span className="font-bold text-sm">Log a Call</span>
         </button>
@@ -141,10 +138,20 @@ export default function ClientDetailPage() {
         <button onClick={() => logQuickAction("note")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
           <span className="text-2xl">📝</span><span className="font-bold text-sm">Log a Note</span>
         </button>
+        <button onClick={() => setShowAssign(true)} className="bg-blue-600 text-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:bg-blue-700 hover:shadow-md transition">
+          <span className="text-2xl">▶️</span><span className="font-bold text-sm">Start Sequence</span>
+        </button>
       </div>
-
+      {showAssign && (
+        <AssignSequence
+          supabase={supabase}
+          clientId={client.id}
+          coachId={coach.id}
+          onAssigned={() => { setShowAssign(false); loadClient(); }}
+          onClose={() => setShowAssign(false)}
+        />
+      )}
       <div className="grid md:grid-cols-2 gap-5">
-        {/* DETAILS */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
             <h2 className="text-lg font-extrabold">📊 Details</h2>
@@ -152,7 +159,6 @@ export default function ClientDetailPage() {
               {saving ? "Saving..." : editing ? "Save Changes" : "Edit"}
             </button>
           </div>
-
           <div className="space-y-3">
             {[
               { key: "full_name", label: "Name" },
@@ -172,8 +178,6 @@ export default function ClientDetailPage() {
                 )}
               </div>
             ))}
-
-            {/* Weight progress bar */}
             {client.weight_start && client.weight_current && (
               <div className="p-3 bg-brand-50 rounded-xl">
                 <div className="flex justify-between text-xs font-bold mb-1">
@@ -186,8 +190,6 @@ export default function ClientDetailPage() {
               </div>
             )}
           </div>
-
-          {/* Notes */}
           <div className="mt-4">
             <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
             {editing ? (
@@ -197,14 +199,10 @@ export default function ClientDetailPage() {
               <p className="mt-1 text-sm text-gray-600 bg-[#faf7f2] p-3 rounded-xl">{client.notes || "No notes yet."}</p>
             )}
           </div>
-
-          {/* Delete */}
           <button onClick={deleteClient} className="mt-4 px-4 py-2 text-xs font-bold text-red-400 hover:text-red-600 transition">
             Delete this client
           </button>
         </div>
-
-        {/* ACTIVITY HISTORY */}
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <h2 className="text-lg font-extrabold mb-4">📋 Activity History</h2>
           {activities.length === 0 ? (

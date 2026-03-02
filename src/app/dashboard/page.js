@@ -3,6 +3,7 @@
 import { useState, useEffect } from "react";
 import { useCoach } from "./layout";
 import { useRouter } from "next/navigation";
+import TouchpointsDueToday from "./TouchpointsDueToday";
 
 function getRelationshipScore(client) {
   const daysSinceContact = client.last_contact_date
@@ -76,6 +77,10 @@ export default function DashboardHome() {
             <div className="text-xs text-gray-400 mt-1">{stat.sub}</div>
           </div>
         ))}
+      </div>
+
+      <div className="mb-6">
+        <TouchpointsDueToday />
       </div>
 
       <div className="grid md:grid-cols-2 gap-5">

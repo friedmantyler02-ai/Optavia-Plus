@@ -4,6 +4,7 @@ import { useState, useEffect } from "react";
 import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
+import TouchpointTimeline from './TouchpointTimeline';
 
 const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
@@ -41,6 +42,7 @@ export default function ClientDetailPage() {
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
   const [showAssign, setShowAssign] = useState(false);
+  const [timelineKey, setTimelineKey] = useState(0);
 
   useEffect(() => { loadClient(); }, [params.id]);
 
@@ -141,6 +143,17 @@ export default function ClientDetailPage() {
         <button onClick={() => setShowAssign(true)} className="bg-blue-600 text-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:bg-blue-700 hover:shadow-md transition">
           <span className="text-2xl">▶️</span><span className="font-bold text-sm">Start Sequence</span>
         </button>
+      </div>
+      <div className="mt-8">
+        <h2 className="text-2xl font-bold text-gray-800 mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
+          Active Sequences
+        </h2>
+        <TouchpointTimeline
+          key={timelineKey}
+          clientId={client.id}
+          clientName={client.full_name}
+          onUpdate={() => { setTimelineKey(prev => prev + 1); }}
+        />
       </div>
       {showAssign && (
         <AssignSequence

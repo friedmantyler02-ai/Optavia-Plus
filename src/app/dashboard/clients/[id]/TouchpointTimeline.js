@@ -82,6 +82,7 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
   const { coach, supabase } = useCoach();
   const [sequences, setSequences] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [completing, setCompleting] = useState(null); // step id being completed
   const [noteInput, setNoteInput] = useState({});     // { stepId: 'note text' }
   const [showNoteFor, setShowNoteFor] = useState(null);
@@ -90,71 +91,77 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
   const fetchTimeline = useCallback(async () => {
     if (!coach?.id || !clientId) return;
 
-    // 1. Get client_touchpoints for this client
-    const { data: assignments, error: aErr } = await supabase
-      .from('client_touchpoints')
-      .select('id, sequence_id, started_at, status, touchpoint_sequences(name, icon, color)')
-      .eq('client_id', clientId)
-      .eq('coach_id', coach.id)
-      .order('started_at', { ascending: false });
+    try {
+      // 1. Get client_touchpoints for this client
+      const { data: assignments, error: aErr } = await supabase
+        .from('client_touchpoints')
+        .select('id, sequence_id, started_at, status, touchpoint_sequences(name, icon, color)')
+        .eq('client_id', clientId)
+        .eq('coach_id', coach.id)
+        .order('started_at', { ascending: false });
 
-    if (aErr) {
-      console.error('Error fetching assignments:', aErr);
+      if (aErr) throw aErr;
+
+      if (!assignments || assignments.length === 0) {
+        setSequences([]);
+        setLoading(false);
+        return;
+      }
+
+      // 2. For each assignment, get steps and completions
+      const enriched = (await Promise.all(
+        assignments.map(async (a) => {
+          // Skip if started_at is missing or sequence was deleted
+          if (!a.started_at || !a.touchpoint_sequences) return null;
+
+          // Get steps for this sequence
+          const { data: steps } = await supabase
+            .from('touchpoint_steps')
+            .select('id, day_offset, action_text, action_type, sort_order')
+            .eq('sequence_id', a.sequence_id)
+            .order('sort_order', { ascending: true });
+
+          // Get completions for this assignment
+          const { data: completions } = await supabase
+            .from('touchpoint_completions')
+            .select('id, step_id, completed_at, notes')
+            .eq('client_touchpoint_id', a.id);
+
+          const completionMap = {};
+          (completions || []).forEach((c) => {
+            completionMap[c.step_id] = c;
+          });
+
+          const enrichedSteps = (steps || []).map((s) => {
+            const dueDate = addDays(a.started_at, s.day_offset);
+            const completion = completionMap[s.id] || null;
+            const status = getStepStatus(dueDate, !!completion);
+            return { ...s, dueDate, completion, status };
+          });
+
+          // Check if all steps completed → update assignment status
+          const allDone = enrichedSteps.length > 0 && enrichedSteps.every((s) => s.completion);
+
+          return {
+            assignmentId: a.id,
+            sequenceName: a.touchpoint_sequences?.name || 'Unknown Sequence',
+            sequenceIcon: a.touchpoint_sequences?.icon || '📋',
+            sequenceColor: a.touchpoint_sequences?.color || '#6366f1',
+            startedAt: a.started_at,
+            assignmentStatus: allDone ? 'completed' : a.status,
+            steps: enrichedSteps,
+          };
+        })
+      )).filter(Boolean);
+
+      setSequences(enriched);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching timeline:', err);
+      setError('Could not load sequences. Please try refreshing.');
+    } finally {
       setLoading(false);
-      return;
     }
-
-    if (!assignments || assignments.length === 0) {
-      setSequences([]);
-      setLoading(false);
-      return;
-    }
-
-    // 2. For each assignment, get steps and completions
-    const enriched = await Promise.all(
-      assignments.map(async (a) => {
-        // Get steps for this sequence
-        const { data: steps } = await supabase
-          .from('touchpoint_steps')
-          .select('id, day_offset, action_text, action_type, sort_order')
-          .eq('sequence_id', a.sequence_id)
-          .order('sort_order', { ascending: true });
-
-        // Get completions for this assignment
-        const { data: completions } = await supabase
-          .from('touchpoint_completions')
-          .select('id, step_id, completed_at, notes')
-          .eq('client_touchpoint_id', a.id);
-
-        const completionMap = {};
-        (completions || []).forEach((c) => {
-          completionMap[c.step_id] = c;
-        });
-
-        const enrichedSteps = (steps || []).map((s) => {
-          const dueDate = addDays(a.started_at, s.day_offset);
-          const completion = completionMap[s.id] || null;
-          const status = getStepStatus(dueDate, !!completion);
-          return { ...s, dueDate, completion, status };
-        });
-
-        // Check if all steps completed → update assignment status
-        const allDone = enrichedSteps.length > 0 && enrichedSteps.every((s) => s.completion);
-
-        return {
-          assignmentId: a.id,
-          sequenceName: a.touchpoint_sequences?.name || 'Unknown Sequence',
-          sequenceIcon: a.touchpoint_sequences?.icon || '📋',
-          sequenceColor: a.touchpoint_sequences?.color || '#6366f1',
-          startedAt: a.started_at,
-          assignmentStatus: allDone ? 'completed' : a.status,
-          steps: enrichedSteps,
-        };
-      })
-    );
-
-    setSequences(enriched);
-    setLoading(false);
   }, [coach?.id, clientId, supabase]);
 
   useEffect(() => {
@@ -240,6 +247,24 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
           <div className="h-4 bg-gray-100 rounded w-full" />
           <div className="h-4 bg-gray-100 rounded w-3/4" />
         </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-8 text-center">
+        <p className="text-3xl mb-3">⚠️</p>
+        <p className="text-gray-600 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+          {error}
+        </p>
+        <button
+          onClick={() => { setError(null); setLoading(true); fetchTimeline(); }}
+          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition"
+          style={{ fontFamily: 'Nunito, sans-serif' }}
+        >
+          Retry
+        </button>
       </div>
     );
   }
@@ -336,7 +361,7 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
                 const daysOverdue = isOverdue ? daysBetween(step.dueDate, new Date()) : 0;
 
                 return (
-                  <div key={step.id} className="flex gap-4">
+                  <div key={step.id} className="flex gap-4 animate-fade-up" style={{ animationDelay: `${idx * 60}ms`, animationFillMode: 'both' }}>
                     {/* Timeline connector */}
                     <div className="flex flex-col items-center">
                       {/* Dot */}

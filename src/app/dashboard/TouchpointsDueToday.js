@@ -16,6 +16,8 @@ export default function TouchpointsDueToday() {
   const { coach, supabase } = useCoach();
   const [items, setItems] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
+  const [showAll, setShowAll] = useState(false);
 
   useEffect(() => {
     if (!coach?.id) return;
@@ -23,64 +25,79 @@ export default function TouchpointsDueToday() {
   }, [coach?.id]);
 
   async function fetchDueItems() {
-    // 1. Get all active client_touchpoints for this coach
-    const { data: assignments, error: aErr } = await supabase
-      .from('client_touchpoints')
-      .select('id, sequence_id, started_at, client_id, clients(id, full_name)')
-      .eq('coach_id', coach.id)
-      .eq('status', 'active');
+    try {
+      // 1. Get all active client_touchpoints for this coach
+      const { data: assignments, error: aErr } = await supabase
+        .from('client_touchpoints')
+        .select('id, sequence_id, started_at, client_id, clients(id, full_name)')
+        .eq('coach_id', coach.id)
+        .eq('status', 'active');
 
-    if (aErr || !assignments || assignments.length === 0) {
-      setLoading(false);
-      return;
-    }
+      if (aErr) throw aErr;
 
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    const dueItems = [];
-
-    for (const a of assignments) {
-      // Get steps for this sequence
-      const { data: steps } = await supabase
-        .from('touchpoint_steps')
-        .select('id, day_offset, action_text, action_type, sort_order')
-        .eq('sequence_id', a.sequence_id)
-        .order('sort_order', { ascending: true });
-
-      // Get completions for this assignment
-      const { data: completions } = await supabase
-        .from('touchpoint_completions')
-        .select('step_id')
-        .eq('client_touchpoint_id', a.id);
-
-      const completedStepIds = new Set((completions || []).map(c => c.step_id));
-
-      for (const step of (steps || [])) {
-        if (completedStepIds.has(step.id)) continue;
-
-        const dueDate = addDays(a.started_at, step.day_offset);
-        dueDate.setHours(0, 0, 0, 0);
-
-        if (dueDate > today) continue;
-
-        const daysOverdue = Math.round((today - dueDate) / (1000 * 60 * 60 * 24));
-
-        dueItems.push({
-          key: `${a.id}-${step.id}`,
-          clientId: a.client_id,
-          clientName: a.clients?.full_name || 'Unknown',
-          actionText: step.action_text,
-          actionType: step.action_type,
-          daysOverdue,
-        });
+      if (!assignments || assignments.length === 0) {
+        setLoading(false);
+        return;
       }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const dueItems = [];
+
+      for (const a of assignments) {
+        // Skip if started_at is missing or client was deleted
+        if (!a.started_at || !a.clients) continue;
+
+        // Get steps for this sequence
+        const { data: steps } = await supabase
+          .from('touchpoint_steps')
+          .select('id, day_offset, action_text, action_type, sort_order')
+          .eq('sequence_id', a.sequence_id)
+          .order('sort_order', { ascending: true });
+
+        // Skip if sequence was deleted (no steps found)
+        if (!steps || steps.length === 0) continue;
+
+        // Get completions for this assignment
+        const { data: completions } = await supabase
+          .from('touchpoint_completions')
+          .select('step_id')
+          .eq('client_touchpoint_id', a.id);
+
+        const completedStepIds = new Set((completions || []).map(c => c.step_id));
+
+        for (const step of steps) {
+          if (completedStepIds.has(step.id)) continue;
+
+          const dueDate = addDays(a.started_at, step.day_offset);
+          dueDate.setHours(0, 0, 0, 0);
+
+          if (dueDate > today) continue;
+
+          const daysOverdue = Math.round((today - dueDate) / (1000 * 60 * 60 * 24));
+
+          dueItems.push({
+            key: `${a.id}-${step.id}`,
+            clientId: a.client_id,
+            clientName: a.clients?.full_name || 'Unknown',
+            actionText: step.action_text,
+            actionType: step.action_type,
+            daysOverdue,
+          });
+        }
+      }
+
+      // Sort: most overdue first, then due today
+      dueItems.sort((a, b) => b.daysOverdue - a.daysOverdue);
+
+      setItems(dueItems);
+      setError(null);
+    } catch (err) {
+      console.error('Error fetching due touchpoints:', err);
+      setError('Could not load touchpoints. Please try refreshing.');
+    } finally {
+      setLoading(false);
     }
-
-    // Sort: most overdue first, then due today
-    dueItems.sort((a, b) => b.daysOverdue - a.daysOverdue);
-
-    setItems(dueItems);
-    setLoading(false);
   }
 
   if (loading) {
@@ -95,6 +112,27 @@ export default function TouchpointsDueToday() {
       </div>
     );
   }
+
+  if (error) {
+    return (
+      <div className="bg-white rounded-2xl shadow-sm border border-red-100 p-6 text-center">
+        <p className="text-3xl mb-2">⚠️</p>
+        <p className="text-gray-600 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>
+          {error}
+        </p>
+        <button
+          onClick={() => { setError(null); setLoading(true); fetchDueItems(); }}
+          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition"
+          style={{ fontFamily: 'Nunito, sans-serif' }}
+        >
+          Retry
+        </button>
+      </div>
+    );
+  }
+
+  const visibleItems = showAll ? items : items.slice(0, 10);
+  const hiddenCount = items.length - 10;
 
   return (
     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
@@ -117,17 +155,18 @@ export default function TouchpointsDueToday() {
         </div>
       ) : (
         <div className="space-y-2 max-h-80 overflow-y-auto">
-          {items.map(item => {
+          {visibleItems.map((item, idx) => {
             const isOverdue = item.daysOverdue > 0;
             return (
               <Link
                 key={item.key}
                 href={`/dashboard/clients/${item.clientId}`}
-                className={`flex items-center justify-between p-3 rounded-xl transition hover:shadow-sm ${
+                className={`flex items-center justify-between p-3 rounded-xl transition hover:shadow-sm animate-fade-up ${
                   isOverdue
                     ? 'bg-red-50 border border-red-200 hover:bg-red-100'
                     : 'bg-amber-50 border border-amber-200 hover:bg-amber-100'
                 }`}
+                style={{ animationDelay: `${idx * 50}ms`, animationFillMode: 'both' }}
               >
                 <div className="flex items-center gap-3">
                   <span className="text-xl">{ACTION_ICONS[item.actionType] || ACTION_ICONS.other}</span>
@@ -155,6 +194,15 @@ export default function TouchpointsDueToday() {
               </Link>
             );
           })}
+          {!showAll && hiddenCount > 0 && (
+            <button
+              onClick={() => setShowAll(true)}
+              className="w-full text-center py-2 text-sm font-bold text-brand-500 hover:text-brand-600 transition"
+              style={{ fontFamily: 'Nunito, sans-serif' }}
+            >
+              and {hiddenCount} more...
+            </button>
+          )}
         </div>
       )}
     </div>

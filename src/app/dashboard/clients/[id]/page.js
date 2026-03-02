@@ -43,16 +43,28 @@ export default function ClientDetailPage() {
   const [activities, setActivities] = useState([]);
   const [showAssign, setShowAssign] = useState(false);
   const [timelineKey, setTimelineKey] = useState(0);
+  const [hasSequences, setHasSequences] = useState(true);
+  const [loadError, setLoadError] = useState(null);
 
   useEffect(() => { loadClient(); }, [params.id]);
 
   const loadClient = async () => {
-    const { data } = await supabase.from("clients").select("*").eq("id", params.id).eq("coach_id", coach.id).single();
-    if (data) { setClient(data); setForm(data); }
-    else { router.push("/dashboard/clients"); return; }
-    const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
-    if (acts) setActivities(acts);
-    setLoading(false);
+    try {
+      const { data, error: cErr } = await supabase.from("clients").select("*").eq("id", params.id).eq("coach_id", coach.id).single();
+      if (cErr || !data) { router.push("/dashboard/clients"); return; }
+      setClient(data); setForm(data);
+      const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
+      if (acts) setActivities(acts);
+      // Check if any sequences exist in the database
+      const { data: seqs } = await supabase.from("touchpoint_sequences").select("id").eq("coach_id", coach.id).limit(1);
+      setHasSequences(seqs && seqs.length > 0);
+      setLoadError(null);
+    } catch (err) {
+      console.error("Error loading client:", err);
+      setLoadError("Something went wrong loading this client.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveChanges = async () => {
@@ -91,7 +103,14 @@ export default function ClientDetailPage() {
     router.push("/dashboard/clients");
   };
 
-  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold">Loading client...</div>;
+  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>Loading client...</div>;
+  if (loadError) return (
+    <div className="text-center py-20">
+      <p className="text-3xl mb-3">⚠️</p>
+      <p className="text-gray-600 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>{loadError}</p>
+      <button onClick={() => { setLoadError(null); setLoading(true); loadClient(); }} className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm" style={{ fontFamily: 'Nunito, sans-serif' }}>Retry</button>
+    </div>
+  );
   if (!client) return null;
 
   const score = getRelationshipScore(client);
@@ -140,8 +159,8 @@ export default function ClientDetailPage() {
         <button onClick={() => logQuickAction("note")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
           <span className="text-2xl">📝</span><span className="font-bold text-sm">Log a Note</span>
         </button>
-        <button onClick={() => setShowAssign(true)} className="bg-blue-600 text-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:bg-blue-700 hover:shadow-md transition">
-          <span className="text-2xl">▶️</span><span className="font-bold text-sm">Start Sequence</span>
+        <button onClick={() => setShowAssign(true)} disabled={!hasSequences} className={"rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 transition " + (hasSequences ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed")}>
+          <span className="text-2xl">▶️</span><span className="font-bold text-sm">{hasSequences ? "Start Sequence" : "No Sequences"}</span>
         </button>
       </div>
       <div className="mt-8">

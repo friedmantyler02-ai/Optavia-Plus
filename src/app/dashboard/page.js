@@ -38,23 +38,40 @@ export default function DashboardHome() {
   const [clients, setClients] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const router = useRouter();
 
   useEffect(() => { loadData(); }, []);
 
   const loadData = async () => {
-    const { data: cd } = await supabase.from("clients").select("*").eq("coach_id", coach.id).neq("status", "archived").order("created_at", { ascending: false });
-    if (cd) setClients(cd);
-    const { data: ad } = await supabase.from("activities").select("*").eq("coach_id", coach.id).order("created_at", { ascending: false }).limit(10);
-    if (ad) setActivities(ad);
-    setLoading(false);
+    try {
+      const { data: cd, error: cErr } = await supabase.from("clients").select("*").eq("coach_id", coach.id).neq("status", "archived").order("created_at", { ascending: false });
+      if (cErr) throw cErr;
+      if (cd) setClients(cd);
+      const { data: ad, error: aErr } = await supabase.from("activities").select("*").eq("coach_id", coach.id).order("created_at", { ascending: false }).limit(10);
+      if (aErr) throw aErr;
+      if (ad) setActivities(ad);
+      setLoadError(null);
+    } catch (err) {
+      console.error("Error loading dashboard:", err);
+      setLoadError("Something went wrong loading your dashboard.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const activeCount = clients.filter(c => c.status === "active" || c.status === "new").length;
   const avgScore = clients.length > 0 ? Math.round(clients.reduce((s, c) => s + getRelationshipScore(c), 0) / clients.length) : 0;
   const needsAttention = clients.map(c => ({ ...c, score: getRelationshipScore(c) })).sort((a, b) => a.score - b.score).slice(0, 5);
 
-  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold">Loading your dashboard...</div>;
+  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>Loading your dashboard...</div>;
+  if (loadError) return (
+    <div className="text-center py-20">
+      <p className="text-3xl mb-3">⚠️</p>
+      <p className="text-gray-600 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>{loadError}</p>
+      <button onClick={() => { setLoadError(null); setLoading(true); loadData(); }} className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm" style={{ fontFamily: 'Nunito, sans-serif' }}>Retry</button>
+    </div>
+  );
 
   return (
     <div className="animate-fade-up">

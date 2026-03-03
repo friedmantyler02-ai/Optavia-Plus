@@ -1,9 +1,10 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useCoach } from "../../../layout";
 import Link from "next/link";
+import BulkAssignModal from "../../../components/BulkAssignModal";
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -107,6 +108,10 @@ export default function CoachDetailPage() {
 
   const LIMIT = 25;
 
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showModal, setShowModal] = useState(false);
+
   // ── Fetch data ────────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -184,6 +189,49 @@ export default function CoachDetailPage() {
     return sortDir === "asc" ? aVal - bVal : bVal - aVal;
   });
 
+  // ── Selection helpers ──────────────────────────────────────────────
+  const selectedClients = useMemo(
+    () => sortedClients.filter((c) => selectedIds.has(c.id)),
+    [sortedClients, selectedIds]
+  );
+
+  const allOnPageSelected =
+    sortedClients.length > 0 && sortedClients.every((c) => selectedIds.has(c.id));
+
+  function toggleSelectAll() {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const c of sortedClients) next.delete(c.id);
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const c of sortedClients) next.add(c.id);
+        return next;
+      });
+    }
+  }
+
+  function toggleOne(clientId) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) next.delete(clientId);
+      else next.add(clientId);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function handleAssignComplete() {
+    clearSelection();
+    fetchData();
+  }
+
   const totalPages = Math.ceil(totalClientCount / LIMIT);
   const statsLoading = loading && !stats;
 
@@ -211,7 +259,7 @@ export default function CoachDetailPage() {
   }
 
   return (
-    <div className="animate-fade-up">
+    <div className="animate-fade-up pb-24">
       {/* ── Back link ──────────────────────────────────────────────── */}
       <Link
         href="/dashboard/organization"
@@ -321,6 +369,14 @@ export default function CoachDetailPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected && sortedClients.length > 0}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-brand-500"
+                  />
+                </th>
                 <th
                   onClick={() => handleSort("full_name")}
                   className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700"
@@ -362,6 +418,7 @@ export default function CoachDetailPage() {
                 clients.length === 0 &&
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={`skel-${i}`} className="border-b border-gray-50 last:border-0">
+                    <td className="px-3 py-3"><Skeleton className="h-4 w-4" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-36" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
@@ -375,7 +432,7 @@ export default function CoachDetailPage() {
               {/* Empty state */}
               {!loading && sortedClients.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-14 text-center">
+                  <td colSpan={8} className="px-4 py-14 text-center">
                     <p className="text-4xl">📭</p>
                     <p className="font-display mt-3 text-lg font-bold text-gray-900">
                       {search || statusFilter !== "all"
@@ -396,8 +453,18 @@ export default function CoachDetailPage() {
                 sortedClients.map((client) => (
                   <tr
                     key={client.id}
-                    className="cursor-pointer border-b border-gray-50 transition-colors last:border-0 hover:bg-brand-50/50"
+                    className={`border-b border-gray-50 transition-colors last:border-0 ${
+                      selectedIds.has(client.id) ? "bg-brand-50" : "hover:bg-brand-50/50"
+                    }`}
                   >
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(client.id)}
+                        onChange={() => toggleOne(client.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-brand-500"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <Link
                         href={`/dashboard/clients/${client.id}`}
@@ -456,6 +523,41 @@ export default function CoachDetailPage() {
           </div>
         )}
       </div>
+
+      {/* ── Floating action bar ──────────────────────────────────────── */}
+      <div
+        className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ease-out ${
+          selectedIds.size > 0
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        <div className="flex items-center gap-4 rounded-2xl border-2 border-gray-100 bg-white px-6 py-3 shadow-lg">
+          <span className="font-body text-sm font-bold text-gray-900">
+            {selectedIds.size.toLocaleString()} client{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <button
+            onClick={() => setShowModal(true)}
+            className="font-display rounded-xl bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow transition-all hover:bg-brand-600 hover:shadow-md"
+          >
+            Assign Sequence
+          </button>
+          <button
+            onClick={clearSelection}
+            className="font-body text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
+          >
+            Clear Selection
+          </button>
+        </div>
+      </div>
+
+      {/* ── Bulk assign modal ────────────────────────────────────────── */}
+      <BulkAssignModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        selectedClients={selectedClients}
+        onAssignComplete={handleAssignComplete}
+      />
     </div>
   );
 }

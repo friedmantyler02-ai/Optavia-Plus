@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import BulkAssignModal from "../../components/BulkAssignModal";
 
 // ---------------------------------------------------------------------------
 // Skeleton pulse
@@ -71,29 +72,42 @@ function fmtPqv(val) {
 // ---------------------------------------------------------------------------
 // Tier summary card
 // ---------------------------------------------------------------------------
-function TierCard({ emoji, label, count, description, active, onClick, loading }) {
+function TierCard({ emoji, label, count, description, active, onClick, loading, onSelectTier, tierSelected }) {
   return (
-    <button
-      onClick={onClick}
+    <div
       className={`rounded-2xl border-2 bg-white p-5 text-left transition-all hover:shadow-md ${
         active
           ? "border-coral-400 shadow-md"
           : "border-gray-100 hover:border-gray-200"
       }`}
     >
-      <div className="mb-2 text-2xl">{emoji}</div>
-      {loading ? (
-        <Skeleton className="h-8 w-16" />
-      ) : (
-        <p className="font-display text-2xl font-bold text-gray-900">
-          {(count ?? 0).toLocaleString()}
+      <button onClick={onClick} className="w-full text-left">
+        <div className="mb-2 text-2xl">{emoji}</div>
+        {loading ? (
+          <Skeleton className="h-8 w-16" />
+        ) : (
+          <p className="font-display text-2xl font-bold text-gray-900">
+            {(count ?? 0).toLocaleString()}
+          </p>
+        )}
+        <p className="font-display mt-1 text-sm font-bold text-gray-700">
+          {label}
         </p>
+        <p className="font-body mt-1 text-xs text-gray-500">{description}</p>
+      </button>
+      {onSelectTier && count > 0 && (
+        <button
+          onClick={(e) => { e.stopPropagation(); onSelectTier(); }}
+          className={`font-body mt-3 rounded-lg px-3 py-1.5 text-xs font-bold transition-colors ${
+            tierSelected
+              ? "bg-brand-100 text-brand-600"
+              : "bg-gray-100 text-gray-500 hover:bg-brand-50 hover:text-brand-500"
+          }`}
+        >
+          {tierSelected ? `Deselect ${label}` : `Select All ${label}`}
+        </button>
       )}
-      <p className="font-display mt-1 text-sm font-bold text-gray-700">
-        {label}
-      </p>
-      <p className="font-body mt-1 text-xs text-gray-500">{description}</p>
-    </button>
+    </div>
   );
 }
 
@@ -118,6 +132,10 @@ export default function NeglectedClientsPage() {
   const [coachFilter, setCoachFilter] = useState("");
 
   const LIMIT = 25;
+
+  // Selection state
+  const [selectedIds, setSelectedIds] = useState(new Set());
+  const [showModal, setShowModal] = useState(false);
 
   // ── Fetch data ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -179,12 +197,82 @@ export default function NeglectedClientsPage() {
   }
   coachOptions.sort((a, b) => (a.name ?? "").localeCompare(b.name ?? ""));
 
+  // ── Selection helpers ─────────────────────────────────────────────
+  const clientsByTier = useMemo(() => {
+    const map = { critical: [], warning: [], watch: [] };
+    for (const c of clients) {
+      if (c.neglect_tier && map[c.neglect_tier]) map[c.neglect_tier].push(c);
+    }
+    return map;
+  }, [clients]);
+
+  const selectedClients = useMemo(
+    () => clients.filter((c) => selectedIds.has(c.id)),
+    [clients, selectedIds]
+  );
+
+  const allOnPageSelected =
+    clients.length > 0 && clients.every((c) => selectedIds.has(c.id));
+
+  function toggleSelectAll() {
+    if (allOnPageSelected) {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const c of clients) next.delete(c.id);
+        return next;
+      });
+    } else {
+      setSelectedIds((prev) => {
+        const next = new Set(prev);
+        for (const c of clients) next.add(c.id);
+        return next;
+      });
+    }
+  }
+
+  function toggleOne(id) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  function selectTier(tierKey) {
+    const tierClients = clientsByTier[tierKey] ?? [];
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      const allAlready = tierClients.length > 0 && tierClients.every((c) => next.has(c.id));
+      if (allAlready) {
+        for (const c of tierClients) next.delete(c.id);
+      } else {
+        for (const c of tierClients) next.add(c.id);
+      }
+      return next;
+    });
+  }
+
+  function isTierSelected(tierKey) {
+    const tierClients = clientsByTier[tierKey] ?? [];
+    return tierClients.length > 0 && tierClients.every((c) => selectedIds.has(c.id));
+  }
+
+  function clearSelection() {
+    setSelectedIds(new Set());
+  }
+
+  function handleAssignComplete() {
+    clearSelection();
+    fetchData();
+  }
+
   const totalPages = Math.ceil(totalCount / LIMIT);
   const totalNeglected =
     tierCounts.critical + tierCounts.warning + tierCounts.watch;
 
   return (
-    <div className="animate-fade-up">
+    <div className="animate-fade-up pb-24">
       {/* ── Back link ──────────────────────────────────────────────── */}
       <Link
         href="/dashboard/organization"
@@ -213,6 +301,8 @@ export default function NeglectedClientsPage() {
           active={tier === "critical"}
           onClick={() => handleTierClick("critical")}
           loading={loading && totalNeglected === 0}
+          onSelectTier={() => selectTier("critical")}
+          tierSelected={isTierSelected("critical")}
         />
         <TierCard
           emoji="🟡"
@@ -222,6 +312,8 @@ export default function NeglectedClientsPage() {
           active={tier === "warning"}
           onClick={() => handleTierClick("warning")}
           loading={loading && totalNeglected === 0}
+          onSelectTier={() => selectTier("warning")}
+          tierSelected={isTierSelected("warning")}
         />
         <TierCard
           emoji="🟠"
@@ -231,6 +323,8 @@ export default function NeglectedClientsPage() {
           active={tier === "watch"}
           onClick={() => handleTierClick("watch")}
           loading={loading && totalNeglected === 0}
+          onSelectTier={() => selectTier("watch")}
+          tierSelected={isTierSelected("watch")}
         />
       </div>
 
@@ -301,6 +395,14 @@ export default function NeglectedClientsPage() {
           <table className="w-full text-left text-sm">
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50">
+                <th className="w-10 px-3 py-3">
+                  <input
+                    type="checkbox"
+                    checked={allOnPageSelected && clients.length > 0}
+                    onChange={toggleSelectAll}
+                    className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-brand-500"
+                  />
+                </th>
                 <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Name
                 </th>
@@ -333,6 +435,7 @@ export default function NeglectedClientsPage() {
                     key={`skel-${i}`}
                     className="border-b border-gray-50 last:border-0"
                   >
+                    <td className="px-3 py-3"><Skeleton className="h-4 w-4" /></td>
                     <td className="px-4 py-3">
                       <Skeleton className="h-5 w-36" />
                     </td>
@@ -360,7 +463,7 @@ export default function NeglectedClientsPage() {
               {/* Empty state */}
               {!loading && clients.length === 0 && (
                 <tr>
-                  <td colSpan={7} className="px-4 py-14 text-center">
+                  <td colSpan={8} className="px-4 py-14 text-center">
                     <p className="text-4xl">🎉</p>
                     <p className="font-display mt-3 text-lg font-bold text-gray-900">
                       {search || tier !== "all"
@@ -381,8 +484,18 @@ export default function NeglectedClientsPage() {
                 clients.map((client) => (
                   <tr
                     key={client.id}
-                    className="cursor-pointer border-b border-gray-50 transition-colors last:border-0 hover:bg-brand-50/50"
+                    className={`border-b border-gray-50 transition-colors last:border-0 ${
+                      selectedIds.has(client.id) ? "bg-brand-50" : "hover:bg-brand-50/50"
+                    }`}
                   >
+                    <td className="px-3 py-3" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        checked={selectedIds.has(client.id)}
+                        onChange={() => toggleOne(client.id)}
+                        className="h-4 w-4 cursor-pointer rounded border-gray-300 accent-brand-500"
+                      />
+                    </td>
                     <td className="px-4 py-3">
                       <Link
                         href={`/dashboard/clients/${client.id}`}
@@ -452,6 +565,41 @@ export default function NeglectedClientsPage() {
           </div>
         )}
       </div>
+
+      {/* ── Floating action bar ──────────────────────────────────────── */}
+      <div
+        className={`fixed bottom-6 left-1/2 z-50 -translate-x-1/2 transition-all duration-300 ease-out ${
+          selectedIds.size > 0
+            ? "translate-y-0 opacity-100"
+            : "pointer-events-none translate-y-4 opacity-0"
+        }`}
+      >
+        <div className="flex items-center gap-4 rounded-2xl border-2 border-gray-100 bg-white px-6 py-3 shadow-lg">
+          <span className="font-body text-sm font-bold text-gray-900">
+            {selectedIds.size.toLocaleString()} client{selectedIds.size !== 1 ? "s" : ""} selected
+          </span>
+          <button
+            onClick={() => setShowModal(true)}
+            className="font-display rounded-xl bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow transition-all hover:bg-brand-600 hover:shadow-md"
+          >
+            Assign Sequence
+          </button>
+          <button
+            onClick={clearSelection}
+            className="font-body text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
+          >
+            Clear Selection
+          </button>
+        </div>
+      </div>
+
+      {/* ── Bulk assign modal ────────────────────────────────────────── */}
+      <BulkAssignModal
+        isOpen={showModal}
+        onClose={() => setShowModal(false)}
+        selectedClients={selectedClients}
+        onAssignComplete={handleAssignComplete}
+      />
     </div>
   );
 }

@@ -156,13 +156,22 @@ export default function OrganizationPage() {
             Overview of your entire team and client base
           </p>
         </div>
-        <Link
-          href="/dashboard/org-import"
-          className="font-display inline-flex items-center gap-2 rounded-2xl bg-coral-400 px-6 py-3 text-base font-bold text-white shadow-lg transition-all hover:bg-coral-500 hover:shadow-xl"
-        >
-          <span className="text-lg">📥</span>
-          Import Data
-        </Link>
+        <div className="flex items-center gap-3">
+          <Link
+            href="/dashboard/organization/neglected"
+            className="font-display inline-flex items-center gap-2 rounded-2xl border-2 border-gray-200 bg-white px-5 py-3 text-base font-bold text-gray-700 shadow-sm transition-all hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
+          >
+            <span className="text-lg">👀</span>
+            Needs Attention
+          </Link>
+          <Link
+            href="/dashboard/org-import"
+            className="font-display inline-flex items-center gap-2 rounded-2xl bg-coral-400 px-6 py-3 text-base font-bold text-white shadow-lg transition-all hover:bg-coral-500 hover:shadow-xl"
+          >
+            <span className="text-lg">📥</span>
+            Import Data
+          </Link>
+        </div>
       </div>
 
       {/* ----------------------------------------------------------------- */}
@@ -211,21 +220,29 @@ export default function OrganizationPage() {
       {/* NEVER CONTACTED ALERT                                              */}
       {/* ----------------------------------------------------------------- */}
       {!statsLoading && stats?.never_contacted > 0 && (
-        <div className="mt-6 rounded-2xl border border-warm-200 bg-warm-50 px-6 py-5 sm:px-8 sm:py-6">
-          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
-            <span className="text-3xl">⚠️</span>
-            <div>
-              <p className="font-display text-lg font-bold text-gray-900">
-                {stats.never_contacted.toLocaleString()} people have never been
-                contacted
-              </p>
-              <p className="font-body mt-1 text-sm text-gray-600">
-                These people have no recorded contact date from their coach.
-                This is the biggest opportunity for outreach.
-              </p>
+        <Link
+          href="/dashboard/organization/neglected"
+          className="mt-6 block rounded-2xl border border-warm-200 bg-warm-50 px-6 py-5 transition-all hover:border-coral-300 hover:shadow-md sm:px-8 sm:py-6"
+        >
+          <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:items-center">
+              <span className="text-3xl">⚠️</span>
+              <div>
+                <p className="font-display text-lg font-bold text-gray-900">
+                  {stats.never_contacted.toLocaleString()} people have never
+                  been contacted
+                </p>
+                <p className="font-body mt-1 text-sm text-gray-600">
+                  These people have no recorded contact date from their coach.
+                  This is the biggest opportunity for outreach.
+                </p>
+              </div>
             </div>
+            <span className="font-display shrink-0 text-sm font-bold text-coral-500">
+              View All →
+            </span>
           </div>
-        </div>
+        </Link>
       )}
       {statsLoading && (
         <div className="mt-6 rounded-2xl border-2 border-gray-100 bg-white px-8 py-6">

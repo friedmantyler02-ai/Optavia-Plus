@@ -1,0 +1,11 @@
+OPTAVIAID,FirstName,LastName,CountryCode,Level,Email,="Phone",LastOrderDate,EntryDate,AccountStatus,PQV,Premier+Member,CurrentCoachName,CurrentCoachID,GlobalDirector,PresidentialDirector
+OPT10001,Sarah,Williams,US,Client,sarah.williams@gmail.com,(803) 555-1234,01/15/2025,06/10/2023,Active,125.50,Yes,Jane Smith,ABC123,Tom Bradley,Alison Friedman
+OPT10002,Michael,Chen,US,Client,michael.chen@yahoo.com,803-555-5678,12/20/2024,03/15/2023,Active,200,No,Jane Smith,ABC123,Tom Bradley,Alison Friedman
+OPT10003,Lisa,Patel,US,Client,lisa.patel@medifastinc.com,="18035559012",11/05/2024,09/22/2023,Active,75,Yes,Jane Smith,ABC123,Tom Bradley,Alison Friedman
+OPT10004,James,Rodriguez,US,Client,james.rod@outlook.com,1 803 555 3456,02/01/2025,01/08/2024,Active,310,Yes,Jane Smith,ABC123,Tom Bradley,Alison Friedman
+OPT10005,Amanda,Foster,US,Client,amanda.foster@gmail.com,(704) 555-7890,01/28/2025,04/12/2023,Active,180,No,Bob Jones,DEF456,Carol Nguyen,Alison Friedman
+OPT10006,David,Kim,US,Client,david.kim@hotmail.com,="7045552345",10/15/2024,07/30/2023,Active,95,Yes,Bob Jones,DEF456,Carol Nguyen,Alison Friedman
+OPT10007,Rachel,Thompson,US,Client,rachel.t@gmail.com,704.555.6789,09/22/2024,11/05/2023,Reverted,0,No,Bob Jones,DEF456,Carol Nguyen,Alison Friedman
+OPT10008,Kevin,Murphy,US,Client,kevin.murphy@gmail.com,(864) 555-0123,02/10/2025,02/14/2024,Active,450,Yes,Mary Lee,GHI789,Tom Bradley,Alison Friedman
+OPT10009,Nicole,Baker,US,Client,nicole.b@icloud.com,864-555-4567,01/05/2025,08/20/2023,Active,160,No,Mary Lee,GHI789,Tom Bradley,Alison Friedman
+OPT10010,Chris,Hernandez,CA,Client,chris.h@gmail.com,="8645558901",12/30/2024,05/01/2024,Active,220,Yes,Mary Lee,GHI789,Carol Nguyen,Alison Friedman

@@ -62,6 +62,7 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard/touchpoints", label: "Touchpoints", icon: "💬" },
     { href: "/dashboard/team", label: "My Team", icon: "🌳" },
     { href: "/dashboard/marketing", label: "Marketing", icon: "📣" },
+    { href: "/dashboard/email-settings", label: "Email Settings", icon: "✉️" },
   ];
 
   const isActive = (href) => {

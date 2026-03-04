@@ -35,6 +35,28 @@ function StatCard({ emoji, value, label, loading }) {
 }
 
 // ---------------------------------------------------------------------------
+// Relationship score badge
+// ---------------------------------------------------------------------------
+function ScoreBadge({ score }) {
+  let emoji, bg, text;
+  if (score >= 70) {
+    emoji = "🟢"; bg = "#065f46"; text = "#6ee7b7";
+  } else if (score >= 40) {
+    emoji = "🟡"; bg = "#92400e"; text = "#fde68a";
+  } else {
+    emoji = "🔴"; bg = "#991b1b"; text = "#fca5a5";
+  }
+  return (
+    <span
+      className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold"
+      style={{ backgroundColor: bg, color: text }}
+    >
+      {emoji} {score}
+    </span>
+  );
+}
+
+// ---------------------------------------------------------------------------
 // Sort arrow indicator
 // ---------------------------------------------------------------------------
 function SortArrow({ column, sortBy, sortDir }) {
@@ -342,6 +364,13 @@ export default function OrganizationPage() {
                   Reverted
                   <SortArrow column="reverted_count" sortBy={sortBy} sortDir={sortDir} />
                 </th>
+                <th
+                  onClick={() => handleSort("relationship_score")}
+                  className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700"
+                >
+                  Score
+                  <SortArrow column="relationship_score" sortBy={sortBy} sortDir={sortDir} />
+                </th>
               </tr>
             </thead>
             <tbody>
@@ -353,12 +382,13 @@ export default function OrganizationPage() {
                     <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
+                    <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-16" /></td>
                   </tr>
                 ))}
 
               {!coachesLoading && sortedCoaches.length === 0 && (
                 <tr>
-                  <td colSpan={5} className="font-body px-4 py-10 text-center text-gray-400">
+                  <td colSpan={6} className="font-body px-4 py-10 text-center text-gray-400">
                     {search
                       ? "No coaches found matching your search."
                       : "No coaches imported yet."}
@@ -391,6 +421,9 @@ export default function OrganizationPage() {
                     </td>
                     <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-coral-400">
                       {coach.reverted_count.toLocaleString()}
+                    </td>
+                    <td className="whitespace-nowrap px-4 py-3 text-right">
+                      <ScoreBadge score={coach.relationship_score} />
                     </td>
                   </tr>
                 ))}

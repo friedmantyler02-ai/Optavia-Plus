@@ -60,13 +60,44 @@ export async function GET(request) {
       });
     }
 
-    // Get all client stats grouped by coach_id in one query
+    // Date thresholds for relationship scoring
+    const now = new Date();
+    const sixMonthsAgo = new Date(now);
+    sixMonthsAgo.setMonth(sixMonthsAgo.getMonth() - 6);
+    const ninetyDaysAgo = new Date(now);
+    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    const sixMonthsAgoStr = sixMonthsAgo.toISOString().split("T")[0];
+    const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split("T")[0];
+
+    // Fetch client stats and email data in parallel
     const coachIds = allCoaches.map((c) => c.id);
-    const { data: clientRows } = await supabaseAdmin
-      .from("clients")
-      .select("coach_id, account_status, last_order_date")
-      .not("import_batch_id", "is", null)
-      .in("coach_id", coachIds);
+    const [{ data: clientRows }, { data: emailQueueRows }] = await Promise.all([
+      supabaseAdmin
+        .from("clients")
+        .select("coach_id, account_status, last_order_date, last_contact_date")
+        .not("import_batch_id", "is", null)
+        .in("coach_id", coachIds),
+      supabaseAdmin
+        .from("email_queue")
+        .select("coach_id, email_log(opened_at, bounced_at)")
+        .eq("status", "sent")
+        .in("coach_id", coachIds),
+    ]);
+
+    // Aggregate email stats per coach
+    const emailStatsMap = {};
+    if (emailQueueRows) {
+      for (const row of emailQueueRows) {
+        if (!emailStatsMap[row.coach_id]) {
+          emailStatsMap[row.coach_id] = { sent: 0, opened: 0, bounced: 0 };
+        }
+        const es = emailStatsMap[row.coach_id];
+        es.sent++;
+        const log = row.email_log?.[0];
+        if (log?.opened_at) es.opened++;
+        if (log?.bounced_at) es.bounced++;
+      }
+    }
 
     // Aggregate client stats per coach
     const statsMap = {};
@@ -78,6 +109,8 @@ export async function GET(request) {
             active_count: 0,
             reverted_count: 0,
             last_order_max: null,
+            neglected_count: 0,
+            recent_order_count: 0,
           };
         }
         const s = statsMap[row.coach_id];
@@ -90,7 +123,40 @@ export async function GET(request) {
         ) {
           s.last_order_max = row.last_order_date;
         }
+        // Neglect: no order AND no contact in 6+ months
+        const orderNeglected =
+          !row.last_order_date || row.last_order_date < sixMonthsAgoStr;
+        const contactNeglected =
+          !row.last_contact_date || row.last_contact_date < sixMonthsAgoStr;
+        if (orderNeglected && contactNeglected) s.neglected_count++;
+        // Recent order activity: within 90 days
+        if (row.last_order_date && row.last_order_date >= ninetyDaysAgoStr) {
+          s.recent_order_count++;
+        }
       }
+    }
+
+    // Relationship score (0–100)
+    // Weights: open rate 25, no-bounce 15, non-neglect 30, order activity 30
+    function calcRelationshipScore(cs, es) {
+      const c = cs || { client_count: 0, neglected_count: 0, recent_order_count: 0 };
+      const e = es || { sent: 0, opened: 0, bounced: 0 };
+      const openRate = e.sent > 0 ? e.opened / e.sent : 0;
+      const bounceRate = e.sent > 0 ? e.bounced / e.sent : 0;
+      const neglectRatio = c.client_count > 0 ? c.neglected_count / c.client_count : 1;
+      const orderActivity = c.client_count > 0 ? c.recent_order_count / c.client_count : 0;
+      return Math.max(
+        0,
+        Math.min(
+          100,
+          Math.round(
+            openRate * 25 +
+            (1 - bounceRate) * 15 +
+            (1 - neglectRatio) * 30 +
+            orderActivity * 30
+          )
+        )
+      );
     }
 
     // Merge coach info with stats, sort by client_count desc, then paginate
@@ -103,6 +169,10 @@ export async function GET(request) {
         active_count: statsMap[c.id]?.active_count ?? 0,
         reverted_count: statsMap[c.id]?.reverted_count ?? 0,
         last_order_max: statsMap[c.id]?.last_order_max ?? null,
+        relationship_score: calcRelationshipScore(
+          statsMap[c.id],
+          emailStatsMap[c.id]
+        ),
       }))
       .sort((a, b) => b.client_count - a.client_count);
 

@@ -56,6 +56,9 @@ export default function OrganizationPage() {
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
 
+  // Escalation alert
+  const [escalationCount, setEscalationCount] = useState(0);
+
   // Coaches table state
   const [coaches, setCoaches] = useState([]);
   const [coachesLoading, setCoachesLoading] = useState(true);
@@ -84,6 +87,11 @@ export default function OrganizationPage() {
       }
     }
     fetchStats();
+    // Fetch escalation count
+    fetch("/api/org/escalations?status=open&limit=1")
+      .then((r) => r.ok ? r.json() : null)
+      .then((d) => { if (d) setEscalationCount(d.total || 0); })
+      .catch(() => {});
   }, []);
 
   // Fetch coaches (paginated + searchable)
@@ -173,6 +181,28 @@ export default function OrganizationPage() {
           </Link>
         </div>
       </div>
+
+      {/* ----------------------------------------------------------------- */}
+      {/* ESCALATION ALERT                                                   */}
+      {/* ----------------------------------------------------------------- */}
+      {escalationCount > 0 && (
+        <Link
+          href="/dashboard/organization/escalations"
+          className="mb-6 block rounded-2xl border-2 border-coral-200 bg-coral-50 px-6 py-5 transition-all hover:border-coral-400 hover:shadow-md"
+        >
+          <div className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <span className="text-2xl">⚠️</span>
+              <p className="font-display text-base font-bold text-coral-700">
+                {escalationCount} client{escalationCount !== 1 ? "s" : ""} need{escalationCount === 1 ? "s" : ""} attention — automated outreach isn't working.
+              </p>
+            </div>
+            <span className="font-display shrink-0 text-sm font-bold text-coral-500">
+              View Escalations →
+            </span>
+          </div>
+        </Link>
+      )}
 
       {/* ----------------------------------------------------------------- */}
       {/* STAT CARDS                                                         */}

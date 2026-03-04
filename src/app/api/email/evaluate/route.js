@@ -2,6 +2,11 @@ import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
 
+const supabaseAdmin = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
+
 const CLIENT_BATCH_SIZE = 1000;
 
 // ---------------------------------------------------------------------------
@@ -110,13 +115,8 @@ function isValidEmail(email) {
 // Core evaluation logic
 // ---------------------------------------------------------------------------
 async function evaluateTriggers() {
-  const supabase = createClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL,
-    process.env.SUPABASE_SERVICE_ROLE_KEY
-  );
-
   // Step 1: Load all triggers
-  const { data: triggers, error: tErr } = await supabase
+  const { data: triggers, error: tErr } = await supabaseAdmin
     .from("email_triggers")
     .select("*");
   if (tErr) {
@@ -130,7 +130,7 @@ async function evaluateTriggers() {
   console.log(`[email/evaluate] Loaded ${triggers.length} triggers`);
 
   // Step 2: Load all coach trigger settings → coachSettings[coach_id][trigger_id]
-  const { data: settingsRows, error: sErr } = await supabase
+  const { data: settingsRows, error: sErr } = await supabaseAdmin
     .from("coach_trigger_settings")
     .select("*");
   if (sErr) {
@@ -144,7 +144,7 @@ async function evaluateTriggers() {
   }
 
   // Step 3: Load all email templates
-  const { data: templateRows, error: tmErr } = await supabase
+  const { data: templateRows, error: tmErr } = await supabaseAdmin
     .from("email_templates")
     .select("*");
   if (tmErr) {
@@ -156,7 +156,7 @@ async function evaluateTriggers() {
   // Step 4: Load dedup set (existing pending/sent queue entries from last 30 days)
   const thirtyDaysAgo = new Date();
   thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-  const { data: existingQueue, error: qErr } = await supabase
+  const { data: existingQueue, error: qErr } = await supabaseAdmin
     .from("email_queue")
     .select("client_id, trigger_id")
     .in("status", ["pending", "sent"])
@@ -182,7 +182,7 @@ async function evaluateTriggers() {
     const from = batchNum * CLIENT_BATCH_SIZE;
     const to = from + CLIENT_BATCH_SIZE - 1;
 
-    const { data: clients, error: cErr } = await supabase
+    const { data: clients, error: cErr } = await supabaseAdmin
       .from("clients")
       .select("id, coach_id, full_name, email, last_order_date, last_contact_date, account_status, created_at")
       .order("id", { ascending: true })
@@ -264,7 +264,7 @@ async function evaluateTriggers() {
 
     // Batch insert queued emails
     if (toInsert.length > 0) {
-      const { error: insertErr } = await supabase
+      const { error: insertErr } = await supabaseAdmin
         .from("email_queue")
         .insert(toInsert);
 

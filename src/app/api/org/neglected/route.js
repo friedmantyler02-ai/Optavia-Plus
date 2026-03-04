@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,16 +9,11 @@ const supabaseAdmin = createClient(
 
 export async function GET(request) {
   try {
-    // Verify the requesting user is authenticated
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getSubtreeCoachIds();
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
+    const { coachIds } = result;
 
     const { searchParams } = new URL(request.url);
     const page = Math.max(1, parseInt(searchParams.get("page") ?? "1", 10));
@@ -46,7 +41,8 @@ export async function GET(request) {
     function applyShared(query) {
       let q = query
         .not("import_batch_id", "is", null)
-        .is("last_contact_date", null);
+        .is("last_contact_date", null)
+        .in("coach_id", coachIds);
       if (search) q = q.ilike("full_name", `%${search}%`);
       if (coachId) q = q.eq("coach_id", coachId);
       return q;
@@ -78,7 +74,8 @@ export async function GET(request) {
     // ── Fetch coaches for name lookup ──────────────────────────────
     const { data: allCoaches } = await supabaseAdmin
       .from("coaches")
-      .select("id, full_name");
+      .select("id, full_name")
+      .in("id", coachIds);
 
     const coachMap = {};
     if (allCoaches) {

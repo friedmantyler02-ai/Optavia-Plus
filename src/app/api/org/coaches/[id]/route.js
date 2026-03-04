@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,16 +9,11 @@ const supabaseAdmin = createClient(
 
 export async function GET(request, { params }) {
   try {
-    // Verify the requesting user is authenticated
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getSubtreeCoachIds();
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
+    const { coachIds } = result;
 
     const { id } = await params;
 
@@ -45,6 +40,10 @@ export async function GET(request, { params }) {
         { error: "Coach not found" },
         { status: 404 }
       );
+    }
+
+    if (!coachIds.includes(coach.id)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     // ── Fetch stats in parallel ───────────────────────────────────────

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -27,7 +27,7 @@ function isCronAuthorized(request) {
 // ---------------------------------------------------------------------------
 // Core logic
 // ---------------------------------------------------------------------------
-async function evaluateEscalations() {
+async function evaluateEscalations(coachIds = null) {
   let resolved = 0;
   let escalated = 0;
   let evaluated = 0;
@@ -37,10 +37,12 @@ async function evaluateEscalations() {
   // Pass 1: Auto-resolve open escalations
   // ========================================================================
   try {
-    const { data: openEscalations, error: escErr } = await supabaseAdmin
+    let escQuery = supabaseAdmin
       .from("escalations")
       .select("id, client_id, created_at, clients(last_order_date, last_contact_date)")
       .eq("status", "open");
+    if (coachIds) escQuery = escQuery.in("from_coach_id", coachIds);
+    const { data: openEscalations, error: escErr } = await escQuery;
 
     if (escErr) {
       console.error("[escalations/evaluate] Failed to load open escalations:", escErr);
@@ -90,10 +92,12 @@ async function evaluateEscalations() {
   // ========================================================================
   try {
     // Pre-load: clients with 2+ sent emails
-    const { data: sentCounts, error: scErr } = await supabaseAdmin
+    let sentQuery = supabaseAdmin
       .from("email_queue")
       .select("client_id")
       .eq("status", "sent");
+    if (coachIds) sentQuery = sentQuery.in("coach_id", coachIds);
+    const { data: sentCounts, error: scErr } = await sentQuery;
 
     if (scErr) {
       console.error("[escalations/evaluate] Failed to load sent counts:", scErr);
@@ -147,10 +151,12 @@ async function evaluateEscalations() {
       const batchIds = candidateClientIds.slice(i, i + CLIENT_BATCH_SIZE);
       const batchNum = Math.floor(i / CLIENT_BATCH_SIZE) + 1;
 
-      const { data: clients, error: cErr } = await supabaseAdmin
+      let clientQuery = supabaseAdmin
         .from("clients")
         .select("id, coach_id, last_order_date, coaches(upline_id)")
         .in("id", batchIds);
+      if (coachIds) clientQuery = clientQuery.in("coach_id", coachIds);
+      const { data: clients, error: cErr } = await clientQuery;
 
       if (cErr) {
         console.error(`[escalations/evaluate] Failed to load clients batch ${batchNum}:`, cErr);
@@ -208,14 +214,15 @@ async function evaluateEscalations() {
 }
 
 // ---------------------------------------------------------------------------
-// GET /api/org/escalations/evaluate  (Vercel Cron)
+// GET /api/org/escalations/evaluate  (manual trigger — scoped to subtree)
 // ---------------------------------------------------------------------------
-export async function GET(request) {
+export async function GET() {
   try {
-    if (!isCronAuthorized(request)) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getSubtreeCoachIds();
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
-    return await evaluateEscalations();
+    return await evaluateEscalations(result.coachIds);
   } catch (err) {
     console.error("[escalations/evaluate] Unexpected error:", err);
     return NextResponse.json({ error: "Internal server error" }, { status: 500 });
@@ -223,24 +230,13 @@ export async function GET(request) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/org/escalations/evaluate
+// POST /api/org/escalations/evaluate  (Vercel Cron — org-wide)
 // ---------------------------------------------------------------------------
 export async function POST(request) {
   try {
-    let authorized = isCronAuthorized(request);
-
-    if (!authorized) {
-      const supabase = await createServerClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (!authError && user) {
-        authorized = true;
-      }
-    }
-
-    if (!authorized) {
+    if (!isCronAuthorized(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
-
     return await evaluateEscalations();
   } catch (err) {
     console.error("[escalations/evaluate] Unexpected error:", err);

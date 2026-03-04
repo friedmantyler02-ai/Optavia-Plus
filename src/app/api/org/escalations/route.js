@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -11,6 +12,12 @@ const supabaseAdmin = createClient(
 // ---------------------------------------------------------------------------
 export async function GET(request) {
   try {
+    const result = await getSubtreeCoachIds();
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
+    }
+    const { coachIds } = result;
+
     const { searchParams } = new URL(request.url);
     const status = searchParams.get("status") || "open";
     const page = Math.max(1, parseInt(searchParams.get("page")) || 1);
@@ -30,6 +37,7 @@ export async function GET(request) {
         { count: "exact" }
       )
       .eq("status", status)
+      .in("from_coach_id", coachIds)
       .order("created_at", { ascending: false })
       .range(from, to);
 
@@ -64,10 +72,31 @@ export async function GET(request) {
 // ---------------------------------------------------------------------------
 export async function POST(request) {
   try {
+    const authResult = await getSubtreeCoachIds();
+    if (authResult.error) {
+      return NextResponse.json({ error: authResult.error }, { status: authResult.status });
+    }
+    const { coachIds } = authResult;
+
     const { id } = await request.json();
 
     if (!id) {
       return NextResponse.json({ error: "Missing escalation id" }, { status: 400 });
+    }
+
+    // Verify the escalation belongs to this coach's subtree
+    const { data: escalation, error: fetchError } = await supabaseAdmin
+      .from("escalations")
+      .select("id, from_coach_id")
+      .eq("id", id)
+      .single();
+
+    if (fetchError || !escalation) {
+      return NextResponse.json({ error: "Escalation not found" }, { status: 404 });
+    }
+
+    if (!coachIds.includes(escalation.from_coach_id)) {
+      return NextResponse.json({ error: "Forbidden" }, { status: 403 });
     }
 
     const { data, error } = await supabaseAdmin

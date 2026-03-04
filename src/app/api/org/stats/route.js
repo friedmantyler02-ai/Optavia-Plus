@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -9,16 +9,11 @@ const supabaseAdmin = createClient(
 
 export async function GET() {
   try {
-    // Verify the requesting user is authenticated
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getSubtreeCoachIds();
+    if (result.error) {
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
+    const { coachIds } = result;
 
     // Fetch all counts in parallel using the admin client (bypasses RLS)
     const [
@@ -33,45 +28,53 @@ export async function GET() {
       supabaseAdmin
         .from("clients")
         .select("*", { count: "exact", head: true })
-        .not("import_batch_id", "is", null),
+        .not("import_batch_id", "is", null)
+        .in("coach_id", coachIds),
       supabaseAdmin
         .from("coaches")
         .select("*", { count: "exact", head: true })
-        .eq("is_stub", true),
+        .eq("is_stub", true)
+        .in("id", coachIds),
       supabaseAdmin
         .from("clients")
         .select("*", { count: "exact", head: true })
         .not("import_batch_id", "is", null)
-        .eq("account_status", "Active"),
+        .eq("account_status", "Active")
+        .in("coach_id", coachIds),
       supabaseAdmin
         .from("clients")
         .select("*", { count: "exact", head: true })
         .not("import_batch_id", "is", null)
-        .eq("account_status", "Reverted"),
+        .eq("account_status", "Reverted")
+        .in("coach_id", coachIds),
       supabaseAdmin
         .from("clients")
         .select("*", { count: "exact", head: true })
         .not("import_batch_id", "is", null)
         .not("email", "is", null)
-        .not("email", "like", "%@medifastinc.com"),
+        .not("email", "like", "%@medifastinc.com")
+        .in("coach_id", coachIds),
       supabaseAdmin
         .from("clients")
         .select("*", { count: "exact", head: true })
         .not("import_batch_id", "is", null)
         .not("phone", "is", null)
-        .neq("phone", ""),
+        .neq("phone", "")
+        .in("coach_id", coachIds),
       supabaseAdmin
         .from("clients")
         .select("*", { count: "exact", head: true })
         .not("import_batch_id", "is", null)
-        .is("last_contact_date", null),
+        .is("last_contact_date", null)
+        .in("coach_id", coachIds),
     ]);
 
     // Top 20 coaches by client count
     const { data: coachRows } = await supabaseAdmin
       .from("coaches")
       .select("id, full_name, optavia_id")
-      .eq("is_stub", true);
+      .eq("is_stub", true)
+      .in("id", coachIds);
 
     let topCoaches = [];
     if (coachRows) {
@@ -79,7 +82,8 @@ export async function GET() {
         .from("clients")
         .select("coach_id, account_status")
         .not("import_batch_id", "is", null)
-        .not("coach_id", "is", null);
+        .not("coach_id", "is", null)
+        .in("coach_id", coachIds);
 
       if (clientRows) {
         const coachMap = {};

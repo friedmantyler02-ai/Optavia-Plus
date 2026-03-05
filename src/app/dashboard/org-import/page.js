@@ -4,13 +4,6 @@ import { useState, useRef, useCallback, useMemo, useEffect } from "react";
 import { useCoach } from "../layout";
 import Papa from "papaparse";
 import { normalizeOrgCsvPhone } from "@/lib/phone";
-import {
-  extractUniqueCoaches,
-  upsertCoachStubs,
-  buildClientRecord,
-  batchUpsertClients,
-  linkClientsToCoaches,
-} from "@/lib/import-engine";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -61,7 +54,7 @@ function cleanRow(raw) {
 // ---------------------------------------------------------------------------
 
 export default function OrgImportPage() {
-  const { supabase } = useCoach();
+  useCoach(); // ensures user is authenticated before rendering
   const fileInputRef = useRef(null);
 
   // --- Upload / parse state ---
@@ -188,95 +181,54 @@ export default function OrgImportPage() {
 
   // --- Start import ---
   const startImport = useCallback(async () => {
-    console.log("START IMPORT CLICKED", { rawRowsLength: rawRows.length, hasFile: !!file });
     if (rawRows.length === 0 || !file) return;
 
     setPhase("processing");
     setImportError(null);
     setPartialProgress(null);
     setSteps([
-      { status: "pending", label: "Creating coach records..." },
+      { status: "active", label: "Creating coach records..." },
       { status: "pending", label: "Importing client records..." },
       { status: "pending", label: "Linking clients to coaches..." },
     ]);
-
-    let coachResult = null;
-    let clientResult = null;
-    let totalClientRecords = 0;
-    let linked = 0;
-    let batchId = null;
+    setClientProgress({ completed: 0, total: rawRows.length });
 
     try {
-      // --- Get authenticated user (once, reused below) ---
-      const { data: { user: authUser }, error: userError } = await supabase.auth.getUser();
-      if (userError || !authUser) {
-        throw new Error("Your session has expired. Please refresh the page and sign in again.");
+      const res = await fetch("/api/org/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ rows: rawRows, filename: file.name }),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "Import failed. Please try again.");
       }
 
-      // --- Create import_batches record ---
-      const { data: batchData, error: batchError } = await supabase
-        .from("import_batches")
-        .insert({ filename: file.name, total_records: rawRows.length, coach_id: authUser.id })
-        .select("id")
-        .single();
-
-      if (batchError || !batchData) {
-        throw new Error(
-          "Could not start the import. Please check your connection and try again.",
-        );
-      }
-
-      batchId = batchData.id;
-
-      // --- Step 1: Coaches ---
-      updateStep(0, { status: "active" });
-
-      const coaches = extractUniqueCoaches(rawRows);
-      coachResult = await upsertCoachStubs(supabase, coaches);
-
+      // All three steps completed on the server — update UI to reflect final state
       updateStep(0, {
         status: "done",
-        result: `Created ${coachResult.created} coaches (${coachResult.existing} already existed)`,
+        result: `Created ${data.coachesCreated} coaches (${data.coachesExisting} already existed)`,
       });
-
-      // --- Step 2: Clients ---
-      updateStep(1, { status: "active" });
-
-      const clientRecords = rawRows
-        .map((row) => buildClientRecord(row, batchId))
-        .filter((r) => r !== null);
-
-      totalClientRecords = clientRecords.length;
-      setClientProgress({ completed: 0, total: totalClientRecords });
-
-      clientResult = await batchUpsertClients(supabase, clientRecords, (progress) => {
-        setClientProgress({ completed: progress.completed, total: progress.total });
-      });
-
       updateStep(1, {
-        status: clientResult.errors > 0 ? "error" : "done",
-        result: `${clientResult.inserted.toLocaleString()} records processed${clientResult.errors > 0 ? ` (${clientResult.errors} errors)` : ""}`,
+        status: data.clientErrors > 0 ? "error" : "done",
+        result: `${data.clientsProcessed.toLocaleString()} records processed${data.clientErrors > 0 ? ` (${data.clientErrors} errors)` : ""}`,
       });
-
-      // --- Step 3: Link ---
-      updateStep(2, { status: "active" });
-
-      linked = await linkClientsToCoaches(supabase, batchId);
-
+      setClientProgress({ completed: data.totalRecords, total: data.totalRecords });
       updateStep(2, {
         status: "done",
-        result: `Linked ${linked.toLocaleString()} records`,
+        result: `Linked ${data.recordsLinked.toLocaleString()} records`,
       });
 
-      // --- Store results ---
       setImportResults({
-        totalRecords: totalClientRecords,
-        coachesCreated: coachResult.created,
-        coachesExisting: coachResult.existing,
-        clientsProcessed: clientResult.inserted + clientResult.updated,
-        clientErrors: clientResult.errors,
-        recordsLinked: linked,
-        errorDetails: clientResult.errorDetails,
+        totalRecords: data.totalRecords,
+        coachesCreated: data.coachesCreated,
+        coachesExisting: data.coachesExisting,
+        clientsProcessed: data.clientsProcessed,
+        clientErrors: data.clientErrors,
+        recordsLinked: data.recordsLinked,
+        errorDetails: data.errorDetails || [],
       });
 
       setPhase("complete");
@@ -286,40 +238,15 @@ export default function OrgImportPage() {
 
       if (rawMsg.includes("Failed to fetch") || rawMsg.includes("NetworkError")) {
         userMessage = "Lost connection to the server. Please check your internet and try again.";
-      } else if (rawMsg.includes("JWT") || rawMsg.includes("auth")) {
+      } else if (rawMsg.includes("JWT") || rawMsg.includes("auth") || rawMsg.includes("Unauthorized")) {
         userMessage = "Your session has expired. Please refresh the page and sign in again.";
       } else {
         userMessage = rawMsg;
       }
 
-      const parts = [];
-      if (coachResult) {
-        parts.push(`${coachResult.created} coaches created`);
-      }
-      if (clientResult) {
-        parts.push(`${clientResult.inserted.toLocaleString()} client records saved`);
-      }
-      if (parts.length > 0) {
-        setPartialProgress(
-          `Before the error, ${parts.join(" and ")} were successfully processed. These changes have been saved.`,
-        );
-      }
-
       setImportError(userMessage);
-    } finally {
-      if (batchId) {
-        const orphanedCount = totalClientRecords - linked;
-        await supabase
-          .from("import_batches")
-          .update({
-            new_records: clientResult?.inserted ?? 0,
-            duplicates_skipped: clientResult?.updated ?? 0,
-            orphaned_count: orphanedCount > 0 ? orphanedCount : 0,
-          })
-          .eq("id", batchId);
-      }
     }
-  }, [supabase, rawRows, file]);
+  }, [rawRows, file]);
 
   // --- Reset to initial state ---
   const resetPage = useCallback(() => {

@@ -66,7 +66,6 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard/analytics", label: "Analytics", icon: "📊" },
     { href: "/dashboard/knowledge", label: "Knowledge", icon: "📚" },
     { href: "/dashboard/touchpoints", label: "Touchpoints", icon: "💬" },
-    { href: "/dashboard/team", label: "My Team", icon: "🌳" },
     { href: "/dashboard/marketing", label: "Marketing", icon: "📣" },
     { href: "/dashboard/email-settings", label: "Email Settings", icon: "✉️" },
   ];
@@ -100,7 +99,7 @@ export default function DashboardLayout({ children }) {
           </div>
 
           {/* Nav links — desktop */}
-          <div className="hidden md:flex gap-1">
+          <div className="hidden md:flex gap-1 overflow-x-auto flex-nowrap whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
             {navItems.map((item) => (
               <button
                 key={item.href}

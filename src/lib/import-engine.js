@@ -114,39 +114,87 @@ export async function upsertCoachStubs(supabase, coaches) {
   let created = 0;
   let existing = 0;
 
-  for (const coach of coaches) {
-    // Check if this coach already has a record (real account or prior stub)
-    const { data: existingCoach } = await supabase
-      .from("coaches")
-      .select("id")
-      .eq("optavia_id", coach.optavia_id)
-      .maybeSingle();
+  // Build batches of 500
+  const batches = [];
+  for (let i = 0; i < coaches.length; i += BATCH_SIZE) {
+    batches.push(coaches.slice(i, i + BATCH_SIZE));
+  }
 
-    if (existingCoach) {
-      existing++;
-      // Update the display name only — never touch is_stub, user_id, or any
-      // other field that belongs to a real coach account.
-      await supabase
-        .from("coaches")
-        .update({ full_name: coach.full_name })
-        .eq("optavia_id", coach.optavia_id);
-    } else {
-      // Brand-new coach we haven't seen before — create a stub
-      const { error } = await supabase
-        .from("coaches")
-        .insert({
-          optavia_id: coach.optavia_id,
-          full_name: coach.full_name,
-          is_stub: true,
-        });
+  // Process batches in parallel groups of CONCURRENCY
+  for (let g = 0; g < batches.length; g += CONCURRENCY) {
+    const group = batches.slice(g, g + CONCURRENCY);
 
-      if (error) {
-        // Race condition: another request inserted between our check and insert.
-        // Treat as existing — their record is already there.
-        existing++;
-      } else {
-        created++;
-      }
+    const results = await Promise.all(
+      group.map(async (batch) => {
+        let batchCreated = 0;
+        let batchExisting = 0;
+
+        // Single query to find which coaches already exist
+        const ids = batch.map((c) => c.optavia_id);
+        const { data: existingCoaches } = await supabase
+          .from("coaches")
+          .select("optavia_id")
+          .in("optavia_id", ids);
+
+        const existingIds = new Set(
+          (existingCoaches ?? []).map((c) => c.optavia_id)
+        );
+
+        const toInsert = [];
+        const toUpdate = [];
+
+        for (const coach of batch) {
+          if (existingIds.has(coach.optavia_id)) {
+            batchExisting++;
+            toUpdate.push(coach);
+          } else {
+            toInsert.push({
+              optavia_id: coach.optavia_id,
+              full_name: coach.full_name,
+              is_stub: true,
+            });
+          }
+        }
+
+        // Update existing coaches' display names in parallel
+        // Never touch is_stub, user_id, or any field belonging to a real coach.
+        await Promise.all(
+          toUpdate.map((coach) =>
+            supabase
+              .from("coaches")
+              .update({ full_name: coach.full_name })
+              .eq("optavia_id", coach.optavia_id)
+          )
+        );
+
+        // Batch insert new stubs
+        if (toInsert.length > 0) {
+          const { error } = await supabase.from("coaches").insert(toInsert);
+          if (error) {
+            // Race condition — some coaches were inserted between our check and
+            // insert. Fall back to individual inserts for accurate counting.
+            for (const stub of toInsert) {
+              const { error: err } = await supabase
+                .from("coaches")
+                .insert(stub);
+              if (err) {
+                batchExisting++;
+              } else {
+                batchCreated++;
+              }
+            }
+          } else {
+            batchCreated += toInsert.length;
+          }
+        }
+
+        return { created: batchCreated, existing: batchExisting };
+      })
+    );
+
+    for (const r of results) {
+      created += r.created;
+      existing += r.existing;
     }
   }
 
@@ -227,6 +275,7 @@ export function buildClientRecord(rawRow, batchId) {
 // ---------------------------------------------------------------------------
 
 const BATCH_SIZE = 500;
+const CONCURRENCY = 5;
 
 /** Columns that an org import may update on conflict. */
 const ORG_SOURCED_COLUMNS = [
@@ -269,49 +318,71 @@ export async function batchUpsertClients(supabase, records, onProgress) {
   const errorDetails = [];
   let completed = 0;
 
+  // Build all batches up front
+  const batches = [];
   for (let i = 0; i < records.length; i += BATCH_SIZE) {
-    const batchIndex = Math.floor(i / BATCH_SIZE);
-    const chunk = records.slice(i, i + BATCH_SIZE);
+    batches.push({ start: i, chunk: records.slice(i, i + BATCH_SIZE) });
+  }
 
-    let result = await supabase
-      .from("clients")
-      .upsert(chunk, {
-        onConflict: "optavia_id",
-        ignoreDuplicates: false,
+  // Process batches in parallel groups of CONCURRENCY (5 × 500 = 2,500 rows in flight)
+  for (let g = 0; g < batches.length; g += CONCURRENCY) {
+    const group = batches.slice(g, g + CONCURRENCY);
+
+    const results = await Promise.all(
+      group.map(async ({ start, chunk }) => {
+        const batchIndex = Math.floor(start / BATCH_SIZE);
+
+        let result = await supabase
+          .from("clients")
+          .upsert(chunk, {
+            onConflict: "optavia_id",
+            ignoreDuplicates: false,
+          })
+          .select("optavia_id");
+
+        // Retry once after 1 second if the batch failed
+        if (result.error) {
+          await new Promise((resolve) => setTimeout(resolve, 1000));
+          result = await supabase
+            .from("clients")
+            .upsert(chunk, {
+              onConflict: "optavia_id",
+              ignoreDuplicates: false,
+            })
+            .select("optavia_id");
+        }
+
+        if (result.error) {
+          return {
+            ok: false,
+            errorCount: chunk.length,
+            detail: {
+              batch: batchIndex,
+              message: result.error.message,
+              code: result.error.code,
+              rowRange: `rows ${start + 1}–${Math.min(start + BATCH_SIZE, records.length)}`,
+            },
+          };
+        } else {
+          const succeeded = result.data ? result.data.length : chunk.length;
+          return { ok: true, succeeded, rowCount: chunk.length };
+        }
       })
-      .select("optavia_id");
+    );
 
-    // Retry once after 1 second if the batch failed
-    if (result.error) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-      result = await supabase
-        .from("clients")
-        .upsert(chunk, {
-          onConflict: "optavia_id",
-          ignoreDuplicates: false,
-        })
-        .select("optavia_id");
+    // Aggregate results from this parallel group
+    for (const r of results) {
+      if (r.ok) {
+        inserted += r.succeeded;
+        completed += r.rowCount;
+      } else {
+        errors += r.errorCount;
+        errorDetails.push(r.detail);
+        completed += r.errorCount;
+      }
     }
 
-    if (result.error) {
-      // Both attempts failed — log and continue with next batch
-      errors += chunk.length;
-      errorDetails.push({
-        batch: batchIndex,
-        message: result.error.message,
-        code: result.error.code,
-        rowRange: `rows ${i + 1}–${Math.min(i + BATCH_SIZE, records.length)}`,
-      });
-    } else {
-      // Supabase upsert doesn't distinguish inserted vs updated in response,
-      // so we count the returned rows as successful and tally the total.
-      const succeeded = result.data ? result.data.length : chunk.length;
-      // We can't distinguish inserts from updates without a prior existence check,
-      // so we count all successes. The caller can compare with pre-import counts.
-      inserted += succeeded;
-    }
-
-    completed += chunk.length;
+    // Update progress after each parallel group completes
     if (onProgress) {
       onProgress({ completed, total: records.length, errors });
     }

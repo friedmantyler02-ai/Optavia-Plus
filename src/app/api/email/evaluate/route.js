@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
+import { progressToNextRank } from "@/lib/rank-config";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -280,6 +281,85 @@ async function evaluateTriggers() {
       hasMore = false;
     }
     batchNum++;
+  }
+
+  // -------------------------------------------------------------------
+  // Rank progress nudge (coach-level, last 3 days of month only)
+  // -------------------------------------------------------------------
+  const today = new Date();
+  const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
+  const isEndOfMonth = today.getDate() > lastDay - 3;
+
+  if (isEndOfMonth) {
+    const rankTrigger = (triggers || []).find((t) => t.trigger_type === "rank_progress");
+    if (rankTrigger) {
+      console.log("[email/evaluate] Running end-of-month rank progress evaluation");
+
+      // Get all unique coach_ids from the system
+      const { data: allCoaches } = await supabaseAdmin
+        .from("coaches")
+        .select("id, email")
+        .not("email", "is", null);
+
+      // Dedup: check which coaches already got a rank_progress email this month
+      const monthStart = new Date(today.getFullYear(), today.getMonth(), 1);
+      const { data: existingRankEmails } = await supabaseAdmin
+        .from("email_queue")
+        .select("coach_id")
+        .eq("trigger_id", rankTrigger.id)
+        .gte("created_at", monthStart.toISOString());
+      const sentCoaches = new Set((existingRankEmails || []).map((e) => e.coach_id));
+
+      const rankInserts = [];
+
+      for (const coach of allCoaches || []) {
+        if (sentCoaches.has(coach.id)) continue;
+
+        // Check if trigger is enabled for this coach
+        const coachSetting = coachSettings[coach.id]?.[rankTrigger.id];
+        const isEnabled = coachSetting ? coachSetting.enabled : rankTrigger.default_enabled;
+        if (!isEnabled) continue;
+
+        // Compute rank stats
+        const { data: pqvRows } = await supabaseAdmin
+          .from("clients")
+          .select("pqv")
+          .eq("coach_id", coach.id)
+          .not("pqv", "is", null);
+        const gqv = (pqvRows || []).reduce((s, r) => s + (Number(r.pqv) || 0), 0);
+
+        const { count: orderingEntities } = await supabaseAdmin
+          .from("clients")
+          .select("*", { count: "exact", head: true })
+          .eq("coach_id", coach.id)
+          .gte("last_order_date", monthStart.toISOString());
+
+        const progress = progressToNextRank({ gqv, orderingEntities: orderingEntities || 0 });
+        if (progress.percent >= 60 && progress.gqvNeeded > 0 && progress.next) {
+          const template = getTemplate(rankTrigger.id, coach.id);
+          if (template) {
+            rankInserts.push({
+              coach_id: coach.id,
+              client_id: null,
+              trigger_id: rankTrigger.id,
+              template_id: template.id,
+              status: "pending",
+              scheduled_for: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      if (rankInserts.length > 0) {
+        const { error: riErr } = await supabaseAdmin.from("email_queue").insert(rankInserts);
+        if (riErr) {
+          console.error("[email/evaluate] Failed to insert rank progress emails:", riErr);
+        } else {
+          totalQueued += rankInserts.length;
+          console.log(`[email/evaluate] Queued ${rankInserts.length} rank progress nudge emails`);
+        }
+      }
+    }
   }
 
   console.log(`[email/evaluate] Done. Evaluated ${totalEvaluated} clients, queued ${totalQueued} emails`);

@@ -8,6 +8,7 @@ import ErrorBanner from "../../../components/ErrorBanner";
 import EmptyState from "../../../components/EmptyState";
 import PageHeader from "../../../components/PageHeader";
 import BulkAssignModal from "../../../components/BulkAssignModal";
+import RankProgressCard from "../../../components/RankProgressCard";
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -282,6 +283,11 @@ export default function CoachDetailPage() {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Rank progress ─────────────────────────────────────────── */}
+      <div className="mb-8">
+        <RankProgressCard coachId={params.id} />
       </div>
 
       {/* ── Stat cards ─────────────────────────────────────────────── */}

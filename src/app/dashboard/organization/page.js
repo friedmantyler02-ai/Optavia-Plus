@@ -83,6 +83,10 @@ export default function OrganizationPage() {
   // Escalation alert
   const [escalationCount, setEscalationCount] = useState(0);
 
+  // Downline rank digest
+  const [closeCoaches, setCloseCoaches] = useState([]);
+  const [closeCoachesLoading, setCloseCoachesLoading] = useState(true);
+
   // Coaches table state
   const [coaches, setCoaches] = useState([]);
   const [coachesLoading, setCoachesLoading] = useState(true);
@@ -117,6 +121,12 @@ export default function OrganizationPage() {
       .then((r) => r.ok ? r.json() : null)
       .then((d) => { if (d) setEscalationCount(d.total || 0); })
       .catch(() => {});
+    // Fetch downline rank stats
+    fetch("/api/org/rank-stats?view=downline")
+      .then((r) => r.ok ? r.json() : [])
+      .then((d) => setCloseCoaches((d || []).filter((c) => c.is_close)))
+      .catch(() => {})
+      .finally(() => setCloseCoachesLoading(false));
   }, []);
 
   // Fetch coaches (paginated + searchable)
@@ -224,6 +234,43 @@ export default function OrganizationPage() {
             </span>
           </div>
         </Link>
+      )}
+
+      {/* ----------------------------------------------------------------- */}
+      {/* COACHES CLOSE TO NEXT RANK                                         */}
+      {/* ----------------------------------------------------------------- */}
+      {!closeCoachesLoading && closeCoaches.length > 0 && (
+        <div className="mb-6">
+          <h3 className="font-display text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
+            🔥 Coaches Close to Next Rank
+          </h3>
+          <div className="flex gap-3 overflow-x-auto pb-2">
+            {closeCoaches.map((c) => (
+              <Link
+                key={c.coach_id}
+                href={`/dashboard/organization/coach/${c.coach_id}`}
+                className="min-w-[200px] bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md transition-shadow duration-150 shrink-0"
+              >
+                <p className="font-medium text-sm text-gray-900 truncate">{c.full_name}</p>
+                <p className="text-xs text-gray-500 mt-1">
+                  {c.current_rank.emoji} {c.current_rank.name}
+                </p>
+                <div className="h-2 w-full bg-gray-200 rounded-full overflow-hidden mt-2">
+                  <div
+                    className="h-full rounded-full transition-all duration-700"
+                    style={{ width: c.progress_percent + "%", backgroundColor: c.current_rank.color }}
+                  />
+                </div>
+                <p className="text-xs text-[#E8735A] font-medium mt-2">
+                  {c.gqv_needed > 0
+                    ? `${c.gqv_needed.toLocaleString()} GQV away from ${c.next_rank.name}`
+                    : `${c.qp_needed} QP away from ${c.next_rank.name}`
+                  }
+                </p>
+              </Link>
+            ))}
+          </div>
+        </div>
       )}
 
       {/* ----------------------------------------------------------------- */}

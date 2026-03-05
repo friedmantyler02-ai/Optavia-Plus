@@ -376,7 +376,7 @@ export default function NeglectedClientsPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search by name..."
-                className="font-body w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+                className="font-body w-full sm:w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
               />
               <button
                 type="submit"
@@ -404,22 +404,22 @@ export default function NeglectedClientsPage() {
                 <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Name
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Coach
                 </th>
                 <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Status
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Last Order
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   PQV
                 </th>
                 <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
                   Tier
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Premier
                 </th>
               </tr>
@@ -437,22 +437,22 @@ export default function NeglectedClientsPage() {
                     <td className="px-4 py-3">
                       <Skeleton className="h-5 w-36" />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <Skeleton className="h-5 w-28" />
                     </td>
                     <td className="px-4 py-3">
                       <Skeleton className="h-5 w-16" />
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       <Skeleton className="h-5 w-20" />
                     </td>
-                    <td className="px-4 py-3 text-right">
+                    <td className="px-4 py-3 text-right hidden md:table-cell">
                       <Skeleton className="ml-auto h-5 w-14" />
                     </td>
                     <td className="px-4 py-3">
                       <Skeleton className="h-5 w-16" />
                     </td>
-                    <td className="px-4 py-3 text-center">
+                    <td className="px-4 py-3 text-center hidden md:table-cell">
                       <Skeleton className="mx-auto h-5 w-6" />
                     </td>
                   </tr>
@@ -492,7 +492,7 @@ export default function NeglectedClientsPage() {
                         {client.full_name}
                       </Link>
                     </td>
-                    <td className="px-4 py-3">
+                    <td className="px-4 py-3 hidden md:table-cell">
                       {client.coach_id ? (
                         <Link
                           href={`/dashboard/organization/coach/${client.coach_id}`}
@@ -509,16 +509,16 @@ export default function NeglectedClientsPage() {
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={client.account_status} />
                     </td>
-                    <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500">
+                    <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500 hidden md:table-cell">
                       {fmtDate(client.last_order_date)}
                     </td>
-                    <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900">
+                    <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 hidden md:table-cell">
                       {fmtPqv(client.pqv)}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <TierBadge tier={client.neglect_tier} />
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center text-brand-500">
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-brand-500 hidden md:table-cell">
                       {client.is_premier_member ? "✓" : ""}
                     </td>
                   </tr>
@@ -562,7 +562,7 @@ export default function NeglectedClientsPage() {
             : "pointer-events-none translate-y-4 opacity-0"
         }`}
       >
-        <div className="flex items-center gap-4 rounded-2xl border-2 border-gray-100 bg-white px-6 py-3 shadow-lg">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 sm:px-6 shadow-lg max-w-[calc(100vw-2rem)]">
           <span className="font-body text-sm font-bold text-gray-900">
             {selectedIds.size.toLocaleString()} client{selectedIds.size !== 1 ? "s" : ""} selected
           </span>
@@ -576,7 +576,7 @@ export default function NeglectedClientsPage() {
             onClick={clearSelection}
             className="font-body text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
           >
-            Clear Selection
+            Clear
           </button>
         </div>
       </div>

@@ -343,7 +343,7 @@ export default function CoachDetailPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search by name..."
-                className="font-body w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+                className="font-body w-full sm:w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
               />
               <button
                 type="submit"
@@ -374,10 +374,10 @@ export default function CoachDetailPage() {
                   Name
                   <SortArrow column="full_name" sortBy={sortBy} sortDir={sortDir} />
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Email
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Phone
                 </th>
                 <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
@@ -392,12 +392,12 @@ export default function CoachDetailPage() {
                 </th>
                 <th
                   onClick={() => handleSort("pqv")}
-                  className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700"
+                  className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700 hidden md:table-cell"
                 >
                   PQV
                   <SortArrow column="pqv" sortBy={sortBy} sortDir={sortDir} />
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Premier
                 </th>
               </tr>
@@ -410,12 +410,12 @@ export default function CoachDetailPage() {
                   <tr key={`skel-${i}`} className="border-b border-gray-50 last:border-0">
                     <td className="px-3 py-3"><Skeleton className="h-4 w-4" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-36" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-32" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-5 w-32" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-5 w-24" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-16" /></td>
                     <td className="px-4 py-3"><Skeleton className="h-5 w-20" /></td>
-                    <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-14" /></td>
-                    <td className="px-4 py-3 text-center"><Skeleton className="mx-auto h-5 w-6" /></td>
+                    <td className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="ml-auto h-5 w-14" /></td>
+                    <td className="px-4 py-3 text-center hidden md:table-cell"><Skeleton className="mx-auto h-5 w-6" /></td>
                   </tr>
                 ))}
 
@@ -457,10 +457,10 @@ export default function CoachDetailPage() {
                         {client.full_name}
                       </Link>
                     </td>
-                    <td className="font-body max-w-[180px] truncate whitespace-nowrap px-4 py-3 text-gray-500">
+                    <td className="font-body max-w-[180px] truncate whitespace-nowrap px-4 py-3 text-gray-500 hidden md:table-cell">
                       {client.email || "—"}
                     </td>
-                    <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500">
+                    <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500 hidden md:table-cell">
                       {client.phone || "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
@@ -469,10 +469,10 @@ export default function CoachDetailPage() {
                     <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500">
                       {fmtDate(client.last_order_date)}
                     </td>
-                    <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900">
+                    <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-gray-900 hidden md:table-cell">
                       {fmtPqv(client.pqv)}
                     </td>
-                    <td className="whitespace-nowrap px-4 py-3 text-center text-brand-500">
+                    <td className="whitespace-nowrap px-4 py-3 text-center text-brand-500 hidden md:table-cell">
                       {client.is_premier_member ? "✓" : ""}
                     </td>
                   </tr>
@@ -516,7 +516,7 @@ export default function CoachDetailPage() {
             : "pointer-events-none translate-y-4 opacity-0"
         }`}
       >
-        <div className="flex items-center gap-4 rounded-2xl border-2 border-gray-100 bg-white px-6 py-3 shadow-lg">
+        <div className="flex flex-wrap items-center justify-center gap-2 sm:gap-4 rounded-2xl border-2 border-gray-100 bg-white px-4 py-3 sm:px-6 shadow-lg max-w-[calc(100vw-2rem)]">
           <span className="font-body text-sm font-bold text-gray-900">
             {selectedIds.size.toLocaleString()} client{selectedIds.size !== 1 ? "s" : ""} selected
           </span>
@@ -530,7 +530,7 @@ export default function CoachDetailPage() {
             onClick={clearSelection}
             className="font-body text-sm font-medium text-gray-400 transition-colors hover:text-gray-600"
           >
-            Clear Selection
+            Clear
           </button>
         </div>
       </div>

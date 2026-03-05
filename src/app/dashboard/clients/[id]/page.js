@@ -170,7 +170,7 @@ export default function ClientDetailPage() {
           <div className="text-xs font-bold text-gray-400 uppercase">Relationship Score</div>
         </div>
       </div>
-      <div className="grid grid-cols-4 gap-3 mb-5">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition">
           <span className="text-2xl">📞</span><span className="font-bold text-sm">Log a Call</span>
         </button>

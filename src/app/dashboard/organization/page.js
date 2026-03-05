@@ -321,7 +321,7 @@ export default function OrganizationPage() {
               value={searchInput}
               onChange={(e) => setSearchInput(e.target.value)}
               placeholder="Search by coach name..."
-              className="font-body w-64 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+              className="font-body w-full sm:w-64 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
             />
             <button
               type="submit"
@@ -343,7 +343,7 @@ export default function OrganizationPage() {
                   Coach Name
                   <SortArrow column="full_name" sortBy={sortBy} sortDir={sortDir} />
                 </th>
-                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500">
+                <th className="font-body whitespace-nowrap px-4 py-3 text-xs font-semibold uppercase tracking-wide text-gray-500 hidden md:table-cell">
                   Optavia ID
                 </th>
                 <th
@@ -362,7 +362,7 @@ export default function OrganizationPage() {
                 </th>
                 <th
                   onClick={() => handleSort("reverted_count")}
-                  className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700"
+                  className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700 hidden md:table-cell"
                 >
                   Reverted
                   <SortArrow column="reverted_count" sortBy={sortBy} sortDir={sortDir} />
@@ -381,10 +381,10 @@ export default function OrganizationPage() {
                 Array.from({ length: 5 }).map((_, i) => (
                   <tr key={`skel-${i}`} className="border-b border-gray-50 last:border-0">
                     <td className="px-4 py-3"><Skeleton className="h-5 w-40" /></td>
-                    <td className="px-4 py-3"><Skeleton className="h-5 w-24" /></td>
+                    <td className="px-4 py-3 hidden md:table-cell"><Skeleton className="h-5 w-24" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
-                    <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
+                    <td className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="ml-auto h-5 w-12" /></td>
                     <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-16" /></td>
                   </tr>
                 ))}
@@ -415,7 +415,7 @@ export default function OrganizationPage() {
                         {coach.full_name}
                       </Link>
                     </td>
-                    <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500">
+                    <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500 hidden md:table-cell">
                       {coach.optavia_id}
                     </td>
                     <td className="font-body whitespace-nowrap px-4 py-3 text-right font-bold text-gray-900">
@@ -424,7 +424,7 @@ export default function OrganizationPage() {
                     <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-brand-500">
                       {coach.active_count.toLocaleString()}
                     </td>
-                    <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-coral-400">
+                    <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-coral-400 hidden md:table-cell">
                       {coach.reverted_count.toLocaleString()}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3 text-right">

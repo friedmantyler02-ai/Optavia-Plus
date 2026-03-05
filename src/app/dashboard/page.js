@@ -4,6 +4,8 @@ import { useState, useEffect } from "react";
 import { useCoach } from "./layout";
 import { useRouter } from "next/navigation";
 import TouchpointsDueToday from "./TouchpointsDueToday";
+import SkeletonCard from "./components/SkeletonCard";
+import ErrorBanner from "./components/ErrorBanner";
 
 function getRelationshipScore(client) {
   const daysSinceContact = client.last_contact_date
@@ -64,12 +66,23 @@ export default function DashboardHome() {
   const avgScore = clients.length > 0 ? Math.round(clients.reduce((s, c) => s + getRelationshipScore(c), 0) / clients.length) : 0;
   const needsAttention = clients.map(c => ({ ...c, score: getRelationshipScore(c) })).sort((a, b) => a.score - b.score).slice(0, 5);
 
-  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>Loading your dashboard...</div>;
+  if (loading) return (
+    <div className="animate-fade-up">
+      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+        <SkeletonCard />
+      </div>
+      <div className="grid md:grid-cols-2 gap-5">
+        <SkeletonCard height="h-48" />
+        <SkeletonCard height="h-48" />
+      </div>
+    </div>
+  );
   if (loadError) return (
-    <div className="text-center py-20">
-      <p className="text-3xl mb-3">⚠️</p>
-      <p className="text-gray-600 font-semibold" style={{ fontFamily: 'Nunito, sans-serif' }}>{loadError}</p>
-      <button onClick={() => { setLoadError(null); setLoading(true); loadData(); }} className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm" style={{ fontFamily: 'Nunito, sans-serif' }}>Retry</button>
+    <div className="animate-fade-up">
+      <ErrorBanner message={loadError} onRetry={() => { setLoadError(null); setLoading(true); loadData(); }} />
     </div>
   );
 
@@ -106,11 +119,7 @@ export default function DashboardHome() {
           <h2 className="text-lg font-extrabold mb-1 flex items-center gap-2"><span className="text-xl">💡</span> Who Needs You Today</h2>
           <p className="text-xs text-gray-400 mb-4">Clients with the lowest relationship scores</p>
           {needsAttention.length === 0 ? (
-            <div className="text-center py-10 text-gray-400">
-              <div className="text-4xl mb-3">👥</div>
-              <p>Add clients to see who needs your attention!</p>
-              <button onClick={() => router.push("/dashboard/clients")} className="mt-3 px-5 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm">Add Your First Client</button>
-            </div>
+            <p className="text-sm text-gray-400 text-center py-4">Everyone&#39;s been taken care of ✓</p>
           ) : (
             <div className="space-y-2">
               {needsAttention.map((client) => (

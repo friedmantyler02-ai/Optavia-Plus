@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useCoach } from "../layout";
+import ErrorBanner from "../components/ErrorBanner";
+import EmptyState from "../components/EmptyState";
+import PageHeader from "../components/PageHeader";
 
 // ---------------------------------------------------------------------------
 // Skeleton loader
@@ -324,33 +327,15 @@ export default function EmailSettingsPage() {
   if (error) {
     return (
       <div className="animate-fade-up">
-        <div className="rounded-2xl border-2 border-red-200 bg-red-50 p-8 text-center">
-          <div className="text-4xl mb-3">😟</div>
-          <p className="font-body text-lg text-red-700">{error}</p>
-          <button
-            onClick={loadData}
-            className="mt-4 font-display rounded-2xl bg-red-100 px-6 py-3 text-sm font-bold text-red-700 hover:bg-red-200 transition"
-          >
-            Try Again
-          </button>
-        </div>
+        <PageHeader title="Email Settings" subtitle="Configure automated emails sent on your behalf" />
+        <ErrorBanner message={error} onRetry={loadData} />
       </div>
     );
   }
 
   return (
     <div className="animate-fade-up">
-      {/* ================================================================= */}
-      {/* HEADER                                                            */}
-      {/* ================================================================= */}
-      <div className="mb-8">
-        <h1 className="font-display text-2xl md:text-3xl font-bold text-gray-900">
-          ✉️ Email Automation
-        </h1>
-        <p className="font-body mt-2 text-base text-gray-500">
-          Configure when and what gets sent to your clients automatically
-        </p>
-      </div>
+      <PageHeader title="Email Settings" subtitle="Configure automated emails sent on your behalf" />
 
       {/* ================================================================= */}
       {/* STATS BANNER                                                      */}
@@ -407,15 +392,7 @@ export default function EmailSettingsPage() {
           ))}
         </div>
       ) : triggers.length === 0 ? (
-        <div className="rounded-2xl border-2 border-gray-100 bg-white p-8 text-center">
-          <div className="text-4xl mb-3">📭</div>
-          <p className="font-body text-lg text-gray-500">
-            No email triggers have been set up yet.
-          </p>
-          <p className="font-body text-sm text-gray-400 mt-1">
-            Email triggers will appear here once they are configured in the system.
-          </p>
-        </div>
+        <EmptyState icon="📧" title="No email triggers found" subtitle="Something may have gone wrong loading your settings." />
       ) : (
         <div className="space-y-4">
           {triggers.map((trigger) => {

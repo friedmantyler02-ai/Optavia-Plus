@@ -3,6 +3,10 @@
 import { useState, useEffect } from "react";
 import { useCoach } from "../layout";
 import { useRouter, useSearchParams } from "next/navigation";
+import SkeletonCard from "../components/SkeletonCard";
+import ErrorBanner from "../components/ErrorBanner";
+import EmptyState from "../components/EmptyState";
+import PageHeader from "../components/PageHeader";
 
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
 const statusLabels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
@@ -19,14 +23,24 @@ export default function ClientsPage() {
   const [showAdd, setShowAdd] = useState(searchParams.get("add") === "1");
   const [showCSV, setShowCSV] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [error, setError] = useState(null);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
 
   useEffect(() => { loadClients(); }, []);
 
   const loadClients = async () => {
-    const { data } = await supabase.from("clients").select("*").eq("coach_id", coach.id).order("created_at", { ascending: false });
-    if (data) setClients(data);
-    setLoading(false);
+    setLoading(true);
+    setError(null);
+    try {
+      const { data, error: fetchError } = await supabase.from("clients").select("*").eq("coach_id", coach.id).order("created_at", { ascending: false });
+      if (fetchError) throw fetchError;
+      if (data) setClients(data);
+    } catch (err) {
+      console.error("Error loading clients:", err);
+      setError("Something went wrong loading your clients.");
+    } finally {
+      setLoading(false);
+    }
   };
 
   const addClient = async (e) => {
@@ -103,17 +117,32 @@ export default function ClientsPage() {
     return matchSearch && matchFilter;
   });
 
-  if (loading) return <div className="text-center py-20 text-gray-400 font-semibold">Loading clients...</div>;
+  if (loading) return (
+    <div className="animate-fade-up">
+      <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
+        <SkeletonCard height="h-12" className="mb-3" />
+        <SkeletonCard height="h-12" className="mb-3" />
+        <SkeletonCard height="h-12" />
+      </div>
+    </div>
+  );
+  if (error) return (
+    <div className="animate-fade-up">
+      <ErrorBanner message={error} onRetry={loadClients} />
+    </div>
+  );
 
   return (
     <div className="animate-fade-up">
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-5">
-        <h1 className="font-display text-2xl md:text-3xl font-bold">My Clients</h1>
-        <div className="flex gap-2">
-          <button onClick={() => setShowCSV(true)} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition">📂 Import CSV</button>
-          <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition">➕ Add Client</button>
-        </div>
-      </div>
+      <PageHeader
+        title="My Clients"
+        actions={
+          <div className="flex gap-2">
+            <button onClick={() => setShowCSV(true)} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition">📂 Import CSV</button>
+            <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition">➕ Add Client</button>
+          </div>
+        }
+      />
 
       {/* ADD FORM */}
       {showAdd && (
@@ -184,10 +213,11 @@ export default function ClientsPage() {
       </div>
 
       {filtered.length === 0 && (
-        <div className="text-center py-16 text-gray-400">
-          <div className="text-5xl mb-4">👥</div>
-          <p className="text-lg font-semibold">{clients.length === 0 ? "No clients yet. Add your first one!" : "No clients match your search."}</p>
-        </div>
+        clients.length === 0 ? (
+          <EmptyState icon="👤" title="No clients yet" subtitle="Add your first client to get started" actionLabel="Add Client" onAction={() => setShowAdd(true)} />
+        ) : (
+          <EmptyState icon="🔍" title="No clients match your search" subtitle="Try a different name or clear your filters" />
+        )
       )}
     </div>
   );

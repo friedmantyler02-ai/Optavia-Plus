@@ -2,6 +2,9 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import Link from "next/link";
+import ErrorBanner from "../../components/ErrorBanner";
+import EmptyState from "../../components/EmptyState";
+import PageHeader from "../../components/PageHeader";
 import BulkAssignModal from "../../components/BulkAssignModal";
 
 // ---------------------------------------------------------------------------
@@ -123,6 +126,7 @@ export default function NeglectedClientsPage() {
     watch: 0,
   });
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Filters
   const [page, setPage] = useState(1);
@@ -160,6 +164,7 @@ export default function NeglectedClientsPage() {
       }
     } catch (err) {
       console.error("Failed to fetch neglected clients:", err);
+      setError("Failed to load neglected clients.");
     } finally {
       setLoading(false);
     }
@@ -273,23 +278,12 @@ export default function NeglectedClientsPage() {
 
   return (
     <div className="animate-fade-up pb-24">
-      {/* ── Back link ──────────────────────────────────────────────── */}
-      <Link
-        href="/dashboard/organization"
-        className="font-body mb-6 inline-flex items-center gap-1 text-sm font-semibold text-brand-500 hover:text-brand-600"
-      >
-        ← Back to Organization
-      </Link>
+      <PageHeader
+        title="Neglected Clients"
+        breadcrumbs={[{ label: "Organization", href: "/dashboard/organization" }, { label: "Neglected Clients" }]}
+      />
 
-      {/* ── Header ─────────────────────────────────────────────────── */}
-      <div className="mb-8">
-        <h1 className="font-display text-2xl font-bold text-gray-900">
-          Needs Attention
-        </h1>
-        <p className="font-body mt-1 text-sm text-gray-500">
-          People who haven&apos;t been contacted and may be slipping away
-        </p>
-      </div>
+      {error && <ErrorBanner message={error} onRetry={() => { setError(null); fetchData(); }} />}
 
       {/* ── Tier summary cards ─────────────────────────────────────── */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
@@ -463,18 +457,8 @@ export default function NeglectedClientsPage() {
               {/* Empty state */}
               {!loading && clients.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-14 text-center">
-                    <p className="text-4xl">🎉</p>
-                    <p className="font-display mt-3 text-lg font-bold text-gray-900">
-                      {search || tier !== "all"
-                        ? "No one matches your filters"
-                        : "No one in this category — great news!"}
-                    </p>
-                    <p className="font-body mt-1 text-sm text-gray-500">
-                      {search || tier !== "all"
-                        ? "Try adjusting your search or tier filter."
-                        : "Everyone is being taken care of."}
-                    </p>
+                  <td colSpan={8} className="px-4 py-6">
+                    <EmptyState icon="🎉" title="No neglected clients right now" subtitle="Everyone in this tier has been contacted recently." />
                   </td>
                 </tr>
               )}

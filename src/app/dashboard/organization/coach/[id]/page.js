@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
 import { useCoach } from "../../../layout";
 import Link from "next/link";
+import ErrorBanner from "../../../components/ErrorBanner";
+import EmptyState from "../../../components/EmptyState";
+import PageHeader from "../../../components/PageHeader";
 import BulkAssignModal from "../../../components/BulkAssignModal";
 
 // ---------------------------------------------------------------------------
@@ -239,34 +242,21 @@ export default function CoachDetailPage() {
   if (error && !coach) {
     return (
       <div className="animate-fade-up">
-        <Link
-          href="/dashboard/organization"
-          className="font-body mb-6 inline-flex items-center gap-1 text-sm font-semibold text-brand-500 hover:text-brand-600"
-        >
-          ← Back to Organization
-        </Link>
-        <div className="rounded-2xl border-2 border-gray-100 bg-white px-8 py-16 text-center">
-          <p className="text-5xl">😕</p>
-          <p className="font-display mt-4 text-xl font-bold text-gray-900">
-            {error}
-          </p>
-          <p className="font-body mt-2 text-sm text-gray-500">
-            The coach you're looking for doesn't exist or couldn't be loaded.
-          </p>
-        </div>
+        <PageHeader
+          title="Coach"
+          breadcrumbs={[{ label: "Organization", href: "/dashboard/organization" }, { label: "Coach" }]}
+        />
+        <ErrorBanner message={error} onRetry={fetchData} />
       </div>
     );
   }
 
   return (
     <div className="animate-fade-up pb-24">
-      {/* ── Back link ──────────────────────────────────────────────── */}
-      <Link
-        href="/dashboard/organization"
-        className="font-body mb-6 inline-flex items-center gap-1 text-sm font-semibold text-brand-500 hover:text-brand-600"
-      >
-        ← Back to Organization
-      </Link>
+      <PageHeader
+        title={coach?.full_name || "Coach"}
+        breadcrumbs={[{ label: "Organization", href: "/dashboard/organization" }, { label: coach?.full_name || "Coach" }]}
+      />
 
       {/* ── Coach header card ──────────────────────────────────────── */}
       <div className="mb-8 rounded-2xl border-2 border-gray-100 bg-white p-6 sm:p-8">
@@ -432,18 +422,12 @@ export default function CoachDetailPage() {
               {/* Empty state */}
               {!loading && sortedClients.length === 0 && (
                 <tr>
-                  <td colSpan={8} className="px-4 py-14 text-center">
-                    <p className="text-4xl">📭</p>
-                    <p className="font-display mt-3 text-lg font-bold text-gray-900">
-                      {search || statusFilter !== "all"
-                        ? "No clients match your filters"
-                        : "No clients yet"}
-                    </p>
-                    <p className="font-body mt-1 text-sm text-gray-500">
-                      {search || statusFilter !== "all"
-                        ? "Try adjusting your search or status filter."
-                        : "This coach doesn't have any imported clients."}
-                    </p>
+                  <td colSpan={8} className="px-4 py-6">
+                    {search || statusFilter !== "all" ? (
+                      <EmptyState icon="🔍" title="No clients match your search" subtitle="Try a different name" />
+                    ) : (
+                      <EmptyState icon="👥" title="No clients assigned to this coach" subtitle="Clients will appear here once assigned via CSV import." />
+                    )}
                   </td>
                 </tr>
               )}

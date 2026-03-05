@@ -3,6 +3,10 @@
 import { useState, useEffect, useCallback } from "react";
 import { useCoach } from "../layout";
 import Link from "next/link";
+import SkeletonCard from "../components/SkeletonCard";
+import ErrorBanner from "../components/ErrorBanner";
+import EmptyState from "../components/EmptyState";
+import PageHeader from "../components/PageHeader";
 
 // ---------------------------------------------------------------------------
 // Skeleton pulse component
@@ -77,6 +81,7 @@ export default function OrganizationPage() {
   // Stats state
   const [stats, setStats] = useState(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [error, setError] = useState(null);
 
   // Escalation alert
   const [escalationCount, setEscalationCount] = useState(0);
@@ -104,6 +109,7 @@ export default function OrganizationPage() {
         }
       } catch (err) {
         console.error("Failed to fetch org stats:", err);
+        setError("Failed to load organization data.");
       } finally {
         setStatsLoading(false);
       }
@@ -134,6 +140,7 @@ export default function OrganizationPage() {
       }
     } catch (err) {
       console.error("Failed to fetch coaches:", err);
+      setError("Failed to load coaches.");
     } finally {
       setCoachesLoading(false);
     }
@@ -176,33 +183,29 @@ export default function OrganizationPage() {
 
   return (
     <div className="animate-fade-up">
-      {/* Header */}
-      <div className="mb-8 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h1 className="font-display text-2xl font-bold text-gray-900">
-            Organization
-          </h1>
-          <p className="font-body mt-1 text-sm text-gray-500">
-            Overview of your entire team and client base
-          </p>
-        </div>
-        <div className="flex items-center gap-3">
-          <Link
-            href="/dashboard/organization/neglected"
-            className="font-display inline-flex items-center gap-2 rounded-2xl border-2 border-gray-200 bg-white px-5 py-3 text-base font-bold text-gray-700 shadow-sm transition-all hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
-          >
-            <span className="text-lg">👀</span>
-            Needs Attention
-          </Link>
-          <Link
-            href="/dashboard/org-import"
-            className="font-display inline-flex items-center gap-2 rounded-2xl bg-coral-400 px-6 py-3 text-base font-bold text-white shadow-lg transition-all hover:bg-coral-500 hover:shadow-xl"
-          >
-            <span className="text-lg">📥</span>
-            Import Data
-          </Link>
-        </div>
-      </div>
+      <PageHeader
+        title="Organization"
+        actions={
+          <div className="flex items-center gap-3">
+            <Link
+              href="/dashboard/organization/neglected"
+              className="font-display inline-flex items-center gap-2 rounded-2xl border-2 border-gray-200 bg-white px-5 py-3 text-base font-bold text-gray-700 shadow-sm transition-all hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
+            >
+              <span className="text-lg">👀</span>
+              Needs Attention
+            </Link>
+            <Link
+              href="/dashboard/org-import"
+              className="font-display inline-flex items-center gap-2 rounded-2xl bg-coral-400 px-6 py-3 text-base font-bold text-white shadow-lg transition-all hover:bg-coral-500 hover:shadow-xl"
+            >
+              <span className="text-lg">📥</span>
+              Import Data
+            </Link>
+          </div>
+        }
+      />
+
+      {error && <ErrorBanner message={error} onRetry={() => window.location.reload()} />}
 
       {/* ----------------------------------------------------------------- */}
       {/* ESCALATION ALERT                                                   */}
@@ -388,10 +391,12 @@ export default function OrganizationPage() {
 
               {!coachesLoading && sortedCoaches.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="font-body px-4 py-10 text-center text-gray-400">
-                    {search
-                      ? "No coaches found matching your search."
-                      : "No coaches imported yet."}
+                  <td colSpan={6} className="px-4 py-6">
+                    {search ? (
+                      <EmptyState icon="🔍" title="No coaches match your search" subtitle="Try clearing your search" />
+                    ) : (
+                      <EmptyState icon="🏢" title="No coaches in your organization yet" subtitle="Import your organization CSV to get started" />
+                    )}
                   </td>
                 </tr>
               )}

@@ -6,7 +6,7 @@
     },
     {
       "path": "/api/email/send",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 */4 * * *"
     },
     {
       "path": "/api/org/escalations/evaluate",

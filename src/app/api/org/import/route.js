@@ -6,7 +6,6 @@ import {
   upsertCoachStubs,
   buildClientRecord,
   batchUpsertClients,
-  linkClientsToCoaches,
 } from "@/lib/import-engine";
 
 // Allow up to 60s for large chunk processing
@@ -16,6 +15,53 @@ const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
+
+/**
+ * Links this chunk's clients to their coaches by matching
+ * clients.original_coach_id → coaches.optavia_id.
+ *
+ * Processes one coach at a time to keep each UPDATE small and avoid timeouts.
+ * Only touches clients in this batch that haven't been linked yet (coach_id IS NULL).
+ */
+async function linkChunkClients(supabase, clientRecords, batchId) {
+  // Collect unique original_coach_ids from this chunk
+  const coachOptaviaIds = [
+    ...new Set(
+      clientRecords
+        .map((r) => r.original_coach_id)
+        .filter((id) => id != null && id !== "")
+    ),
+  ];
+
+  if (coachOptaviaIds.length === 0) return 0;
+
+  // Look up coach UUIDs in bulk
+  const { data: coaches } = await supabase
+    .from("coaches")
+    .select("id, optavia_id")
+    .in("optavia_id", coachOptaviaIds);
+
+  if (!coaches || coaches.length === 0) return 0;
+
+  let linked = 0;
+
+  // For each coach, update their clients in this batch
+  await Promise.all(
+    coaches.map(async (coach) => {
+      const { count } = await supabase
+        .from("clients")
+        .update({ coach_id: coach.id })
+        .eq("original_coach_id", coach.optavia_id)
+        .eq("import_batch_id", batchId)
+        .is("coach_id", null)
+        .select("id", { count: "exact", head: true });
+
+      if (count != null) linked += count;
+    })
+  );
+
+  return linked;
+}
 
 export async function POST(request) {
   try {
@@ -43,7 +89,7 @@ export async function POST(request) {
     let batchId = existingBatchId;
     let coachResult = null;
 
-    // --- First chunk: create import batch and upsert coaches ---
+    // --- First chunk: create import batch ---
     if (chunkIndex === 0) {
       const { data: batchData, error: batchError } = await supabaseAdmin
         .from("import_batches")
@@ -73,7 +119,6 @@ export async function POST(request) {
     }
 
     // --- Extract and upsert coaches from every chunk ---
-    // New coaches can appear in any chunk, so always process them
     const coaches = extractUniqueCoaches(rows);
     if (coaches.length > 0) {
       coachResult = await upsertCoachStubs(supabaseAdmin, coaches);
@@ -90,13 +135,10 @@ export async function POST(request) {
       null
     );
 
-    // --- Last chunk: link clients to coaches and update batch stats ---
-    let linked = null;
-    const isLastChunk = chunkIndex === totalChunks - 1;
+    // --- Link this chunk's clients to their coaches ---
+    const linked = await linkChunkClients(supabaseAdmin, clientRecords, batchId);
 
-    if (isLastChunk) {
-      linked = await linkClientsToCoaches(supabaseAdmin, batchId);
-    }
+    const isLastChunk = chunkIndex === totalChunks - 1;
 
     return NextResponse.json({
       batchId,

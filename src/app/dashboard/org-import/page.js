@@ -269,9 +269,9 @@ export default function OrgImportPage() {
         rowsCompleted += chunks[i].length;
         setClientProgress({ completed: rowsCompleted, total: rawRows.length });
 
-        // Capture linked count from last chunk
-        if (data.isComplete && data.recordsLinked != null) {
-          recordsLinked = data.recordsLinked;
+        // Aggregate linked count from every chunk
+        if (data.recordsLinked != null) {
+          recordsLinked += data.recordsLinked;
         }
       }
 

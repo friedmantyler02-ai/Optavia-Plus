@@ -1,12 +1,14 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import useShowToast from "@/hooks/useShowToast";
 
 export default function AssignSequence({ supabase, clientId, coachId, onAssigned, onClose }) {
   const [sequences, setSequences] = useState([]);
   const [loading, setLoading] = useState(true);
   const [assigning, setAssigning] = useState(false);
   const [alreadyAssigned, setAlreadyAssigned] = useState([]);
+  const showToast = useShowToast();
 
   useEffect(() => {
     async function load() {
@@ -41,7 +43,7 @@ export default function AssignSequence({ supabase, clientId, coachId, onAssigned
 
     if (error) {
       console.error("Error assigning sequence:", error);
-      alert("Something went wrong. Please try again.");
+      showToast({ message: "Something went wrong — please try again", variant: "error" });
       setAssigning(false);
       return;
     }
@@ -54,6 +56,7 @@ export default function AssignSequence({ supabase, clientId, coachId, onAssigned
       details: `Started "${seqName}"`,
     });
 
+    showToast({ message: "Sequence assigned", variant: "success" });
     setAssigning(false);
     if (onAssigned) onAssigned();
   }

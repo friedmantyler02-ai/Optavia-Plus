@@ -1,12 +1,15 @@
 "use client";
 
 import { useState, useEffect, createContext, useContext } from "react";
+import useToast from "@/hooks/useToast";
+import ToastContainer from "./components/ToastContainer";
 import { createClient } from "@/lib/supabase-browser";
 import { useRouter, usePathname } from "next/navigation";
 
 // Context so any dashboard page can access the current coach profile
 export const CoachContext = createContext(null);
 export const useCoach = () => useContext(CoachContext);
+export const ToastContext = createContext(null);
 
 export default function DashboardLayout({ children }) {
   const [coach, setCoach] = useState(null);
@@ -15,6 +18,7 @@ export default function DashboardLayout({ children }) {
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
+  const { toasts, showToast, dismissToast } = useToast();
 
   useEffect(() => {
     loadCoachProfile();
@@ -83,6 +87,7 @@ export default function DashboardLayout({ children }) {
 
   return (
     <CoachContext.Provider value={{ coach, setCoach, supabase }}>
+      <ToastContext.Provider value={showToast}>
       <div className="min-h-screen bg-[#faf7f2]">
         {/* TOP NAV */}
         <nav className="bg-white border-b-2 border-[#e5e0d8] px-4 md:px-6 flex items-center justify-between h-[70px] sticky top-0 z-50">
@@ -165,6 +170,8 @@ export default function DashboardLayout({ children }) {
 
       {/* Click outside to close menu */}
       {showMenu && <div className="fixed inset-0 z-40" onClick={() => setShowMenu(false)} />}
+      <ToastContainer toasts={toasts} dismissToast={dismissToast} />
+      </ToastContext.Provider>
     </CoachContext.Provider>
   );
 }

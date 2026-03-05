@@ -5,6 +5,7 @@ import Link from "next/link";
 import ErrorBanner from "../../components/ErrorBanner";
 import EmptyState from "../../components/EmptyState";
 import PageHeader from "../../components/PageHeader";
+import useShowToast from "@/hooks/useShowToast";
 import BulkAssignModal from "../../components/BulkAssignModal";
 
 // ---------------------------------------------------------------------------
@@ -140,6 +141,7 @@ export default function NeglectedClientsPage() {
   // Selection state
   const [selectedIds, setSelectedIds] = useState(new Set());
   const [showModal, setShowModal] = useState(false);
+  const showToast = useShowToast();
 
   // ── Fetch data ──────────────────────────────────────────────────
   const fetchData = useCallback(async () => {
@@ -268,8 +270,10 @@ export default function NeglectedClientsPage() {
   }
 
   function handleAssignComplete() {
+    const count = selectedIds.size;
     clearSelection();
     fetchData();
+    showToast({ message: `Sequence assigned to ${count} clients`, variant: "success" });
   }
 
   const totalPages = Math.ceil(totalCount / LIMIT);

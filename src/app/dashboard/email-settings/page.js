@@ -5,6 +5,7 @@ import { useCoach } from "../layout";
 import ErrorBanner from "../components/ErrorBanner";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
+import useShowToast from "@/hooks/useShowToast";
 
 // ---------------------------------------------------------------------------
 // Skeleton loader
@@ -25,7 +26,7 @@ export default function EmailSettingsPage() {
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [savedFlash, setSavedFlash] = useState(null); // trigger_id that just saved
+  const showToast = useShowToast();
 
   // Modals
   const [previewTrigger, setPreviewTrigger] = useState(null);
@@ -144,9 +145,7 @@ export default function EmailSettingsPage() {
       [trigger.id]: { ...prev[trigger.id], trigger_id: trigger.id, coach_id: coach.id, enabled: newEnabled },
     }));
 
-    // Flash "Saved!"
-    setSavedFlash(trigger.id);
-    setTimeout(() => setSavedFlash((f) => (f === trigger.id ? null : f)), 1500);
+    showToast({ message: "Setting saved", variant: "success" });
 
     try {
       const { error: uErr } = await supabase
@@ -163,6 +162,7 @@ export default function EmailSettingsPage() {
       if (uErr) throw uErr;
     } catch (err) {
       console.error("Toggle failed:", err);
+      showToast({ message: "Failed to save — please try again", variant: "error" });
       // Revert
       setSettings((prev) => ({
         ...prev,
@@ -184,8 +184,7 @@ export default function EmailSettingsPage() {
       [trigger.id]: { ...prev[trigger.id], trigger_id: trigger.id, coach_id: coach.id, delay_days: days },
     }));
 
-    setSavedFlash(trigger.id);
-    setTimeout(() => setSavedFlash((f) => (f === trigger.id ? null : f)), 1500);
+    showToast({ message: "Setting saved", variant: "success" });
 
     try {
       const { error: uErr } = await supabase
@@ -242,9 +241,10 @@ export default function EmailSettingsPage() {
         [editTrigger.id]: { coach_id: coach.id, trigger_id: editTrigger.id, subject: editSubject, body_text: editBody },
       }));
       setEditTrigger(null);
+      showToast({ message: "Template saved", variant: "success" });
     } catch (err) {
       console.error("Save template failed:", err);
-      alert("Failed to save — please try again.");
+      showToast({ message: "Failed to save — please try again", variant: "error" });
     } finally {
       setEditSaving(false);
     }
@@ -399,8 +399,6 @@ export default function EmailSettingsPage() {
             const enabled = isEnabled(trigger);
             const delay = effectiveDelay(trigger);
             const hasCustom = hasCustomTemplate(trigger.id);
-            const justSaved = savedFlash === trigger.id;
-
             return (
               <div
                 key={trigger.id}
@@ -420,11 +418,6 @@ export default function EmailSettingsPage() {
                           {hasCustom && (
                             <span className="inline-flex items-center rounded-full bg-brand-50 px-2.5 py-0.5 text-xs font-bold text-brand-600">
                               Customized
-                            </span>
-                          )}
-                          {justSaved && (
-                            <span className="inline-flex items-center text-xs font-bold text-green-600 animate-pulse">
-                              ✓ Saved!
                             </span>
                           )}
                         </div>

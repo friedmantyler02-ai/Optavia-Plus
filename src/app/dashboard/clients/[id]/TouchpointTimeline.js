@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import useShowToast from "@/hooks/useShowToast";
 import { useCoach } from '../../layout';
 
 // ─── Icon helpers ───────────────────────────────────────────────
@@ -86,6 +87,7 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
   const [completing, setCompleting] = useState(null); // step id being completed
   const [noteInput, setNoteInput] = useState({});     // { stepId: 'note text' }
   const [showNoteFor, setShowNoteFor] = useState(null);
+  const showToast = useShowToast();
 
   // ── Fetch assigned sequences + steps + completions ──────────
   const fetchTimeline = useCallback(async () => {
@@ -228,11 +230,12 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
       // 5. Clear note, refresh
       setNoteInput((prev) => ({ ...prev, [step.id]: '' }));
       setShowNoteFor(null);
+      showToast({ message: "Step marked complete", variant: "success" });
       await fetchTimeline();
       if (onUpdate) onUpdate(); // let parent refresh activity feed etc.
     } catch (err) {
       console.error('Error completing step:', err);
-      alert('Something went wrong. Please try again.');
+      showToast({ message: "Something went wrong", variant: "error" });
     } finally {
       setCompleting(null);
     }

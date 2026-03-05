@@ -5,6 +5,7 @@ import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
 import TouchpointTimeline from './TouchpointTimeline';
+import useShowToast from "@/hooks/useShowToast";
 
 const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
@@ -45,6 +46,7 @@ export default function ClientDetailPage() {
   const [timelineKey, setTimelineKey] = useState(0);
   const [hasSequences, setHasSequences] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const showToast = useShowToast();
 
   useEffect(() => { loadClient(); }, [params.id]);
 
@@ -69,31 +71,45 @@ export default function ClientDetailPage() {
 
   const saveChanges = async () => {
     setSaving(true);
-    const updates = {
-      full_name: form.full_name,
-      email: form.email || null,
-      phone: form.phone || null,
-      plan: form.plan || null,
-      weight_current: form.weight_current ? Number(form.weight_current) : null,
-      weight_start: form.weight_start ? Number(form.weight_start) : null,
-      notes: form.notes || null,
-      status: form.status,
-      updated_at: new Date().toISOString(),
-    };
-    const { data } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
-    if (data) { setClient(data); setForm(data); }
-    await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Updated client info", details: client.full_name });
-    setEditing(false);
-    setSaving(false);
+    try {
+      const updates = {
+        full_name: form.full_name,
+        email: form.email || null,
+        phone: form.phone || null,
+        plan: form.plan || null,
+        weight_current: form.weight_current ? Number(form.weight_current) : null,
+        weight_start: form.weight_start ? Number(form.weight_start) : null,
+        notes: form.notes || null,
+        status: form.status,
+        updated_at: new Date().toISOString(),
+      };
+      const { data } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
+      if (data) { setClient(data); setForm(data); }
+      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Updated client info", details: client.full_name });
+      setEditing(false);
+      showToast({ message: "Client updated", variant: "success" });
+    } catch (err) {
+      console.error("Error saving client:", err);
+      showToast({ message: "Something went wrong — please try again", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const logQuickAction = async (actionType) => {
-    const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : "Logged a note";
-    await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: client.full_name });
-    await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
-    setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
-    const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
-    if (acts) setActivities(acts);
+    try {
+      const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : "Logged a note";
+      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: client.full_name });
+      await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
+      setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
+      const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
+      if (acts) setActivities(acts);
+      const label = actionType === "call" ? "Call logged" : actionType === "text" ? "Text logged" : "Note saved";
+      showToast({ message: label, variant: "success" });
+    } catch (err) {
+      console.error("Error logging action:", err);
+      showToast({ message: "Something went wrong — please try again", variant: "error" });
+    }
   };
 
   const deleteClient = async () => {
@@ -132,10 +148,15 @@ export default function ClientDetailPage() {
             <div className="flex gap-2 mt-2 flex-wrap">
               {statusOptions.map(s => (
                 <button key={s} onClick={async () => {
-                  await supabase.from("clients").update({ status: s }).eq("id", client.id);
-                  setClient(prev => ({ ...prev, status: s }));
-                  setForm(prev => ({ ...prev, status: s }));
-                  await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Changed status to " + statusLabels[s], details: client.full_name });
+                  try {
+                    await supabase.from("clients").update({ status: s }).eq("id", client.id);
+                    setClient(prev => ({ ...prev, status: s }));
+                    setForm(prev => ({ ...prev, status: s }));
+                    await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Changed status to " + statusLabels[s], details: client.full_name });
+                    showToast({ message: "Status updated", variant: "success" });
+                  } catch (err) {
+                    showToast({ message: "Something went wrong — please try again", variant: "error" });
+                  }
                 }}
                   className={"px-2 py-1 rounded-lg text-xs font-bold transition " + (client.status === s ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}>
                   {statusEmojis[s]} {statusLabels[s]}

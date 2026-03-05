@@ -7,6 +7,7 @@ import SkeletonCard from "../components/SkeletonCard";
 import ErrorBanner from "../components/ErrorBanner";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
+import useShowToast from "@/hooks/useShowToast";
 
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
 const statusLabels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
@@ -25,6 +26,7 @@ export default function ClientsPage() {
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
   const [form, setForm] = useState({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
+  const showToast = useShowToast();
 
   useEffect(() => { loadClients(); }, []);
 
@@ -47,28 +49,34 @@ export default function ClientsPage() {
     e.preventDefault();
     if (!form.full_name.trim()) return;
     setSaving(true);
-
-    const newClient = {
-      coach_id: coach.id,
-      full_name: form.full_name.trim(),
-      email: form.email.trim() || null,
-      phone: form.phone.trim() || null,
-      plan: form.plan || "Optimal 5&1",
-      weight_start: form.weight_start ? Number(form.weight_start) : null,
-      weight_current: form.weight_start ? Number(form.weight_start) : null,
-      notes: form.notes.trim() || null,
-      status: "new",
-      start_date: new Date().toISOString().split("T")[0],
-    };
-
-    const { data, error } = await supabase.from("clients").insert(newClient).select().single();
-    if (data) {
-      setClients(prev => [data, ...prev]);
-      await supabase.from("activities").insert({ coach_id: coach.id, client_id: data.id, action: "Added new client", details: data.full_name });
+    try {
+      const newClient = {
+        coach_id: coach.id,
+        full_name: form.full_name.trim(),
+        email: form.email.trim() || null,
+        phone: form.phone.trim() || null,
+        plan: form.plan || "Optimal 5&1",
+        weight_start: form.weight_start ? Number(form.weight_start) : null,
+        weight_current: form.weight_start ? Number(form.weight_start) : null,
+        notes: form.notes.trim() || null,
+        status: "new",
+        start_date: new Date().toISOString().split("T")[0],
+      };
+      const { data, error: insertError } = await supabase.from("clients").insert(newClient).select().single();
+      if (insertError) throw insertError;
+      if (data) {
+        setClients(prev => [data, ...prev]);
+        await supabase.from("activities").insert({ coach_id: coach.id, client_id: data.id, action: "Added new client", details: data.full_name });
+      }
+      setForm({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
+      setShowAdd(false);
+      showToast({ message: "Client added successfully", variant: "success" });
+    } catch (err) {
+      console.error("Error adding client:", err);
+      showToast({ message: "Something went wrong — please try again", variant: "error" });
+    } finally {
+      setSaving(false);
     }
-    setForm({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
-    setShowAdd(false);
-    setSaving(false);
   };
 
   const handleCSVImport = async (text) => {
@@ -102,10 +110,16 @@ export default function ClientsPage() {
     }
 
     if (newClients.length > 0) {
-      const { data } = await supabase.from("clients").insert(newClients).select();
-      if (data) {
-        setClients(prev => [...data, ...prev]);
-        await supabase.from("activities").insert({ coach_id: coach.id, action: "Imported " + data.length + " clients via CSV" });
+      try {
+        const { data } = await supabase.from("clients").insert(newClients).select();
+        if (data) {
+          setClients(prev => [...data, ...prev]);
+          await supabase.from("activities").insert({ coach_id: coach.id, action: "Imported " + data.length + " clients via CSV" });
+          showToast({ message: data.length + " clients imported", variant: "success" });
+        }
+      } catch (err) {
+        console.error("Error importing CSV:", err);
+        showToast({ message: "Something went wrong — please try again", variant: "error" });
       }
     }
     setShowCSV(false);

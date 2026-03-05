@@ -43,16 +43,9 @@ function StatCard({ emoji, value, label, loading }) {
 // Status badge
 // ---------------------------------------------------------------------------
 function StatusBadge({ status }) {
-  const config = {
-    Active: { bg: "#f0f7f2", text: "#4a7c59" },
-    Reverted: { bg: "#faf0e8", text: "#a86b47" },
-  };
-  const c = config[status] ?? { bg: "#f3f4f6", text: "#6b7280" };
+  const classes = status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
   return (
-    <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
-      style={{ backgroundColor: c.bg, color: c.text }}
-    >
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${classes}`}>
       {status}
     </span>
   );
@@ -330,7 +323,7 @@ export default function CoachDetailPage() {
             <select
               value={statusFilter}
               onChange={handleStatusChange}
-              className="font-body rounded-xl border-2 border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-brand-400 focus:outline-none"
+              className="font-body rounded-xl border-2 border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
             >
               <option value="all">All Statuses</option>
               <option value="Active">Active</option>
@@ -343,11 +336,11 @@ export default function CoachDetailPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search by name..."
-                className="font-body w-full sm:w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+                className="font-body w-full sm:w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
               />
               <button
                 type="submit"
-                className="font-body rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-bold text-brand-600 transition-colors hover:bg-brand-100"
+                className="font-body rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-bold text-brand-600 transition-colors duration-150 hover:bg-brand-100"
               >
                 Search
               </button>
@@ -437,7 +430,7 @@ export default function CoachDetailPage() {
                 sortedClients.map((client) => (
                   <tr
                     key={client.id}
-                    className={`border-b border-gray-50 transition-colors last:border-0 ${
+                    className={`border-b border-gray-50 transition-colors duration-100 last:border-0 ${
                       selectedIds.has(client.id) ? "bg-brand-50" : "hover:bg-brand-50/50"
                     }`}
                   >
@@ -492,14 +485,14 @@ export default function CoachDetailPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
@@ -522,7 +515,7 @@ export default function CoachDetailPage() {
           </span>
           <button
             onClick={() => setShowModal(true)}
-            className="font-display rounded-xl bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow transition-all hover:bg-brand-600 hover:shadow-md"
+            className="font-display rounded-xl bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow transition-all duration-150 active:scale-95 hover:bg-brand-600 hover:shadow-md"
           >
             Assign Sequence
           </button>

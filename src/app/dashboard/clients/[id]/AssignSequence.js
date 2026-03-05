@@ -68,7 +68,7 @@ export default function AssignSequence({ supabase, clientId, coachId, onAssigned
           <h2 className="text-xl font-extrabold" style={{ fontFamily: "Playfair Display, serif" }}>
             Assign a Sequence
           </h2>
-          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none">
+          <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl leading-none transition-colors duration-150">
             &times;
           </button>
         </div>
@@ -89,7 +89,7 @@ export default function AssignSequence({ supabase, clientId, coachId, onAssigned
                     key={seq.id}
                     disabled={isAssigned || assigning}
                     onClick={() => handleAssign(seq.id)}
-                    className={`w-full text-left p-4 rounded-xl border-2 transition-all ${
+                    className={`w-full text-left p-4 rounded-xl border-2 transition-all duration-150 ${
                       isAssigned
                         ? "border-gray-200 bg-gray-50 opacity-60 cursor-not-allowed"
                         : "border-gray-200 hover:border-blue-400 hover:bg-blue-50 cursor-pointer"

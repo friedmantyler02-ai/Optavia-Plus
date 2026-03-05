@@ -133,7 +133,7 @@ export default function TouchpointsPage() {
                 {/* Sequence Header - Clickable */}
                 <button
                   onClick={() => toggleExpand(seq.id)}
-                  className="w-full p-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors"
+                  className="w-full p-6 flex items-center justify-between text-left hover:bg-gray-50 transition-colors duration-150"
                 >
                   <div className="flex items-center gap-4">
                     <span className="text-4xl">{icon}</span>

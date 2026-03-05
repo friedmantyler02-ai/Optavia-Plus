@@ -177,7 +177,7 @@ export default function EscalationsPage() {
           <button
             key={f.key}
             onClick={() => { setFilter(f.key); setPage(1); }}
-            className={`font-body rounded-full px-4 py-2 text-sm font-bold transition ${
+            className={`font-body rounded-full px-4 py-2 text-sm font-bold transition-colors duration-150 ${
               filter === f.key
                 ? "bg-brand-500 text-white"
                 : "bg-white border-2 border-gray-200 text-gray-600 hover:border-brand-300 hover:text-brand-600"
@@ -241,7 +241,7 @@ export default function EscalationsPage() {
 
             {!loading &&
               escalations.map((esc) => (
-                <tr key={esc.id} className="border-b border-gray-50 last:border-0 hover:bg-brand-50/30 transition-colors">
+                <tr key={esc.id} className="border-b border-gray-50 last:border-0 hover:bg-brand-50/30 transition-colors duration-100">
                   <td className="px-4 py-3">
                     <p className="font-body font-semibold text-gray-900">
                       {esc.clients?.full_name || "Unknown"}
@@ -269,12 +269,12 @@ export default function EscalationsPage() {
                       <button
                         onClick={() => handleMarkHandled(esc.id)}
                         disabled={marking === esc.id}
-                        className="font-body whitespace-nowrap rounded-xl bg-coral-400 px-4 py-2 text-xs font-bold text-white transition hover:bg-coral-500 disabled:opacity-50"
+                        className="font-body whitespace-nowrap rounded-xl bg-coral-400 px-4 py-2 text-xs font-bold text-white transition-all duration-150 active:scale-95 hover:bg-coral-500 disabled:opacity-50 disabled:cursor-not-allowed disabled:active:scale-100"
                       >
                         {marking === esc.id ? "Saving..." : "Mark Handled"}
                       </button>
                     ) : (
-                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-bold ${
+                      <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${
                         esc.status === "handled"
                           ? "bg-green-100 text-green-700"
                           : "bg-blue-100 text-blue-700"
@@ -299,14 +299,14 @@ export default function EscalationsPage() {
             <button
               onClick={() => setPage((p) => Math.max(1, p - 1))}
               disabled={page === 1}
-              className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Previous
             </button>
             <button
               onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
               disabled={page === totalPages}
-              className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+              className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
             >
               Next
             </button>

@@ -291,7 +291,7 @@ export default function BulkAssignModal({
               <div className="mt-3 flex items-center gap-3">
                 <button
                   onClick={handleClose}
-                  className={`font-display rounded-xl px-5 py-2 text-sm font-bold text-white transition-colors ${
+                  className={`font-display rounded-xl px-5 py-2 text-sm font-bold text-white transition-colors duration-150 ${
                     result.assigned > 0
                       ? "bg-brand-500 hover:bg-brand-600"
                       : "bg-gray-500 hover:bg-gray-600"
@@ -386,7 +386,7 @@ export default function BulkAssignModal({
                         <select
                           value={manualSequenceId}
                           onChange={(e) => setManualSequenceId(e.target.value)}
-                          className="font-body mt-3 w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-brand-400 focus:outline-none"
+                          className="font-body mt-3 w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
                         >
                           <option value="">Select a sequence...</option>
                           {sequences.map((s) => (
@@ -414,7 +414,7 @@ export default function BulkAssignModal({
                         <select
                           value={manualSequenceId}
                           onChange={(e) => setManualSequenceId(e.target.value)}
-                          className="font-body w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 focus:border-brand-400 focus:outline-none"
+                          className="font-body w-full rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
                         >
                           <option value="">Select a sequence...</option>
                           {sequences.map((s) => (
@@ -438,14 +438,14 @@ export default function BulkAssignModal({
                     <button
                       onClick={handleClose}
                       disabled={assigning}
-                      className="font-body rounded-xl border-2 border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
+                      className="font-body rounded-xl border-2 border-gray-200 bg-white px-5 py-2.5 text-sm font-medium text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:opacity-40 disabled:cursor-not-allowed"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleAssign}
                       disabled={!canConfirm}
-                      className="font-display inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all hover:bg-brand-600 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+                      className="font-display inline-flex items-center gap-2 rounded-xl bg-brand-500 px-5 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-150 active:scale-95 hover:bg-brand-600 hover:shadow-xl disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
                     >
                       {assigning && (
                         <div className="h-4 w-4 animate-spin rounded-full border-2 border-white/30 border-t-white" />

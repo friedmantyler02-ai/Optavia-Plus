@@ -12,6 +12,7 @@ import useShowToast from "@/hooks/useShowToast";
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
 const statusLabels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
 const statusColors = { active: "#4a7c59", new: "#c9a84c", plateau: "#c4855c", milestone: "#8b6baf", lapsed: "#c25b50", archived: "#6b7280" };
+const statusBadgeClasses = { active: "bg-green-100 text-green-700", new: "bg-blue-100 text-blue-700", plateau: "bg-yellow-100 text-yellow-700", milestone: "bg-purple-100 text-purple-700", lapsed: "bg-red-100 text-red-700", archived: "bg-gray-100 text-gray-500" };
 
 export default function ClientsPage() {
   const { coach, supabase } = useCoach();
@@ -152,8 +153,8 @@ export default function ClientsPage() {
         title="My Clients"
         actions={
           <div className="flex gap-2">
-            <button onClick={() => setShowCSV(true)} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition">📂 Import CSV</button>
-            <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition">➕ Add Client</button>
+            <button onClick={() => setShowCSV(true)} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors duration-150">📂 Import CSV</button>
+            <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-all duration-150 active:scale-95">➕ Add Client</button>
           </div>
         }
       />
@@ -175,13 +176,13 @@ export default function ClientsPage() {
                 <label className="block text-xs font-bold text-gray-400 uppercase mb-1">{f.label}</label>
                 <input type={f.type} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                   placeholder={f.placeholder}
-                  className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl focus:border-brand-500 focus:outline-none transition" />
+                  className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
               </div>
             ))}
           </div>
           <div className="flex gap-3 mt-4">
-            <button type="submit" disabled={saving} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50">{saving ? "Saving..." : "Save Client"}</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm">Cancel</button>
+            <button type="submit" disabled={saving} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100">{saving ? "Saving..." : "Save Client"}</button>
+            <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors duration-150">Cancel</button>
           </div>
         </form>
       )}
@@ -192,7 +193,7 @@ export default function ClientsPage() {
       {/* SEARCH + FILTER */}
       <div className="flex flex-col sm:flex-row gap-3 mb-4">
         <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search clients..."
-          className="flex-1 px-4 py-3 text-sm border-2 border-gray-200 rounded-xl bg-white focus:border-brand-500 focus:outline-none transition" />
+          className="flex-1 px-4 py-3 text-sm border-2 border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
         <div className="flex gap-1 bg-white rounded-xl p-1 border-2 border-gray-200">
           {[{ id: "all", label: "All" }, { id: "new", label: "🌱 New" }, { id: "active", label: "✅ Active" }, { id: "plateau", label: "🏔️ Plateau" }, { id: "lapsed", label: "💛 Lapsed" }].map(f => (
             <button key={f.id} onClick={() => setFilter(f.id)}
@@ -207,7 +208,7 @@ export default function ClientsPage() {
       <div className="space-y-2">
         {filtered.map(client => (
           <button key={client.id} onClick={() => router.push("/dashboard/clients/" + client.id)}
-            className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition text-left">
+            className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-150 text-left">
             <div className="flex items-center gap-3">
               <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-xl">{statusEmojis[client.status] || "📋"}</div>
               <div>
@@ -219,7 +220,7 @@ export default function ClientsPage() {
               <div className="text-right hidden sm:block">
                 <div className="text-xs text-gray-400">Started {client.start_date ? new Date(client.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
               </div>
-              <span className="text-xs font-bold px-3 py-1 rounded-lg" style={{ backgroundColor: statusColors[client.status] + "15", color: statusColors[client.status] }}>{statusLabels[client.status]}</span>
+              <span className={"rounded-full px-2.5 py-0.5 text-xs font-medium " + (statusBadgeClasses[client.status] || "bg-gray-100 text-gray-500")}>{statusLabels[client.status]}</span>
               <span className="text-gray-300 text-lg">→</span>
             </div>
           </button>
@@ -259,11 +260,11 @@ function CSVModal({ onImport, onClose }) {
         <input type="file" accept=".csv,.txt" onChange={handleFile} className="mb-3 text-sm" />
 
         <textarea value={text} onChange={e => setText(e.target.value)} rows={6} placeholder={"name,email,phone,plan,weight\nJane Doe,jane@email.com,555-0100,Optimal 5&1,180"}
-          className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl mb-4 focus:border-brand-500 focus:outline-none font-mono" />
+          className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 font-mono" />
 
         <div className="flex gap-3">
-          <button onClick={() => onImport(text)} disabled={!text.trim()} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50">Import Clients</button>
-          <button onClick={onClose} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm">Cancel</button>
+          <button onClick={() => onImport(text)} disabled={!text.trim()} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100">Import Clients</button>
+          <button onClick={onClose} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors duration-150">Cancel</button>
         </div>
       </div>
     </div>

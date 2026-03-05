@@ -263,7 +263,7 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
         </p>
         <button
           onClick={() => { setError(null); setLoading(true); fetchTimeline(); }}
-          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition"
+          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-all duration-150 active:scale-95"
           style={{ fontFamily: 'Nunito, sans-serif' }}
         >
           Retry
@@ -465,7 +465,7 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
                                   }
                                 }}
                                 disabled={completing === step.id}
-                                className={`px-4 py-2 rounded-xl text-sm font-bold text-white transition-all shadow-sm whitespace-nowrap ${
+                                className={`px-4 py-2 rounded-xl text-sm font-bold text-white transition-all duration-150 shadow-sm whitespace-nowrap ${
                                   completing === step.id
                                     ? 'bg-gray-400 cursor-not-allowed'
                                     : isOverdue
@@ -508,7 +508,7 @@ export default function TouchpointTimeline({ clientId, clientName, onUpdate }) {
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter') handleComplete(seq.assignmentId, step);
                               }}
-                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-300 focus:border-indigo-400"
+                              className="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
                               style={{ fontFamily: 'Nunito, sans-serif' }}
                               autoFocus
                             />

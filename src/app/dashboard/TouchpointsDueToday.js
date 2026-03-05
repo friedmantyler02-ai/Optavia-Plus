@@ -122,7 +122,7 @@ export default function TouchpointsDueToday() {
         </p>
         <button
           onClick={() => { setError(null); setLoading(true); fetchDueItems(); }}
-          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition"
+          className="mt-3 px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-all duration-150 active:scale-95"
           style={{ fontFamily: 'Nunito, sans-serif' }}
         >
           Retry
@@ -197,7 +197,7 @@ export default function TouchpointsDueToday() {
           {!showAll && hiddenCount > 0 && (
             <button
               onClick={() => setShowAll(true)}
-              className="w-full text-center py-2 text-sm font-bold text-brand-500 hover:text-brand-600 transition"
+              className="w-full text-center py-2 text-sm font-bold text-brand-500 hover:text-brand-600 transition-colors duration-150"
               style={{ fontFamily: 'Nunito, sans-serif' }}
             >
               and {hiddenCount} more...

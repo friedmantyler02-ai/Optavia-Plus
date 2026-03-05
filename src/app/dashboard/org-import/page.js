@@ -537,7 +537,7 @@ export default function OrgImportPage() {
           <div className="mt-8 flex justify-center">
             <button
               onClick={startImport}
-              className="px-10 py-4 bg-brand-500 text-white rounded-2xl text-lg font-bold shadow-lg hover:bg-brand-600 hover:shadow-xl transition-all"
+              className="px-10 py-4 bg-brand-500 text-white rounded-2xl text-lg font-bold shadow-lg hover:bg-brand-600 hover:shadow-xl transition-all duration-150 active:scale-95"
             >
               Start Import
             </button>
@@ -631,7 +631,7 @@ export default function OrgImportPage() {
                 <div className="flex justify-center">
                   <button
                     onClick={resetPage}
-                    className="px-8 py-3 bg-brand-500 text-white rounded-2xl text-base font-bold shadow-lg hover:bg-brand-600 hover:shadow-xl transition-all"
+                    className="px-8 py-3 bg-brand-500 text-white rounded-2xl text-base font-bold shadow-lg hover:bg-brand-600 hover:shadow-xl transition-all duration-150 active:scale-95"
                   >
                     Try Again
                   </button>
@@ -708,7 +708,7 @@ export default function OrgImportPage() {
             <div className="mt-8 flex justify-center">
               <button
                 onClick={resetPage}
-                className="px-10 py-4 bg-brand-500 text-white rounded-2xl text-lg font-bold shadow-lg hover:bg-brand-600 hover:shadow-xl transition-all"
+                className="px-10 py-4 bg-brand-500 text-white rounded-2xl text-lg font-bold shadow-lg hover:bg-brand-600 hover:shadow-xl transition-all duration-150 active:scale-95"
               >
                 Import Another
               </button>
@@ -757,15 +757,9 @@ function ResultCard({ label, value, emoji, color }) {
 }
 
 function StatusBadge({ status }) {
-  const config = {
-    Active: { bg: "bg-brand-50", text: "text-brand-500" },
-    Reverted: { bg: "bg-red-50", text: "text-red-500" },
-  };
-  const c = config[status] || { bg: "bg-gray-100", text: "text-gray-400" };
+  const classes = status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
   return (
-    <span
-      className={`inline-block rounded-lg px-3 py-1 text-xs font-bold ${c.bg} ${c.text}`}
-    >
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${classes}`}>
       {status}
     </span>
   );

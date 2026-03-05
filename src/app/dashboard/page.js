@@ -123,7 +123,7 @@ export default function DashboardHome() {
           ) : (
             <div className="space-y-2">
               {needsAttention.map((client) => (
-                <button key={client.id} onClick={() => router.push("/dashboard/clients/" + client.id)} className="w-full flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl hover:bg-brand-50 transition text-left">
+                <button key={client.id} onClick={() => router.push("/dashboard/clients/" + client.id)} className="w-full flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl hover:bg-brand-50 transition-colors duration-150 text-left">
                   <div className="flex items-center gap-3">
                     <span className="text-xl">{emojis[client.status] || "📋"}</span>
                     <div>
@@ -173,7 +173,7 @@ export default function DashboardHome() {
           { label: "Touchpoints", icon: "💬", href: "/dashboard/touchpoints" },
           { label: "Marketing Ideas", icon: "📣", href: "/dashboard/marketing" },
         ].map((qa) => (
-          <button key={qa.label} onClick={() => router.push(qa.href)} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition text-center">
+          <button key={qa.label} onClick={() => router.push(qa.href)} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 text-center">
             <span className="text-2xl">{qa.icon}</span>
             <span className="font-bold text-sm">{qa.label}</span>
           </button>

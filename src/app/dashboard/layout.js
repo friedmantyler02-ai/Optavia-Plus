@@ -103,7 +103,7 @@ export default function DashboardLayout({ children }) {
               <button
                 key={item.href}
                 onClick={() => router.push(item.href)}
-                className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition ${
+                className={`px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-colors duration-150 ${
                   isActive(item.href)
                     ? "bg-brand-100 text-brand-500"
                     : "text-gray-400 hover:bg-gray-50"
@@ -153,7 +153,7 @@ export default function DashboardLayout({ children }) {
 
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition"
+                  className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors duration-150"
                 >
                   Sign Out
                 </button>

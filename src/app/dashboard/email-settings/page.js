@@ -435,7 +435,7 @@ export default function EmailSettingsPage() {
                     >
                       <div
                         className={`relative w-14 h-8 rounded-full transition-colors duration-200 ${
-                          enabled ? "bg-green-500" : "bg-gray-300"
+                          enabled ? "bg-[#E8735A]" : "bg-gray-300"
                         }`}
                       >
                         <div
@@ -457,7 +457,7 @@ export default function EmailSettingsPage() {
                         max="365"
                         defaultValue={delay}
                         onBlur={(e) => handleDelayBlur(trigger, e.target.value)}
-                        className="font-body w-20 rounded-xl border-2 border-gray-200 px-3 py-2 text-center text-sm font-bold text-gray-900 focus:border-brand-400 focus:outline-none"
+                        className="font-body w-20 rounded-xl border-2 border-gray-200 px-3 py-2 text-center text-sm font-bold text-gray-900 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
                       />
                       <span className="font-body text-sm text-gray-600">days</span>
                     </div>
@@ -467,13 +467,13 @@ export default function EmailSettingsPage() {
                   <div className="flex items-center gap-3 mt-4 ml-12">
                     <button
                       onClick={() => setPreviewTrigger(trigger)}
-                      className="font-body inline-flex items-center gap-1.5 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600"
+                      className="font-body inline-flex items-center gap-1.5 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 transition-colors duration-150 hover:border-brand-300 hover:bg-brand-50 hover:text-brand-600"
                     >
                       👁️ Preview Email
                     </button>
                     <button
                       onClick={() => openEditModal(trigger)}
-                      className="font-body inline-flex items-center gap-1.5 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 transition hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
+                      className="font-body inline-flex items-center gap-1.5 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-600 transition-colors duration-150 hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
                     >
                       ✏️ Edit Message
                     </button>
@@ -581,7 +581,7 @@ export default function EmailSettingsPage() {
                   value={editSubject}
                   onChange={(e) => setEditSubject(e.target.value)}
                   placeholder="Enter email subject..."
-                  className="font-body w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+                  className="font-body w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
                 />
               </div>
 
@@ -595,7 +595,7 @@ export default function EmailSettingsPage() {
                   onChange={(e) => setEditBody(e.target.value)}
                   rows={10}
                   placeholder="Write your email message..."
-                  className="font-body w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none resize-y"
+                  className="font-body w-full rounded-xl border-2 border-gray-200 px-4 py-3 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 resize-y"
                 />
               </div>
             </div>
@@ -605,7 +605,7 @@ export default function EmailSettingsPage() {
               <button
                 onClick={handleResetTemplate}
                 disabled={editSaving || !hasCustomTemplate(editTrigger.id)}
-                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-500 transition hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
+                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-500 transition-colors duration-150 hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
               >
                 Reset to Default
               </button>
@@ -613,14 +613,14 @@ export default function EmailSettingsPage() {
                 <button
                   onClick={() => setEditTrigger(null)}
                   disabled={editSaving}
-                  className="font-body rounded-xl border-2 border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-600 transition hover:bg-gray-50"
+                  className="font-body rounded-xl border-2 border-gray-200 bg-white px-5 py-2.5 text-sm font-bold text-gray-600 transition-colors duration-150 hover:bg-gray-50"
                 >
                   Cancel
                 </button>
                 <button
                   onClick={handleSaveTemplate}
                   disabled={editSaving}
-                  className="font-display rounded-2xl bg-brand-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg transition hover:bg-brand-600 hover:shadow-xl disabled:opacity-60"
+                  className="font-display rounded-2xl bg-brand-500 px-6 py-2.5 text-sm font-bold text-white shadow-lg transition-all duration-150 active:scale-95 hover:bg-brand-600 hover:shadow-xl disabled:opacity-60"
                 >
                   {editSaving ? "Saving..." : "Save Changes"}
                 </button>

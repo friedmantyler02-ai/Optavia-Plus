@@ -19,7 +19,7 @@ export default function ConfirmDialog({
         <div className="flex gap-3 justify-end">
           <button
             onClick={onCancel}
-            className="border border-gray-200 text-gray-600 hover:bg-gray-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+            className="border border-gray-200 text-gray-600 hover:bg-gray-50 px-4 py-2 rounded-xl text-sm font-medium transition-colors duration-150"
           >
             Cancel
           </button>
@@ -27,8 +27,8 @@ export default function ConfirmDialog({
             onClick={onConfirm}
             className={
               confirmVariant === 'danger'
-                ? "bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
-                : "bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2 rounded-xl text-sm font-medium transition-colors"
+                ? "bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95"
+                : "bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95"
             }
           >
             {confirmLabel}

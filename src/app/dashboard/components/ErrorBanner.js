@@ -12,7 +12,7 @@ export default function ErrorBanner({ message, onRetry }) {
       {onRetry && (
         <button
           onClick={onRetry}
-          className="text-sm text-red-600 underline hover:text-red-800"
+          className="text-sm text-red-600 underline hover:text-red-800 transition-colors duration-150"
         >
           Try again
         </button>

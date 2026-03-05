@@ -21,16 +21,9 @@ function Skeleton({ className = "" }) {
 // Status badge (Active / Reverted)
 // ---------------------------------------------------------------------------
 function StatusBadge({ status }) {
-  const config = {
-    Active: { bg: "#f0f7f2", text: "#4a7c59" },
-    Reverted: { bg: "#faf0e8", text: "#a86b47" },
-  };
-  const c = config[status] ?? { bg: "#f3f4f6", text: "#6b7280" };
+  const classes = status === "Active" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500";
   return (
-    <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
-      style={{ backgroundColor: c.bg, color: c.text }}
-    >
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${classes}`}>
       {status}
     </span>
   );
@@ -41,16 +34,13 @@ function StatusBadge({ status }) {
 // ---------------------------------------------------------------------------
 function TierBadge({ tier }) {
   const config = {
-    critical: { bg: "#fef2f2", text: "#dc2626", label: "Critical" },
-    warning: { bg: "#fffbeb", text: "#d97706", label: "Warning" },
-    watch: { bg: "#fff7ed", text: "#ea580c", label: "Watch" },
+    critical: { classes: "bg-red-100 text-red-700", label: "Critical" },
+    warning: { classes: "bg-yellow-100 text-yellow-700", label: "Warning" },
+    watch: { classes: "bg-blue-100 text-blue-700", label: "Watch" },
   };
   const c = config[tier] ?? config.watch;
   return (
-    <span
-      className="inline-block rounded-full px-2.5 py-0.5 text-xs font-bold"
-      style={{ backgroundColor: c.bg, color: c.text }}
-    >
+    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-medium ${c.classes}`}>
       {c.label}
     </span>
   );
@@ -340,7 +330,7 @@ export default function NeglectedClientsPage() {
               <button
                 key={t.key}
                 onClick={() => handleTierButton(t.key)}
-                className={`font-body rounded-xl px-4 py-2 text-sm font-bold transition-colors ${
+                className={`font-body rounded-xl px-4 py-2 text-sm font-bold transition-colors duration-150 ${
                   tier === t.key
                     ? "bg-brand-500 text-white"
                     : "bg-gray-100 text-gray-600 hover:bg-gray-200"
@@ -360,7 +350,7 @@ export default function NeglectedClientsPage() {
                   setPage(1);
                   setCoachFilter(e.target.value);
                 }}
-                className="font-body rounded-xl border-2 border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:border-brand-400 focus:outline-none"
+                className="font-body rounded-xl border-2 border-gray-200 bg-white px-3 py-2.5 text-sm text-gray-700 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
               >
                 <option value="">All Coaches</option>
                 {coachOptions.map((co) => (
@@ -376,11 +366,11 @@ export default function NeglectedClientsPage() {
                 value={searchInput}
                 onChange={(e) => setSearchInput(e.target.value)}
                 placeholder="Search by name..."
-                className="font-body w-full sm:w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:border-brand-400 focus:outline-none"
+                className="font-body w-full sm:w-56 rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm text-gray-900 placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150"
               />
               <button
                 type="submit"
-                className="font-body rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-bold text-brand-600 transition-colors hover:bg-brand-100"
+                className="font-body rounded-xl bg-brand-50 px-4 py-2.5 text-sm font-bold text-brand-600 transition-colors duration-150 hover:bg-brand-100"
               >
                 Search
               </button>
@@ -538,14 +528,14 @@ export default function NeglectedClientsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page === 1}
-                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Previous
               </button>
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page === totalPages}
-                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
+                className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2 text-sm font-bold text-gray-700 transition-colors duration-150 hover:bg-gray-50 disabled:cursor-not-allowed disabled:opacity-40"
               >
                 Next
               </button>
@@ -568,7 +558,7 @@ export default function NeglectedClientsPage() {
           </span>
           <button
             onClick={() => setShowModal(true)}
-            className="font-display rounded-xl bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow transition-all hover:bg-brand-600 hover:shadow-md"
+            className="font-display rounded-xl bg-brand-500 px-5 py-2 text-sm font-bold text-white shadow transition-all duration-150 active:scale-95 hover:bg-brand-600 hover:shadow-md"
           >
             Assign Sequence
           </button>

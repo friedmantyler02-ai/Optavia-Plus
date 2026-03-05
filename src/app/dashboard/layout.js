@@ -64,6 +64,7 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard", label: "Home", icon: "🏠" },
     { href: "/dashboard/organization", label: "Organization", icon: "🏢" },
     { href: "/dashboard/analytics", label: "Analytics", icon: "📊" },
+    { href: "/dashboard/knowledge", label: "Knowledge", icon: "📚" },
     { href: "/dashboard/touchpoints", label: "Touchpoints", icon: "💬" },
     { href: "/dashboard/team", label: "My Team", icon: "🌳" },
     { href: "/dashboard/marketing", label: "Marketing", icon: "📣" },

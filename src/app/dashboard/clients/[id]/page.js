@@ -5,6 +5,7 @@ import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
 import TouchpointTimeline from './TouchpointTimeline';
+import ConfirmDialog from "../../components/ConfirmDialog";
 import useShowToast from "@/hooks/useShowToast";
 
 const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
@@ -46,6 +47,7 @@ export default function ClientDetailPage() {
   const [timelineKey, setTimelineKey] = useState(0);
   const [hasSequences, setHasSequences] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [deleteConfirm, setDeleteConfirm] = useState(false);
   const showToast = useShowToast();
 
   useEffect(() => { loadClient(); }, [params.id]);
@@ -112,8 +114,9 @@ export default function ClientDetailPage() {
     }
   };
 
-  const deleteClient = async () => {
-    if (!confirm("Are you sure you want to delete " + client.full_name + "? This cannot be undone.")) return;
+  const handleDeleteClick = () => setDeleteConfirm(true);
+  const handleDeleteConfirm = async () => {
+    setDeleteConfirm(false);
     await supabase.from("clients").delete().eq("id", client.id);
     await supabase.from("activities").insert({ coach_id: coach.id, action: "Deleted client", details: client.full_name });
     router.push("/dashboard/clients");
@@ -252,7 +255,7 @@ export default function ClientDetailPage() {
               <p className="mt-1 text-sm text-gray-600 bg-[#faf7f2] p-3 rounded-xl">{client.notes || "No notes yet."}</p>
             )}
           </div>
-          <button onClick={deleteClient} className="mt-4 px-4 py-2 text-xs font-bold text-red-400 hover:text-red-600 transition-colors duration-150">
+          <button onClick={handleDeleteClick} className="mt-4 px-4 py-2 text-xs font-bold text-red-400 hover:text-red-600 transition-colors duration-150">
             Delete this client
           </button>
         </div>
@@ -275,6 +278,15 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
+      <ConfirmDialog
+        isOpen={deleteConfirm}
+        title="Delete this client?"
+        message={`${client.full_name} will be permanently removed. This cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDeleteConfirm}
+        onCancel={() => setDeleteConfirm(false)}
+      />
     </div>
   );
 }

@@ -5,6 +5,7 @@ import { useCoach } from "../layout";
 import ErrorBanner from "../components/ErrorBanner";
 import EmptyState from "../components/EmptyState";
 import PageHeader from "../components/PageHeader";
+import ConfirmDialog from "../components/ConfirmDialog";
 import useShowToast from "@/hooks/useShowToast";
 
 // ---------------------------------------------------------------------------
@@ -34,6 +35,7 @@ export default function EmailSettingsPage() {
   const [editSubject, setEditSubject] = useState("");
   const [editBody, setEditBody] = useState("");
   const [editSaving, setEditSaving] = useState(false);
+  const [resetConfirm, setResetConfirm] = useState(false);
 
   // ------------------------------------------------------------------
   // Fetch everything on mount
@@ -253,9 +255,10 @@ export default function EmailSettingsPage() {
   // ------------------------------------------------------------------
   // Reset template to default
   // ------------------------------------------------------------------
+  const handleResetClick = () => setResetConfirm(true);
   const handleResetTemplate = async () => {
+    setResetConfirm(false);
     if (!editTrigger) return;
-    if (!confirm("Reset this email to the default message? Your custom version will be deleted.")) return;
     setEditSaving(true);
 
     try {
@@ -603,7 +606,7 @@ export default function EmailSettingsPage() {
             {/* Footer buttons */}
             <div className="flex items-center justify-between px-6 py-4 border-t border-gray-100 bg-gray-50 shrink-0">
               <button
-                onClick={handleResetTemplate}
+                onClick={handleResetClick}
                 disabled={editSaving || !hasCustomTemplate(editTrigger.id)}
                 className="font-body rounded-xl border-2 border-gray-200 bg-white px-4 py-2.5 text-sm font-bold text-gray-500 transition-colors duration-150 hover:border-red-300 hover:bg-red-50 hover:text-red-600 disabled:opacity-40 disabled:cursor-not-allowed"
               >
@@ -629,6 +632,15 @@ export default function EmailSettingsPage() {
           </div>
         </>
       )}
+      <ConfirmDialog
+        isOpen={resetConfirm}
+        title="Reset to default?"
+        message="Your custom email template will be deleted and replaced with the default version."
+        confirmLabel="Reset"
+        confirmVariant="danger"
+        onConfirm={handleResetTemplate}
+        onCancel={() => setResetConfirm(false)}
+      />
     </div>
   );
 }

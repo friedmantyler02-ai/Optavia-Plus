@@ -125,9 +125,14 @@ export async function POST(request) {
     }
 
     // --- Build and upsert client records ---
-    const clientRecords = rows
-      .map((row) => buildClientRecord(row, batchId))
-      .filter((r) => r !== null);
+    const clientRecords = [
+      ...new Map(
+        rows
+          .map((row) => buildClientRecord(row, batchId))
+          .filter((r) => r !== null)
+          .map((r) => [r.optavia_id, r])
+      ).values(),
+    ];
 
     const clientResult = await batchUpsertClients(
       supabaseAdmin,

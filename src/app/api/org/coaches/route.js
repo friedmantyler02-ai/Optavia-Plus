@@ -66,18 +66,18 @@ export async function GET(request) {
     const ninetyDaysAgoStr = ninetyDaysAgo.toISOString().split("T")[0];
 
     // Fetch client stats and email data in parallel
-    const coachIds = allCoaches.map((c) => c.id);
+    const pageCoachIds = allCoaches.map((c) => c.id);
     const [{ data: clientRows }, { data: emailQueueRows }] = await Promise.all([
       supabaseAdmin
         .from("clients")
         .select("coach_id, account_status, last_order_date, last_contact_date")
         .not("import_batch_id", "is", null)
-        .in("coach_id", coachIds),
+        .in("coach_id", pageCoachIds),
       supabaseAdmin
         .from("email_queue")
         .select("coach_id, email_log(opened_at, bounced_at)")
         .eq("status", "sent")
-        .in("coach_id", coachIds),
+        .in("coach_id", pageCoachIds),
     ]);
 
     // Aggregate email stats per coach

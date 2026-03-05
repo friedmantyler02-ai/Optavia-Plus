@@ -179,7 +179,9 @@ export default function OrgImportPage() {
     setSteps((prev) => prev.map((s, i) => (i === index ? { ...s, ...patch } : s)));
   }
 
-  // --- Start import ---
+  // --- Start import (chunked upload) ---
+  const CHUNK_SIZE = 5000;
+
   const startImport = useCallback(async () => {
     if (rawRows.length === 0 || !file) return;
 
@@ -193,42 +195,106 @@ export default function OrgImportPage() {
     ]);
     setClientProgress({ completed: 0, total: rawRows.length });
 
+    // Split rows into chunks
+    const chunks = [];
+    for (let i = 0; i < rawRows.length; i += CHUNK_SIZE) {
+      chunks.push(rawRows.slice(i, i + CHUNK_SIZE));
+    }
+    const totalChunks = chunks.length;
+
+    // Aggregated results across all chunks
+    let batchId = null;
+    let totalCoachesCreated = 0;
+    let totalCoachesExisting = 0;
+    let totalInserted = 0;
+    let totalUpdated = 0;
+    let totalErrors = 0;
+    let allErrorDetails = [];
+    let recordsLinked = 0;
+    let rowsCompleted = 0;
+
     try {
-      const res = await fetch("/api/org/import", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ rows: rawRows, filename: file.name }),
-      });
+      for (let i = 0; i < totalChunks; i++) {
+        // Update step 1 on first chunk, step 2 on subsequent
+        if (i === 0) {
+          updateStep(0, { status: "active", label: "Creating coach records..." });
+        } else if (i === 1) {
+          updateStep(1, { status: "active" });
+        }
 
-      const data = await res.json();
+        const res = await fetch("/api/org/import", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            rows: chunks[i],
+            chunkIndex: i,
+            totalChunks,
+            batchId,
+            filename: file.name,
+            totalRows: rawRows.length,
+          }),
+        });
 
-      if (!res.ok) {
-        throw new Error(data.error || "Import failed. Please try again.");
+        const data = await res.json();
+
+        if (!res.ok) {
+          throw new Error(data.error || `Chunk ${i + 1} failed. Please try again.`);
+        }
+
+        // Capture batchId from first chunk
+        if (i === 0) {
+          batchId = data.batchId;
+        }
+
+        // Aggregate results
+        totalCoachesCreated += data.coachesCreated || 0;
+        totalCoachesExisting += data.coachesExisting || 0;
+        totalInserted += data.clientsInserted || 0;
+        totalUpdated += data.clientsUpdated || 0;
+        totalErrors += data.clientErrors || 0;
+        if (data.errorDetails?.length) {
+          allErrorDetails = allErrorDetails.concat(data.errorDetails);
+        }
+
+        // Mark first step done after first chunk returns
+        if (i === 0) {
+          updateStep(0, {
+            status: "done",
+            result: `Created ${data.coachesCreated} coaches (${data.coachesExisting} already existed)`,
+          });
+          updateStep(1, { status: "active" });
+        }
+
+        // Update progress
+        rowsCompleted += chunks[i].length;
+        setClientProgress({ completed: rowsCompleted, total: rawRows.length });
+
+        // Capture linked count from last chunk
+        if (data.isComplete && data.recordsLinked != null) {
+          recordsLinked = data.recordsLinked;
+        }
       }
 
-      // All three steps completed on the server — update UI to reflect final state
-      updateStep(0, {
-        status: "done",
-        result: `Created ${data.coachesCreated} coaches (${data.coachesExisting} already existed)`,
-      });
+      // All chunks done — finalize UI
+      const totalProcessed = totalInserted + totalUpdated;
+
       updateStep(1, {
-        status: data.clientErrors > 0 ? "error" : "done",
-        result: `${data.clientsProcessed.toLocaleString()} records processed${data.clientErrors > 0 ? ` (${data.clientErrors} errors)` : ""}`,
+        status: totalErrors > 0 ? "error" : "done",
+        result: `${totalProcessed.toLocaleString()} records processed${totalErrors > 0 ? ` (${totalErrors} errors)` : ""}`,
       });
-      setClientProgress({ completed: data.totalRecords, total: data.totalRecords });
       updateStep(2, {
         status: "done",
-        result: `Linked ${data.recordsLinked.toLocaleString()} records`,
+        result: `Linked ${recordsLinked.toLocaleString()} records`,
       });
 
       setImportResults({
-        totalRecords: data.totalRecords,
-        coachesCreated: data.coachesCreated,
-        coachesExisting: data.coachesExisting,
-        clientsProcessed: data.clientsProcessed,
-        clientErrors: data.clientErrors,
-        recordsLinked: data.recordsLinked,
-        errorDetails: data.errorDetails || [],
+        totalRecords: rawRows.length,
+        coachesCreated: totalCoachesCreated,
+        coachesExisting: totalCoachesExisting,
+        clientsProcessed: totalProcessed,
+        clientErrors: totalErrors,
+        recordsLinked,
+        errorDetails: allErrorDetails,
       });
 
       setPhase("complete");
@@ -242,6 +308,15 @@ export default function OrgImportPage() {
         userMessage = "Your session has expired. Please refresh the page and sign in again.";
       } else {
         userMessage = rawMsg;
+      }
+
+      const parts = [];
+      if (totalCoachesCreated > 0) parts.push(`${totalCoachesCreated} coaches created`);
+      if (totalInserted > 0) parts.push(`${totalInserted.toLocaleString()} client records saved`);
+      if (parts.length > 0) {
+        setPartialProgress(
+          `Before the error, ${parts.join(" and ")} were successfully processed. These changes have been saved.`,
+        );
       }
 
       setImportError(userMessage);

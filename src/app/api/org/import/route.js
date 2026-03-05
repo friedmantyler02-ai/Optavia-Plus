@@ -9,6 +9,9 @@ import {
   linkClientsToCoaches,
 } from "@/lib/import-engine";
 
+// Allow up to 60s for large chunk processing
+export const maxDuration = 60;
+
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -27,7 +30,8 @@ export async function POST(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { rows, filename } = await request.json();
+    const { rows, chunkIndex, totalChunks, batchId: existingBatchId, filename, totalRows } =
+      await request.json();
 
     if (!Array.isArray(rows) || rows.length === 0) {
       return NextResponse.json(
@@ -36,31 +40,46 @@ export async function POST(request) {
       );
     }
 
-    // --- Create import_batches record ---
-    const { data: batchData, error: batchError } = await supabaseAdmin
-      .from("import_batches")
-      .insert({
-        filename: filename || "import.csv",
-        total_records: rows.length,
-        coach_id: user.id,
-      })
-      .select("id")
-      .single();
+    let batchId = existingBatchId;
+    let coachResult = null;
 
-    if (batchError || !batchData) {
+    // --- First chunk: create import batch and upsert coaches ---
+    if (chunkIndex === 0) {
+      const { data: batchData, error: batchError } = await supabaseAdmin
+        .from("import_batches")
+        .insert({
+          filename: filename || "import.csv",
+          total_records: totalRows || rows.length,
+          coach_id: user.id,
+        })
+        .select("id")
+        .single();
+
+      if (batchError || !batchData) {
+        return NextResponse.json(
+          { error: "Could not create import batch record." },
+          { status: 500 }
+        );
+      }
+
+      batchId = batchData.id;
+    }
+
+    if (!batchId) {
       return NextResponse.json(
-        { error: "Could not create import batch record." },
-        { status: 500 }
+        { error: "batchId is required for non-first chunks." },
+        { status: 400 }
       );
     }
 
-    const batchId = batchData.id;
-
-    // --- Step 1: Extract and upsert coaches ---
+    // --- Extract and upsert coaches from every chunk ---
+    // New coaches can appear in any chunk, so always process them
     const coaches = extractUniqueCoaches(rows);
-    const coachResult = await upsertCoachStubs(supabaseAdmin, coaches);
+    if (coaches.length > 0) {
+      coachResult = await upsertCoachStubs(supabaseAdmin, coaches);
+    }
 
-    // --- Step 2: Build and upsert client records ---
+    // --- Build and upsert client records ---
     const clientRecords = rows
       .map((row) => buildClientRecord(row, batchId))
       .filter((r) => r !== null);
@@ -68,32 +87,28 @@ export async function POST(request) {
     const clientResult = await batchUpsertClients(
       supabaseAdmin,
       clientRecords,
-      null // no progress callback for non-streaming response
+      null
     );
 
-    // --- Step 3: Link clients to coaches ---
-    const linked = await linkClientsToCoaches(supabaseAdmin, batchId);
+    // --- Last chunk: link clients to coaches and update batch stats ---
+    let linked = null;
+    const isLastChunk = chunkIndex === totalChunks - 1;
 
-    // --- Update import_batches with final stats ---
-    const orphanedCount = clientRecords.length - linked;
-    await supabaseAdmin
-      .from("import_batches")
-      .update({
-        new_records: clientResult.inserted,
-        duplicates_skipped: clientResult.updated,
-        orphaned_count: orphanedCount > 0 ? orphanedCount : 0,
-      })
-      .eq("id", batchId);
+    if (isLastChunk) {
+      linked = await linkClientsToCoaches(supabaseAdmin, batchId);
+    }
 
     return NextResponse.json({
       batchId,
-      totalRecords: clientRecords.length,
-      coachesCreated: coachResult.created,
-      coachesExisting: coachResult.existing,
-      clientsProcessed: clientResult.inserted + clientResult.updated,
+      chunkIndex,
+      isComplete: isLastChunk,
+      coachesCreated: coachResult?.created ?? 0,
+      coachesExisting: coachResult?.existing ?? 0,
+      clientsInserted: clientResult.inserted,
+      clientsUpdated: clientResult.updated,
       clientErrors: clientResult.errors,
-      recordsLinked: linked,
       errorDetails: clientResult.errorDetails,
+      recordsLinked: linked,
     });
   } catch (err) {
     console.error("Org import error:", err);

@@ -1,3 +1,4 @@
+// Knowledge Base Q&A endpoint - v1
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";

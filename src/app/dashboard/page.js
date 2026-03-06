@@ -235,10 +235,9 @@ export default function DashboardHome() {
       <h1 className="font-display text-2xl md:text-3xl font-bold mb-6">Welcome back, {coach.full_name?.split(" ")[0]}! 👋</h1>
 
       {/* STATS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-4 mb-6">
         {[
           { icon: "👥", label: "Total Clients", value: clients.length, sub: activeCount + " active", color: "#4a7c59" },
-          { icon: "📊", label: "Frontline Volume", value: "$" + (clients.length * 300).toLocaleString(), sub: "This month (est.)", color: "#5b8fa8" },
           { icon: "🎯", label: "Avg Relationship", value: avgScore, sub: "Out of 100", color: "#c4855c" },
           { icon: "✅", label: "Active Rate", value: clients.length > 0 ? Math.round((activeCount / clients.length) * 100) + "%" : "—", sub: "Active + New", color: "#8b6baf" },
         ].map((stat) => (

@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import Link from "next/link";
-import { useCoach } from "../../layout";
+import ErrorBanner from "../../components/ErrorBanner";
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -50,13 +50,12 @@ const FILTERS = [
 // Main page
 // ---------------------------------------------------------------------------
 export default function EscalationsPage() {
-  const { supabase } = useCoach();
-
   const [filter, setFilter] = useState("open");
   const [escalations, setEscalations] = useState([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(null);
   const [marking, setMarking] = useState(null); // id being marked
 
   // Stats
@@ -104,6 +103,7 @@ export default function EscalationsPage() {
   // ------------------------------------------------------------------
   const fetchEscalations = useCallback(async () => {
     setLoading(true);
+    setError(null);
     try {
       const params = new URLSearchParams({ page: String(page), limit: String(LIMIT) });
       if (filter !== "all") params.set("status", filter);
@@ -113,9 +113,12 @@ export default function EscalationsPage() {
         const data = await res.json();
         setEscalations(data.escalations || []);
         setTotal(data.total || 0);
+      } else {
+        setError("Failed to load escalations.");
       }
     } catch (err) {
       console.error("Failed to fetch escalations:", err);
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -172,7 +175,7 @@ export default function EscalationsPage() {
       {/* Stat cards */}
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-3 mb-8">
         <StatCard emoji="🚨" value={openCount} label="Open Escalations" loading={statsLoading} />
-        <StatCard emoji="✅" value={handledWeekCount} label="Handled" loading={statsLoading} />
+        <StatCard emoji="✅" value={handledWeekCount} label="Total Handled" loading={statsLoading} />
         <StatCard emoji="🔄" value={autoResolvedCount} label="Auto-Resolved" loading={statsLoading} />
       </div>
 
@@ -193,8 +196,10 @@ export default function EscalationsPage() {
         ))}
       </div>
 
+      {error && <ErrorBanner message={error} onRetry={fetchEscalations} />}
+
       {/* Table */}
-      <div className="overflow-x-auto rounded-2xl border-2 border-gray-100 bg-white">
+      {!error && <div className="overflow-x-auto rounded-2xl border-2 border-gray-100 bg-white">
         <table className="w-full text-left text-sm">
           <thead>
             <tr className="border-b border-gray-100 bg-gray-50">
@@ -292,7 +297,7 @@ export default function EscalationsPage() {
               ))}
           </tbody>
         </table>
-      </div>
+      </div>}
 
       {/* Pagination */}
       {!loading && totalPages > 1 && (

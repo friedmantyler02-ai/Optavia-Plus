@@ -64,11 +64,9 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard", label: "Home", icon: "🏠" },
     { href: "/dashboard/organization", label: "Organization", icon: "🏢" },
     { href: "/dashboard/leads", label: "Leads", icon: "🎯" },
+    { href: "/dashboard/outreach", label: "Outreach", icon: "📧" },
     { href: "/dashboard/analytics", label: "Analytics", icon: "📊" },
     { href: "/dashboard/knowledge", label: "Knowledge", icon: "📚" },
-    { href: "/dashboard/touchpoints", label: "Touchpoints", icon: "💬" },
-    { href: "/dashboard/marketing", label: "Marketing", icon: "📣" },
-    { href: "/dashboard/email-settings", label: "Email Settings", icon: "✉️" },
   ];
 
   const isActive = (href) => {

@@ -500,10 +500,10 @@ export default function OrganizationPage() {
             </Link>
             <Link
               href="/dashboard/org-import"
-              className="font-display inline-flex items-center gap-2 rounded-2xl bg-coral-400 px-6 py-3 text-base font-bold text-white shadow-lg transition-all hover:bg-coral-500 hover:shadow-xl"
+              className="font-display inline-flex items-center gap-2 rounded-2xl border-2 border-gray-200 bg-white px-5 py-3 text-base font-bold text-gray-700 shadow-sm transition-all hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
             >
               <span className="text-lg">{"\uD83D\uDCE5"}</span>
-              Import Data
+              Upload CSV
             </Link>
           </div>
         }

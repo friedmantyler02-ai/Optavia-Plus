@@ -323,12 +323,11 @@ export default function DashboardHome() {
       </div>
 
       {/* QUICK ACTIONS */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mt-6">
+      <div className="grid grid-cols-3 gap-3 mt-6">
         {[
           { label: "Add New Client", icon: "➕", href: "/dashboard/clients?add=1" },
           { label: "View All Clients", icon: "👥", href: "/dashboard/clients" },
-          { label: "Touchpoints", icon: "💬", href: "/dashboard/touchpoints" },
-          { label: "Marketing Ideas", icon: "📣", href: "/dashboard/marketing" },
+          { label: "Outreach", icon: "📧", href: "/dashboard/outreach" },
         ].map((qa) => (
           <button key={qa.label} onClick={() => router.push(qa.href)} className="bg-white rounded-2xl p-5 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 text-center">
             <span className="text-2xl">{qa.icon}</span>

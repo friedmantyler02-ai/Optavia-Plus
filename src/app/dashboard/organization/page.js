@@ -498,13 +498,6 @@ export default function OrganizationPage() {
               <span className="text-lg">{"\uD83D\uDC40"}</span>
               Needs Attention
             </Link>
-            <Link
-              href="/dashboard/org-import"
-              className="font-display inline-flex items-center gap-2 rounded-2xl border-2 border-gray-200 bg-white px-5 py-3 text-base font-bold text-gray-700 shadow-sm transition-all hover:border-coral-300 hover:bg-coral-50 hover:text-coral-600"
-            >
-              <span className="text-lg">{"\uD83D\uDCE5"}</span>
-              Upload CSV
-            </Link>
           </div>
         }
       />

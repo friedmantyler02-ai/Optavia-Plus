@@ -2,77 +2,56 @@
 
 import { useState, useEffect, useRef } from "react";
 import { useCoach } from "../layout";
+import PageHeader from "../components/PageHeader";
+import LoadingSpinner from "../components/LoadingSpinner";
+import EmptyState from "../components/EmptyState";
+import ErrorBanner from "../components/ErrorBanner";
 
 // ---------------------------------------------------------------------------
-// Chat bubble
+// Document viewer modal
 // ---------------------------------------------------------------------------
-function ChatBubble({ message }) {
-  const isUser = message.role === "user";
-  const isError = message.role === "error";
+function DocumentModal({ doc, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/40" onClick={onClose} />
+      <div className="relative bg-white rounded-2xl border-2 border-gray-100 w-full max-w-2xl max-h-[80vh] flex flex-col shadow-xl">
+        {/* Header */}
+        <div className="px-6 py-4 border-b-2 border-gray-100 flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <h3 className="font-display text-lg font-bold text-gray-900 truncate">
+              {doc.title}
+            </h3>
+            <p className="text-xs text-gray-400 mt-0.5">
+              {doc.category} &middot; {doc.filename}
+            </p>
+          </div>
+          <button
+            onClick={onClose}
+            className="shrink-0 w-8 h-8 rounded-lg bg-gray-100 hover:bg-gray-200 flex items-center justify-center text-gray-500 text-lg transition-colors duration-150"
+          >
+            &times;
+          </button>
+        </div>
 
-  if (isError) {
-    return (
-      <div className="flex justify-center my-3">
-        <div className="bg-red-50 border border-red-200 text-red-700 rounded-xl px-4 py-2 text-sm max-w-lg">
-          {message.content}
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto px-6 py-4">
+          {doc.content ? (
+            <p className="font-body text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+              {doc.content}
+            </p>
+          ) : (
+            <LoadingSpinner message="Loading document..." />
+          )}
         </div>
       </div>
-    );
-  }
-
-  return (
-    <div className={`flex ${isUser ? "justify-end" : "justify-start"} mb-4`}>
-      <div
-        className={`max-w-[80%] rounded-2xl px-4 py-3 ${
-          isUser
-            ? "bg-[#E8735A] text-white rounded-br-md"
-            : "bg-white border-2 border-gray-100 text-gray-700 rounded-bl-md"
-        }`}
-      >
-        <p className="font-body text-sm whitespace-pre-wrap leading-relaxed">
-          {message.content}
-        </p>
-
-        {/* Sources pills */}
-        {!isUser && message.sources?.length > 0 && (
-          <div className="mt-3 pt-2 border-t border-gray-100">
-            <p className="text-xs font-bold text-gray-400 mb-1.5">Sources</p>
-            <div className="flex flex-wrap gap-1.5">
-              {message.sources.map((s, i) => (
-                <span
-                  key={i}
-                  className="inline-block bg-[#E8735A]/10 text-[#E8735A] text-xs font-semibold rounded-full px-2.5 py-0.5"
-                >
-                  {s.title}
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
     </div>
   );
 }
 
 // ---------------------------------------------------------------------------
-// Loading dots
+// Category section in document sidebar
 // ---------------------------------------------------------------------------
-function TypingIndicator() {
-  return (
-    <div className="flex justify-start mb-4">
-      <div className="bg-white border-2 border-gray-100 rounded-2xl rounded-bl-md px-5 py-3 flex gap-1.5 items-center">
-        <span className="w-2 h-2 bg-[#E8735A] rounded-full animate-bounce" style={{ animationDelay: "0ms" }} />
-        <span className="w-2 h-2 bg-[#E8735A] rounded-full animate-bounce" style={{ animationDelay: "150ms" }} />
-        <span className="w-2 h-2 bg-[#E8735A] rounded-full animate-bounce" style={{ animationDelay: "300ms" }} />
-      </div>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
-// Document browser category section
-// ---------------------------------------------------------------------------
-function CategorySection({ category, docs }) {
+function CategorySection({ category, docs, onDocClick }) {
   const [open, setOpen] = useState(true);
 
   return (
@@ -88,17 +67,19 @@ function CategorySection({ category, docs }) {
           <span className="bg-[#E8735A]/10 text-[#E8735A] text-xs font-bold rounded-full px-2 py-0.5">
             {docs.length}
           </span>
-          <span className="text-gray-400 text-xs">{open ? "▲" : "▼"}</span>
+          <span className="text-gray-400 text-xs">{open ? "\u25B2" : "\u25BC"}</span>
         </span>
       </button>
       {open && (
         <ul className="mt-1 space-y-0.5 pl-3">
           {docs.map((doc) => (
-            <li
-              key={doc.id}
-              className="text-sm font-body text-gray-500 py-1.5 px-2 rounded-lg hover:bg-gray-50 transition-colors duration-150"
-            >
-              {doc.title}
+            <li key={doc.id}>
+              <button
+                onClick={() => onDocClick(doc)}
+                className="w-full text-left text-sm font-body text-gray-600 py-1.5 px-2 rounded-lg hover:bg-[#E8735A]/5 hover:text-[#E8735A] transition-colors duration-150"
+              >
+                {doc.title}
+              </button>
             </li>
           ))}
         </ul>
@@ -112,32 +93,37 @@ function CategorySection({ category, docs }) {
 // ---------------------------------------------------------------------------
 export default function KnowledgePage() {
   const { supabase } = useCoach();
-  const [messages, setMessages] = useState([]);
   const [input, setInput] = useState("");
   const [loading, setLoading] = useState(false);
+  const [answer, setAnswer] = useState(null);
+  const [sources, setSources] = useState([]);
+  const [error, setError] = useState(null);
   const [documents, setDocuments] = useState([]);
   const [docsLoading, setDocsLoading] = useState(true);
-  const chatEndRef = useRef(null);
-
-  // Scroll to bottom on new message
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, loading]);
+  const [selectedDoc, setSelectedDoc] = useState(null);
+  const answerRef = useRef(null);
 
   // Load documents on mount
   useEffect(() => {
     loadDocuments();
   }, []);
 
+  // Scroll to answer when it appears
+  useEffect(() => {
+    if (answer) {
+      answerRef.current?.scrollIntoView({ behavior: "smooth" });
+    }
+  }, [answer]);
+
   const loadDocuments = async () => {
     setDocsLoading(true);
-    const { data, error } = await supabase
+    const { data, error: fetchError } = await supabase
       .from("knowledge_documents")
       .select("id, title, filename, category")
       .order("category")
       .order("title");
 
-    if (!error && data) {
+    if (!fetchError && data) {
       setDocuments(data);
     }
     setDocsLoading(false);
@@ -150,12 +136,30 @@ export default function KnowledgePage() {
     return acc;
   }, {});
 
+  const handleDocClick = async (doc) => {
+    // Show modal immediately with title, then load content
+    setSelectedDoc(doc);
+
+    if (!doc.content) {
+      const { data } = await supabase
+        .from("knowledge_documents")
+        .select("content")
+        .eq("id", doc.id)
+        .single();
+
+      if (data) {
+        setSelectedDoc((prev) => (prev ? { ...prev, content: data.content } : null));
+      }
+    }
+  };
+
   const sendQuestion = async () => {
     const question = input.trim();
     if (!question || loading) return;
 
-    setInput("");
-    setMessages((prev) => [...prev, { role: "user", content: question }]);
+    setError(null);
+    setAnswer(null);
+    setSources([]);
     setLoading(true);
 
     try {
@@ -168,25 +172,13 @@ export default function KnowledgePage() {
       const data = await res.json();
 
       if (!res.ok) {
-        setMessages((prev) => [
-          ...prev,
-          { role: "error", content: data.error || "Something went wrong" },
-        ]);
+        setError(data.error || "Something went wrong");
       } else {
-        setMessages((prev) => [
-          ...prev,
-          {
-            role: "assistant",
-            content: data.answer,
-            sources: data.sources || [],
-          },
-        ]);
+        setAnswer(data.answer);
+        setSources(data.sources || []);
       }
-    } catch (err) {
-      setMessages((prev) => [
-        ...prev,
-        { role: "error", content: "Network error. Please try again." },
-      ]);
+    } catch {
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
@@ -200,107 +192,138 @@ export default function KnowledgePage() {
   };
 
   return (
-    <div className="flex flex-col lg:flex-row gap-6 h-[calc(100vh-120px)]">
-      {/* ============================================================= */}
-      {/* LEFT — Chat Interface                                         */}
-      {/* ============================================================= */}
-      <div className="flex flex-col lg:w-2/3 bg-white rounded-2xl border-2 border-gray-100 overflow-hidden">
-        {/* Header */}
-        <div className="px-6 py-4 border-b-2 border-gray-100">
-          <h1 className="font-display text-xl font-bold text-gray-800">
-            Coach Knowledge Base
-          </h1>
-          <p className="font-body text-sm text-gray-400 mt-0.5">
-            Ask anything about OPTAVIA programs, plans, and coaching
-          </p>
-        </div>
+    <div>
+      <PageHeader
+        title="Knowledge Base"
+        subtitle="Search OPTAVIA training docs or ask the AI coach assistant"
+      />
 
-        {/* Chat thread */}
-        <div className="flex-1 overflow-y-auto px-6 py-4 bg-[#faf7f2]">
-          {messages.length === 0 && !loading && (
-            <div className="flex flex-col items-center justify-center h-full text-center">
-              <span className="text-5xl mb-4">📚</span>
-              <h3 className="font-display text-lg font-bold text-gray-700 mb-1">
-                Ask a question
-              </h3>
-              <p className="font-body text-sm text-gray-400 max-w-sm">
-                I can help you find information across all OPTAVIA training
-                documents, program guides, and coaching resources.
-              </p>
+      <div className="flex flex-col lg:flex-row gap-6">
+        {/* ================================================================ */}
+        {/* LEFT — AI Q&A                                                    */}
+        {/* ================================================================ */}
+        <div className="lg:w-[60%] flex flex-col gap-4">
+          {/* Search input card */}
+          <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
+            <label className="font-display text-sm font-bold text-gray-700 mb-2 block">
+              Ask a Question
+            </label>
+            <div className="flex gap-2">
+              <input
+                type="text"
+                value={input}
+                onChange={(e) => setInput(e.target.value)}
+                onKeyDown={handleKeyDown}
+                placeholder="e.g. What are the Optimal Weight 5&1 lean and green options?"
+                disabled={loading}
+                className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 disabled:opacity-50 transition-colors duration-150"
+              />
+              <button
+                onClick={sendQuestion}
+                disabled={loading || !input.trim()}
+                className="bg-[#E8735A] hover:bg-[#d4644d] disabled:opacity-40 text-white font-bold text-sm px-6 py-2.5 rounded-xl transition-colors duration-150"
+              >
+                Ask
+              </button>
+            </div>
+          </div>
+
+          {/* Error banner */}
+          {error && (
+            <ErrorBanner message={error} onRetry={sendQuestion} />
+          )}
+
+          {/* Loading */}
+          {loading && (
+            <div className="bg-white rounded-2xl border-2 border-gray-100">
+              <LoadingSpinner message="Searching documents and generating answer..." />
             </div>
           )}
 
-          {messages.map((msg, i) => (
-            <ChatBubble key={i} message={msg} />
-          ))}
+          {/* Answer card */}
+          {answer && !loading && (
+            <div ref={answerRef} className="bg-white rounded-2xl border-2 border-gray-100 p-6">
+              <h3 className="font-display text-sm font-bold text-gray-700 mb-3">
+                Answer
+              </h3>
+              <p className="font-body text-sm text-gray-700 whitespace-pre-wrap leading-relaxed">
+                {answer}
+              </p>
 
-          {loading && <TypingIndicator />}
-          <div ref={chatEndRef} />
+              {sources.length > 0 && (
+                <div className="mt-4 pt-3 border-t border-gray-100">
+                  <p className="text-xs font-bold text-gray-400 mb-2">Sources</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {sources.map((s, i) => (
+                      <span
+                        key={i}
+                        className="inline-block bg-[#E8735A]/10 text-[#E8735A] text-xs font-semibold rounded-full px-2.5 py-0.5"
+                      >
+                        {s.title}
+                      </span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Empty state — only when no answer, not loading, no error */}
+          {!answer && !loading && !error && (
+            <EmptyState
+              icon="\uD83D\uDCDA"
+              title="Ask anything about Optavia coaching"
+              subtitle="Get instant answers from training documents, program guides, and coaching resources. Your AI assistant searches across all uploaded materials."
+            />
+          )}
         </div>
 
-        {/* Input bar */}
-        <div className="px-4 py-3 border-t-2 border-gray-100 bg-white">
-          <div className="flex gap-2">
-            <input
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="Ask a question about OPTAVIA..."
-              disabled={loading}
-              className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 disabled:opacity-50 transition-colors duration-150"
-            />
-            <button
-              onClick={sendQuestion}
-              disabled={loading || !input.trim()}
-              className="bg-[#E8735A] hover:bg-[#d4644d] disabled:opacity-40 text-white font-bold text-sm px-5 py-2.5 rounded-xl transition-colors duration-150"
-            >
-              Send
-            </button>
+        {/* ================================================================ */}
+        {/* RIGHT — Reference Documents                                      */}
+        {/* ================================================================ */}
+        <div className="lg:w-[40%] bg-white rounded-2xl border-2 border-gray-100 overflow-hidden flex flex-col lg:max-h-[calc(100vh-200px)]">
+          <div className="px-5 py-4 border-b-2 border-gray-100 flex items-center justify-between">
+            <h2 className="font-display text-base font-bold text-gray-800">
+              Reference Documents
+            </h2>
+            {documents.length > 0 && (
+              <span className="text-xs text-gray-400 font-body">
+                {documents.length} docs
+              </span>
+            )}
+          </div>
+
+          <div className="flex-1 overflow-y-auto px-3 py-3">
+            {docsLoading ? (
+              <LoadingSpinner message="Loading documents..." />
+            ) : Object.keys(grouped).length === 0 ? (
+              <div className="p-4">
+                <EmptyState
+                  icon="\uD83D\uDCC4"
+                  title="No documents yet"
+                  subtitle="Upload training materials to get started."
+                />
+              </div>
+            ) : (
+              Object.entries(grouped)
+                .sort(([a], [b]) => a.localeCompare(b))
+                .map(([category, docs]) => (
+                  <CategorySection
+                    key={category}
+                    category={category}
+                    docs={docs}
+                    onDocClick={handleDocClick}
+                  />
+                ))
+            )}
           </div>
         </div>
       </div>
 
-      {/* ============================================================= */}
-      {/* RIGHT — Document Browser                                      */}
-      {/* ============================================================= */}
-      <div className="lg:w-1/3 bg-white rounded-2xl border-2 border-gray-100 overflow-hidden flex flex-col">
-        {/* Header */}
-        <div className="px-6 py-4 border-b-2 border-gray-100">
-          <h2 className="font-display text-lg font-bold text-gray-800">
-            Reference Documents
-          </h2>
-        </div>
-
-        {/* Document list */}
-        <div className="flex-1 overflow-y-auto px-3 py-3">
-          {docsLoading ? (
-            <div className="space-y-3 p-3">
-              {[...Array(4)].map((_, i) => (
-                <div key={i} className="animate-pulse">
-                  <div className="h-4 bg-gray-200 rounded w-32 mb-2" />
-                  <div className="h-3 bg-gray-100 rounded w-48 mb-1" />
-                  <div className="h-3 bg-gray-100 rounded w-40" />
-                </div>
-              ))}
-            </div>
-          ) : Object.keys(grouped).length === 0 ? (
-            <div className="text-center py-8 text-gray-400 text-sm">
-              No documents loaded yet.
-            </div>
-          ) : (
-            Object.entries(grouped)
-              .sort(([a], [b]) => a.localeCompare(b))
-              .map(([category, docs]) => (
-                <CategorySection
-                  key={category}
-                  category={category}
-                  docs={docs}
-                />
-              ))
-          )}
-        </div>
-      </div>
+      {/* Document viewer modal */}
+      {selectedDoc && (
+        <DocumentModal doc={selectedDoc} onClose={() => setSelectedDoc(null)} />
+      )}
     </div>
   );
 }

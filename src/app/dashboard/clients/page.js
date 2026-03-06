@@ -1,272 +1,342 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCoach } from "../layout";
-import { useRouter, useSearchParams } from "next/navigation";
-import SkeletonCard from "../components/SkeletonCard";
-import ErrorBanner from "../components/ErrorBanner";
-import EmptyState from "../components/EmptyState";
+import { useRouter } from "next/navigation";
 import PageHeader from "../components/PageHeader";
-import useShowToast from "@/hooks/useShowToast";
+import LoadingSpinner from "../components/LoadingSpinner";
+import EmptyState from "../components/EmptyState";
+import ErrorBanner from "../components/ErrorBanner";
 
-const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
-const statusLabels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
-const statusColors = { active: "#4a7c59", new: "#c9a84c", plateau: "#c4855c", milestone: "#8b6baf", lapsed: "#c25b50", archived: "#6b7280" };
-const statusBadgeClasses = { active: "bg-green-100 text-green-700", new: "bg-blue-100 text-blue-700", plateau: "bg-yellow-100 text-yellow-700", milestone: "bg-purple-100 text-purple-700", lapsed: "bg-red-100 text-red-700", archived: "bg-gray-100 text-gray-500" };
+const STATUS_OPTIONS = ["Active", "Reverted", "Inactive", "New"];
+
+function StatusBadge({ status }) {
+  const colors = {
+    Active: "bg-green-100 text-green-700",
+    Reverted: "bg-gray-100 text-gray-500",
+  };
+  return (
+    <span
+      className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${
+        colors[status] || "bg-yellow-100 text-yellow-700"
+      }`}
+    >
+      {status || "Unknown"}
+    </span>
+  );
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return "Never";
+  const d = new Date(dateStr + "T00:00:00");
+  return d.toLocaleDateString("en-US", {
+    month: "short",
+    day: "numeric",
+    year: "numeric",
+  });
+}
+
+function formatNumber(n) {
+  if (n == null) return "\u2014";
+  return n.toLocaleString();
+}
 
 export default function ClientsPage() {
-  const { coach, supabase } = useCoach();
+  const { coach } = useCoach();
   const router = useRouter();
-  const searchParams = useSearchParams();
+
   const [clients, setClients] = useState([]);
+  const [total, setTotal] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [page, setPage] = useState(1);
+  const [limit] = useState(50);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
-  const [filter, setFilter] = useState("all");
-  const [showAdd, setShowAdd] = useState(searchParams.get("add") === "1");
-  const [showCSV, setShowCSV] = useState(false);
-  const [saving, setSaving] = useState(false);
   const [error, setError] = useState(null);
-  const [form, setForm] = useState({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
-  const showToast = useShowToast();
 
-  useEffect(() => { loadClients(); }, []);
+  // Filters
+  const [search, setSearch] = useState("");
+  const [debouncedSearch, setDebouncedSearch] = useState("");
+  const [coachFilter, setCoachFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
-  const loadClients = async () => {
+  // Coach list for dropdown
+  const [coaches, setCoaches] = useState([]);
+
+  const debounceRef = useRef(null);
+
+  // Debounce search input
+  const handleSearchChange = useCallback((value) => {
+    setSearch(value);
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      setDebouncedSearch(value);
+      setPage(1);
+    }, 400);
+  }, []);
+
+  // Load coach names for filter dropdown
+  useEffect(() => {
+    fetch("/api/org/coaches?limit=500")
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.coaches) {
+          setCoaches(
+            data.coaches
+              .map((c) => ({ id: c.id, name: c.full_name }))
+              .sort((a, b) => a.name.localeCompare(b.name))
+          );
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  // Fetch clients when filters or page change
+  useEffect(() => {
+    fetchClients();
+  }, [page, debouncedSearch, coachFilter, statusFilter]);
+
+  const fetchClients = async () => {
     setLoading(true);
     setError(null);
+
+    const params = new URLSearchParams();
+    params.set("page", String(page));
+    params.set("limit", String(limit));
+    if (debouncedSearch) params.set("search", debouncedSearch);
+    if (coachFilter) params.set("coach_id", coachFilter);
+    if (statusFilter) params.set("status", statusFilter);
+
     try {
-      const { data, error: fetchError } = await supabase.from("clients").select("*").eq("coach_id", coach.id).order("created_at", { ascending: false });
-      if (fetchError) throw fetchError;
-      if (data) setClients(data);
-    } catch (err) {
-      console.error("Error loading clients:", err);
-      setError("Something went wrong loading your clients.");
+      const res = await fetch(`/api/org/clients?${params.toString()}`);
+      const data = await res.json();
+
+      if (!res.ok) {
+        setError(data.error || "Failed to load clients");
+        return;
+      }
+
+      setClients(data.clients || []);
+      setTotal(data.total ?? 0);
+      setTotalPages(data.totalPages ?? 0);
+    } catch {
+      setError("Network error. Please try again.");
     } finally {
       setLoading(false);
     }
   };
 
-  const addClient = async (e) => {
-    e.preventDefault();
-    if (!form.full_name.trim()) return;
-    setSaving(true);
-    try {
-      const newClient = {
-        coach_id: coach.id,
-        full_name: form.full_name.trim(),
-        email: form.email.trim() || null,
-        phone: form.phone.trim() || null,
-        plan: form.plan || "Optimal 5&1",
-        weight_start: form.weight_start ? Number(form.weight_start) : null,
-        weight_current: form.weight_start ? Number(form.weight_start) : null,
-        notes: form.notes.trim() || null,
-        status: "new",
-        start_date: new Date().toISOString().split("T")[0],
-      };
-      const { data, error: insertError } = await supabase.from("clients").insert(newClient).select().single();
-      if (insertError) throw insertError;
-      if (data) {
-        setClients(prev => [data, ...prev]);
-        await supabase.from("activities").insert({ coach_id: coach.id, client_id: data.id, action: "Added new client", details: data.full_name });
-      }
-      setForm({ full_name: "", email: "", phone: "", plan: "Optimal 5&1", weight_start: "", notes: "" });
-      setShowAdd(false);
-      showToast({ message: "Client added successfully", variant: "success" });
-    } catch (err) {
-      console.error("Error adding client:", err);
-      showToast({ message: "Something went wrong — please try again", variant: "error" });
-    } finally {
-      setSaving(false);
-    }
+  const hasFilters = debouncedSearch || coachFilter || statusFilter;
+
+  const clearFilters = () => {
+    setSearch("");
+    setDebouncedSearch("");
+    setCoachFilter("");
+    setStatusFilter("");
+    setPage(1);
   };
 
-  const handleCSVImport = async (text) => {
-    const lines = text.split("\n").filter(l => l.trim());
-    if (lines.length < 2) return;
-
-    const headers = lines[0].split(",").map(h => h.trim().toLowerCase());
-    const nameIdx = headers.findIndex(h => h.includes("name"));
-    const emailIdx = headers.findIndex(h => h.includes("email"));
-    const phoneIdx = headers.findIndex(h => h.includes("phone"));
-    const planIdx = headers.findIndex(h => h.includes("plan"));
-    const weightIdx = headers.findIndex(h => h.includes("weight"));
-
-    const newClients = [];
-    for (let i = 1; i < lines.length; i++) {
-      const cols = lines[i].split(",").map(c => c.trim());
-      const name = nameIdx >= 0 ? cols[nameIdx] : cols[0];
-      if (!name) continue;
-
-      newClients.push({
-        coach_id: coach.id,
-        full_name: name,
-        email: emailIdx >= 0 ? cols[emailIdx] || null : null,
-        phone: phoneIdx >= 0 ? cols[phoneIdx] || null : null,
-        plan: planIdx >= 0 ? cols[planIdx] || "Optimal 5&1" : "Optimal 5&1",
-        weight_start: weightIdx >= 0 ? Number(cols[weightIdx]) || null : null,
-        weight_current: weightIdx >= 0 ? Number(cols[weightIdx]) || null : null,
-        status: "new",
-        start_date: new Date().toISOString().split("T")[0],
-      });
-    }
-
-    if (newClients.length > 0) {
-      try {
-        const { data } = await supabase.from("clients").insert(newClients).select();
-        if (data) {
-          setClients(prev => [...data, ...prev]);
-          await supabase.from("activities").insert({ coach_id: coach.id, action: "Imported " + data.length + " clients via CSV" });
-          showToast({ message: data.length + " clients imported", variant: "success" });
-        }
-      } catch (err) {
-        console.error("Error importing CSV:", err);
-        showToast({ message: "Something went wrong — please try again", variant: "error" });
-      }
-    }
-    setShowCSV(false);
-  };
-
-  const filtered = clients.filter(c => {
-    const matchSearch = c.full_name.toLowerCase().includes(search.toLowerCase()) || (c.email || "").toLowerCase().includes(search.toLowerCase());
-    const matchFilter = filter === "all" || c.status === filter;
-    return matchSearch && matchFilter;
-  });
-
-  if (loading) return (
-    <div className="animate-fade-up">
-      <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
-        <SkeletonCard height="h-12" className="mb-3" />
-        <SkeletonCard height="h-12" className="mb-3" />
-        <SkeletonCard height="h-12" />
-      </div>
-    </div>
-  );
-  if (error) return (
-    <div className="animate-fade-up">
-      <ErrorBanner message={error} onRetry={loadClients} />
-    </div>
-  );
+  const rangeStart = total === 0 ? 0 : (page - 1) * limit + 1;
+  const rangeEnd = Math.min(page * limit, total);
 
   return (
-    <div className="animate-fade-up">
+    <div>
       <PageHeader
-        title="My Clients"
-        actions={
-          <div className="flex gap-2">
-            <button onClick={() => setShowCSV(true)} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm hover:bg-gray-50 transition-colors duration-150">📂 Import CSV</button>
-            <button onClick={() => setShowAdd(true)} className="px-4 py-2 bg-brand-500 text-white rounded-xl font-bold text-sm hover:bg-brand-600 transition-all duration-150 active:scale-95">➕ Add Client</button>
-          </div>
+        title="Clients"
+        subtitle={
+          total > 0
+            ? `${total.toLocaleString()} clients in your organization`
+            : undefined
         }
       />
 
-      {/* ADD FORM */}
-      {showAdd && (
-        <form onSubmit={addClient} className="bg-white rounded-2xl p-6 shadow-sm mb-5 animate-fade-up">
-          <h3 className="font-bold text-lg mb-4">Add New Client</h3>
-          <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-3">
-            {[
-              { key: "full_name", label: "Full Name *", placeholder: "Jane Doe", type: "text" },
-              { key: "email", label: "Email", placeholder: "jane@email.com", type: "email" },
-              { key: "phone", label: "Phone", placeholder: "555-0100", type: "text" },
-              { key: "plan", label: "Plan", placeholder: "Optimal 5&1", type: "text" },
-              { key: "weight_start", label: "Starting Weight", placeholder: "e.g. 180", type: "number" },
-              { key: "notes", label: "Notes", placeholder: "Any details...", type: "text" },
-            ].map(f => (
-              <div key={f.key}>
-                <label className="block text-xs font-bold text-gray-400 uppercase mb-1">{f.label}</label>
-                <input type={f.type} value={form[f.key]} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                  placeholder={f.placeholder}
-                  className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
-              </div>
+      {/* Filter bar */}
+      <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 mb-4">
+        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+          <input
+            type="text"
+            value={search}
+            onChange={(e) => handleSearchChange(e.target.value)}
+            placeholder="Search by name or email..."
+            className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+          />
+
+          <select
+            value={coachFilter}
+            onChange={(e) => {
+              setCoachFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+          >
+            <option value="">All Coaches</option>
+            {coaches.map((c) => (
+              <option key={c.id} value={c.id}>
+                {c.name}
+              </option>
             ))}
-          </div>
-          <div className="flex gap-3 mt-4">
-            <button type="submit" disabled={saving} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100">{saving ? "Saving..." : "Save Client"}</button>
-            <button type="button" onClick={() => setShowAdd(false)} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors duration-150">Cancel</button>
-          </div>
-        </form>
-      )}
+          </select>
 
-      {/* CSV MODAL */}
-      {showCSV && <CSVModal onImport={handleCSVImport} onClose={() => setShowCSV(false)} />}
+          <select
+            value={statusFilter}
+            onChange={(e) => {
+              setStatusFilter(e.target.value);
+              setPage(1);
+            }}
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+          >
+            <option value="">All Statuses</option>
+            {STATUS_OPTIONS.map((s) => (
+              <option key={s} value={s}>
+                {s}
+              </option>
+            ))}
+          </select>
 
-      {/* SEARCH + FILTER */}
-      <div className="flex flex-col sm:flex-row gap-3 mb-4">
-        <input value={search} onChange={e => setSearch(e.target.value)} placeholder="🔍 Search clients..."
-          className="flex-1 px-4 py-3 text-sm border-2 border-gray-200 rounded-xl bg-white focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
-        <div className="flex gap-1 bg-white rounded-xl p-1 border-2 border-gray-200">
-          {[{ id: "all", label: "All" }, { id: "new", label: "🌱 New" }, { id: "active", label: "✅ Active" }, { id: "plateau", label: "🏔️ Plateau" }, { id: "lapsed", label: "💛 Lapsed" }].map(f => (
-            <button key={f.id} onClick={() => setFilter(f.id)}
-              className={"px-3 py-1.5 rounded-lg text-xs font-bold transition " + (filter === f.id ? "bg-brand-100 text-brand-500" : "text-gray-400 hover:bg-gray-50")}>
-              {f.label}
+          {hasFilters && (
+            <button
+              onClick={clearFilters}
+              className="text-sm font-semibold text-[#E8735A] hover:text-[#d4644d] whitespace-nowrap transition-colors duration-150"
+            >
+              Clear filters
             </button>
-          ))}
+          )}
         </div>
       </div>
 
-      {/* CLIENT LIST */}
-      <div className="space-y-2">
-        {filtered.map(client => (
-          <button key={client.id} onClick={() => router.push("/dashboard/clients/" + client.id)}
-            className="w-full flex items-center justify-between p-4 bg-white rounded-2xl shadow-sm hover:shadow-md transition-all duration-150 text-left">
-            <div className="flex items-center gap-3">
-              <div className="w-12 h-12 rounded-xl bg-brand-50 flex items-center justify-center text-xl">{statusEmojis[client.status] || "📋"}</div>
-              <div>
-                <div className="font-bold">{client.full_name}</div>
-                <div className="text-xs text-gray-400">{client.email || "No email"} · {client.plan || "No plan"}</div>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right hidden sm:block">
-                <div className="text-xs text-gray-400">Started {client.start_date ? new Date(client.start_date).toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "—"}</div>
-              </div>
-              <span className={"rounded-full px-2.5 py-0.5 text-xs font-medium " + (statusBadgeClasses[client.status] || "bg-gray-100 text-gray-500")}>{statusLabels[client.status]}</span>
-              <span className="text-gray-300 text-lg">→</span>
-            </div>
-          </button>
-        ))}
-      </div>
+      {/* Error */}
+      {error && <ErrorBanner message={error} onRetry={fetchClients} />}
 
-      {filtered.length === 0 && (
-        clients.length === 0 ? (
-          <EmptyState icon="👤" title="No clients yet" subtitle="Add your first client to get started" actionLabel="Add Client" onAction={() => setShowAdd(true)} />
-        ) : (
-          <EmptyState icon="🔍" title="No clients match your search" subtitle="Try a different name or clear your filters" />
-        )
+      {/* Loading */}
+      {loading && (
+        <div className="bg-white rounded-2xl border-2 border-gray-100">
+          <LoadingSpinner message="Loading clients..." />
+        </div>
       )}
-    </div>
-  );
-}
 
-function CSVModal({ onImport, onClose }) {
-  const [text, setText] = useState("");
-  const [file, setFile] = useState(null);
+      {/* Results table */}
+      {!loading && !error && clients.length > 0 && (
+        <div className="bg-white rounded-2xl border-2 border-gray-100 overflow-hidden">
+          <div className="overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b-2 border-gray-100">
+                  <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Name
+                  </th>
+                  <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider hidden md:table-cell">
+                    Email
+                  </th>
+                  <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Coach
+                  </th>
+                  <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Status
+                  </th>
+                  <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">
+                    Last Order
+                  </th>
+                  <th className="text-right px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider hidden md:table-cell">
+                    PQV
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {clients.map((client) => (
+                  <tr
+                    key={client.id}
+                    className="border-b border-gray-50 hover:bg-[#faf7f2] transition-colors duration-100"
+                  >
+                    <td className="px-5 py-3">
+                      <button
+                        onClick={() =>
+                          router.push(`/dashboard/clients/${client.id}`)
+                        }
+                        className="font-body text-sm font-semibold text-gray-800 hover:text-[#E8735A] transition-colors duration-150 text-left"
+                      >
+                        {client.full_name}
+                      </button>
+                    </td>
+                    <td className="px-5 py-3 font-body text-sm text-gray-500 hidden md:table-cell">
+                      {client.email || "\u2014"}
+                    </td>
+                    <td className="px-5 py-3">
+                      {client.coach_name ? (
+                        <button
+                          onClick={() =>
+                            router.push(
+                              `/dashboard/organization/coach/${client.coach_id}`
+                            )
+                          }
+                          className="font-body text-sm text-gray-600 hover:text-[#E8735A] transition-colors duration-150 text-left"
+                        >
+                          {client.coach_name}
+                        </button>
+                      ) : (
+                        <span className="font-body text-sm text-gray-400">
+                          \u2014
+                        </span>
+                      )}
+                    </td>
+                    <td className="px-5 py-3">
+                      <StatusBadge status={client.account_status} />
+                    </td>
+                    <td className="px-5 py-3 font-body text-sm text-gray-500">
+                      {formatDate(client.last_order_date)}
+                    </td>
+                    <td className="px-5 py-3 font-body text-sm text-gray-700 text-right hidden md:table-cell">
+                      {formatNumber(client.pqv)}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
 
-  const handleFile = (e) => {
-    const f = e.target.files[0];
-    if (!f) return;
-    setFile(f);
-    const reader = new FileReader();
-    reader.onload = (ev) => setText(ev.target.result);
-    reader.readAsText(f);
-  };
-
-  return (
-    <div className="fixed inset-0 bg-black/40 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-2xl p-6 w-full max-w-lg shadow-xl animate-fade-up">
-        <h3 className="font-bold text-lg mb-2">Import Clients from CSV</h3>
-        <p className="text-sm text-gray-400 mb-4">Upload a CSV file with columns: name, email, phone, plan, weight. The first row should be headers.</p>
-
-        <input type="file" accept=".csv,.txt" onChange={handleFile} className="mb-3 text-sm" />
-
-        <textarea value={text} onChange={e => setText(e.target.value)} rows={6} placeholder={"name,email,phone,plan,weight\nJane Doe,jane@email.com,555-0100,Optimal 5&1,180"}
-          className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl mb-4 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 font-mono" />
-
-        <div className="flex gap-3">
-          <button onClick={() => onImport(text)} disabled={!text.trim()} className="px-6 py-3 bg-brand-500 text-white rounded-xl font-bold text-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-150 active:scale-95 disabled:active:scale-100">Import Clients</button>
-          <button onClick={onClose} className="px-6 py-3 bg-gray-100 text-gray-500 rounded-xl font-bold text-sm hover:bg-gray-200 transition-colors duration-150">Cancel</button>
+          {/* Pagination */}
+          <div className="px-5 py-3 border-t-2 border-gray-100 flex items-center justify-between">
+            <p className="font-body text-sm text-gray-500">
+              Showing {rangeStart.toLocaleString()}&ndash;
+              {rangeEnd.toLocaleString()} of {total.toLocaleString()}
+            </p>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                disabled={page <= 1}
+                className="px-3 py-1.5 rounded-lg text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
+              >
+                Previous
+              </button>
+              <span className="font-body text-sm text-gray-500">
+                Page {page} of {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                disabled={page >= totalPages}
+                className="px-3 py-1.5 rounded-lg text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
+              >
+                Next
+              </button>
+            </div>
+          </div>
         </div>
-      </div>
+      )}
+
+      {/* Empty state */}
+      {!loading && !error && clients.length === 0 && (
+        <EmptyState
+          icon={hasFilters ? "\uD83D\uDD0D" : "\uD83D\uDC64"}
+          title={
+            hasFilters ? "No clients match your filters" : "No clients found"
+          }
+          subtitle={
+            hasFilters
+              ? "Try a different search term or clear your filters"
+              : "Clients will appear here once they are imported"
+          }
+          actionLabel={hasFilters ? "Clear filters" : undefined}
+          onAction={hasFilters ? clearFilters : undefined}
+        />
+      )}
     </div>
   );
 }

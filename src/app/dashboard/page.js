@@ -3,10 +3,21 @@
 import { useState, useEffect } from "react";
 import { useCoach } from "./layout";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import TouchpointsDueToday from "./TouchpointsDueToday";
 import RankProgressCard from "./components/RankProgressCard";
 import SkeletonCard from "./components/SkeletonCard";
 import ErrorBanner from "./components/ErrorBanner";
+
+const LEAD_STAGES = [
+  { value: "prospect", label: "Prospect", color: "bg-gray-100 text-gray-700" },
+  { value: "conversation", label: "Conversation", color: "bg-blue-100 text-blue-700" },
+  { value: "ha_scheduled", label: "HA Scheduled", color: "bg-yellow-100 text-yellow-700" },
+  { value: "ha_completed", label: "HA Completed", color: "bg-purple-100 text-purple-700" },
+  { value: "client", label: "Client", color: "bg-green-100 text-green-700" },
+  { value: "potential_coach", label: "Potential Coach", color: "bg-teal-100 text-teal-700" },
+];
+const LEAD_STAGE_MAP = Object.fromEntries(LEAD_STAGES.map((s) => [s.value, s]));
 
 function getRelationshipScore(client) {
   const daysSinceContact = client.last_contact_date
@@ -36,15 +47,147 @@ function getScoreColor(score) {
 const emojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
 const labels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
 
+function LeadsFollowupWidget({ leads, router }) {
+  const now = new Date();
+  now.setHours(0, 0, 0, 0);
+
+  const needsFollowup = leads.filter((l) => {
+    if (l.stage === "client" || l.stage === "potential_coach") return false;
+    // Overdue follow-up
+    if (l.next_followup_date) {
+      const fu = new Date(l.next_followup_date);
+      fu.setHours(0, 0, 0, 0);
+      if (fu <= now) return true;
+    }
+    // No contact in 7+ days
+    if (l.last_contact_date) {
+      const daysSince = Math.floor((now - new Date(l.last_contact_date)) / 86400000);
+      if (daysSince > 7) return true;
+    } else {
+      // Never contacted
+      return true;
+    }
+    return false;
+  }).slice(0, 5);
+
+  const getUrgency = (l) => {
+    if (l.next_followup_date) {
+      const fu = new Date(l.next_followup_date);
+      fu.setHours(0, 0, 0, 0);
+      const days = Math.round((now - fu) / 86400000);
+      if (days > 0) return { text: `${days}d overdue`, color: "text-red-600" };
+      if (days === 0) return { text: "Due today", color: "text-orange-500" };
+    }
+    if (l.last_contact_date) {
+      const days = Math.floor((now - new Date(l.last_contact_date)) / 86400000);
+      if (days > 0) return { text: `No contact in ${days}d`, color: "text-yellow-600" };
+    }
+    return { text: "Never contacted", color: "text-gray-500" };
+  };
+
+  return (
+    <div className="bg-white rounded-2xl p-6 shadow-sm">
+      <h2 className="text-lg font-extrabold mb-1 flex items-center gap-2">
+        <span className="text-xl">{"\uD83C\uDFAF"}</span> Leads Needing Follow-up
+      </h2>
+      <p className="text-xs text-gray-400 mb-4">Overdue or no recent contact</p>
+      {needsFollowup.length === 0 ? (
+        <p className="text-sm text-gray-400 text-center py-4">All caught up! {"\uD83C\uDF89"}</p>
+      ) : (
+        <div className="space-y-2">
+          {needsFollowup.map((lead) => {
+            const urgency = getUrgency(lead);
+            const stageInfo = LEAD_STAGE_MAP[lead.stage];
+            return (
+              <button
+                key={lead.id}
+                onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                className="w-full flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl hover:bg-brand-50 transition-colors duration-150 text-left"
+              >
+                <div className="flex items-center gap-3 min-w-0">
+                  <div className="min-w-0">
+                    <div className="font-bold text-sm truncate">{lead.full_name}</div>
+                    <div className={`text-xs font-semibold ${urgency.color}`}>{urgency.text}</div>
+                  </div>
+                </div>
+                {stageInfo && (
+                  <span className={`flex-shrink-0 inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${stageInfo.color}`}>
+                    {stageInfo.label}
+                  </span>
+                )}
+              </button>
+            );
+          })}
+        </div>
+      )}
+      <Link href="/dashboard/leads" className="block text-sm font-bold text-[#E8735A] hover:text-[#d4634d] mt-4 transition-colors">
+        View All Leads &rarr;
+      </Link>
+    </div>
+  );
+}
+
+function LeadsPipelineWidget({ leads, router }) {
+  const stageCounts = {};
+  LEAD_STAGES.forEach((s) => { stageCounts[s.value] = 0; });
+  leads.forEach((l) => {
+    if (stageCounts[l.stage] !== undefined) stageCounts[l.stage]++;
+  });
+
+  // Conversions this week: leads at 'client' stage with updated_at within last 7 days
+  const weekAgo = new Date();
+  weekAgo.setDate(weekAgo.getDate() - 7);
+  const conversionsThisWeek = leads.filter(
+    (l) => l.stage === "client" && l.updated_at && new Date(l.updated_at) >= weekAgo
+  ).length;
+
+  return (
+    <div className="bg-white rounded-2xl p-6 shadow-sm">
+      <h2 className="text-lg font-extrabold mb-1 flex items-center gap-2">
+        <span className="text-xl">{"\uD83D\uDCCA"}</span> Lead Pipeline
+      </h2>
+      <p className="text-xs text-gray-400 mb-4">{leads.length} total lead{leads.length !== 1 ? "s" : ""}</p>
+      <div className="flex flex-wrap gap-2 mb-4">
+        {LEAD_STAGES.map((s) => (
+          <span key={s.value} className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-semibold ${s.color}`}>
+            {s.label} <span className="font-extrabold">{stageCounts[s.value]}</span>
+          </span>
+        ))}
+      </div>
+      <div className="bg-[#faf7f2] rounded-xl p-3 mb-4">
+        <div className="flex items-center gap-2">
+          <span className="text-lg">{"\u2728"}</span>
+          <span className="text-sm font-bold text-gray-700">Conversions this week:</span>
+          <span className="text-sm font-extrabold text-green-600">{conversionsThisWeek}</span>
+        </div>
+      </div>
+      <Link href="/dashboard/leads" className="block text-sm font-bold text-[#E8735A] hover:text-[#d4634d] transition-colors">
+        Go to Leads &rarr;
+      </Link>
+    </div>
+  );
+}
+
 export default function DashboardHome() {
   const { coach, supabase } = useCoach();
   const [clients, setClients] = useState([]);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
+  const [allLeads, setAllLeads] = useState([]);
+  const [leadsLoading, setLeadsLoading] = useState(true);
   const router = useRouter();
 
-  useEffect(() => { loadData(); }, []);
+  useEffect(() => { loadData(); loadLeads(); }, []);
+
+  const loadLeads = async () => {
+    try {
+      const res = await fetch("/api/leads?limit=1000&sort=next_followup_date&order=asc");
+      const data = await res.json();
+      if (res.ok && data.leads) setAllLeads(data.leads);
+    } catch { /* ignore */ }
+    finally { setLeadsLoading(false); }
+  };
 
   const loadData = async () => {
     try {
@@ -117,6 +260,16 @@ export default function DashboardHome() {
       <div className="mb-6">
         <TouchpointsDueToday />
       </div>
+
+      {/* LEAD WIDGETS */}
+      {!leadsLoading && (
+        <div className="grid md:grid-cols-2 gap-5 mb-6">
+          {/* Leads Needing Follow-up */}
+          <LeadsFollowupWidget leads={allLeads} router={router} />
+          {/* Pipeline Snapshot */}
+          <LeadsPipelineWidget leads={allLeads} router={router} />
+        </div>
+      )}
 
       <div className="grid md:grid-cols-2 gap-5">
         {/* WHO NEEDS ME */}

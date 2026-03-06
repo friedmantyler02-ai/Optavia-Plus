@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, useMemo } from "react";
 import { useParams } from "next/navigation";
-import { useCoach } from "../../../layout";
 import Link from "next/link";
 import ErrorBanner from "../../../components/ErrorBanner";
 import EmptyState from "../../../components/EmptyState";
@@ -86,7 +85,6 @@ function fmtPqv(val) {
 // ---------------------------------------------------------------------------
 export default function CoachDetailPage() {
   const { id } = useParams();
-  const { supabase } = useCoach();
 
   const [coach, setCoach] = useState(null);
   const [stats, setStats] = useState(null);
@@ -287,7 +285,7 @@ export default function CoachDetailPage() {
 
       {/* ── Rank progress ─────────────────────────────────────────── */}
       <div className="mb-8">
-        <RankProgressCard coachId={params.id} />
+        <RankProgressCard coachId={id} />
       </div>
 
       {/* ── Stat cards ─────────────────────────────────────────────── */}

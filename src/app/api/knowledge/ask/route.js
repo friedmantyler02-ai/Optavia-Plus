@@ -26,7 +26,7 @@ export async function POST(request) {
     } = await supabase.auth.getUser();
 
     if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: no active session" }, { status: 401 });
     }
 
     // Verify coach record exists
@@ -37,7 +37,7 @@ export async function POST(request) {
       .single();
 
     if (coachError || !coach) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+      return NextResponse.json({ error: "Unauthorized: no coach record found for this user" }, { status: 401 });
     }
 
     // Parse request body

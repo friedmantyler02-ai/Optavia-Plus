@@ -116,9 +116,9 @@ export async function POST(request) {
 
     if (!anthropicResponse.ok) {
       const errBody = await anthropicResponse.text();
-      console.error("[knowledge/ask] Anthropic API error:", errBody);
+      console.error("[knowledge/ask] Anthropic API error:", anthropicResponse.status, errBody);
       return NextResponse.json(
-        { error: "Failed to get AI response" },
+        { error: "Failed to get AI response", details: errBody },
         { status: 500 }
       );
     }

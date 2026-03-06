@@ -20,27 +20,6 @@ function Skeleton({ className = "" }) {
 }
 
 // ---------------------------------------------------------------------------
-// Stat card — big emoji, large number, small label
-// ---------------------------------------------------------------------------
-function StatCard({ emoji, value, label, loading }) {
-  return (
-    <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 text-center">
-      <div className="mb-3 text-4xl">{emoji}</div>
-      {loading ? (
-        <Skeleton className="mx-auto h-9 w-24" />
-      ) : (
-        <p className="font-display text-3xl font-bold text-gray-900">
-          {typeof value === "number" ? value.toLocaleString() : value}
-        </p>
-      )}
-      <p className="font-body mt-1 text-sm font-medium text-gray-500">
-        {label}
-      </p>
-    </div>
-  );
-}
-
-// ---------------------------------------------------------------------------
 // Relationship score badge
 // ---------------------------------------------------------------------------
 function ScoreBadge({ score }) {
@@ -590,48 +569,6 @@ export default function OrganizationPage() {
           </div>
         </div>
       )}
-
-      {/* ----------------------------------------------------------------- */}
-      {/* STAT CARDS                                                         */}
-      {/* ----------------------------------------------------------------- */}
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
-        <StatCard
-          emoji={"\uD83D\uDC65"}
-          value={stats?.total_clients}
-          label="Total People"
-          loading={statsLoading}
-        />
-        <StatCard
-          emoji={"\uD83C\uDFC3"}
-          value={stats?.active_clients}
-          label="Active"
-          loading={statsLoading}
-        />
-        <StatCard
-          emoji={"\uD83D\uDD04"}
-          value={stats?.reverted_clients}
-          label="Reverted"
-          loading={statsLoading}
-        />
-        <StatCard
-          emoji={"\uD83D\uDC68\u200D\uD83C\uDFEB"}
-          value={stats?.total_coaches}
-          label="Coaches"
-          loading={statsLoading}
-        />
-        <StatCard
-          emoji={"\uD83D\uDCE7"}
-          value={stats?.clients_with_email}
-          label="Have Email"
-          loading={statsLoading}
-        />
-        <StatCard
-          emoji={"\uD83D\uDCF1"}
-          value={stats?.clients_with_phone}
-          label="Have Phone"
-          loading={statsLoading}
-        />
-      </div>
 
       {/* ----------------------------------------------------------------- */}
       {/* NEVER CONTACTED ALERT                                              */}

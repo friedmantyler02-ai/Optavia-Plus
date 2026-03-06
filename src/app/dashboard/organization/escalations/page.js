@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
+import Link from "next/link";
 import { useCoach } from "../../layout";
 
 // ---------------------------------------------------------------------------
@@ -154,6 +155,10 @@ export default function EscalationsPage() {
 
   return (
     <div className="animate-fade-up">
+      <Link href="/dashboard/organization" className="inline-block text-sm text-gray-500 hover:text-[#E8735A] transition-colors mb-4">
+        &larr; Organization
+      </Link>
+
       {/* Header */}
       <div className="mb-8">
         <h1 className="font-display text-2xl md:text-3xl font-bold text-gray-900">

@@ -23,49 +23,20 @@ export async function POST() {
 
     console.log("Onboarding complete: user id =", user.id, "email =", user.email);
 
-    // Use service role client to bypass RLS for the update
-    const { data: updatedById, error: updateError } = await supabaseAdmin
-      .from("coaches")
-      .update({ onboarding_completed: true })
-      .eq("id", user.id)
-      .select("id");
+    // Use RPC to bypass PostgREST schema cache issue with onboarding_completed column
+    const { error: rpcError } = await supabaseAdmin.rpc('complete_onboarding', { coach_email: user.email });
 
-    console.log("Onboarding complete: update by id result =", { updatedById, updateError: updateError?.message });
+    console.log("Onboarding complete: rpc result =", { rpcError: rpcError?.message });
 
-    if (!updateError && updatedById && updatedById.length > 0) {
-      return NextResponse.json({ success: true });
+    if (rpcError) {
+      console.error("Onboarding complete: rpc error:", rpcError);
+      return NextResponse.json(
+        { error: `Failed to complete onboarding: ${rpcError.message}` },
+        { status: 500 }
+      );
     }
 
-    // Fallback: try matching by email
-    if (user.email) {
-      console.log("Onboarding complete: trying email fallback for", user.email);
-      const { data: updatedByEmail, error: emailError } = await supabaseAdmin
-        .from("coaches")
-        .update({ onboarding_completed: true })
-        .eq("email", user.email)
-        .select("id");
-
-      console.log("Onboarding complete: update by email result =", { updatedByEmail, emailError: emailError?.message });
-
-      if (!emailError && updatedByEmail && updatedByEmail.length > 0) {
-        return NextResponse.json({ success: true });
-      }
-
-      if (emailError) {
-        console.error("Onboarding complete: email fallback error:", emailError);
-        return NextResponse.json(
-          { error: `Failed to update coach by email: ${emailError.message}` },
-          { status: 500 }
-        );
-      }
-    }
-
-    // Neither matched
-    console.error("Onboarding complete: no coach found for id", user.id, "or email", user.email);
-    return NextResponse.json(
-      { error: "Coach record not found. Please contact support." },
-      { status: 404 }
-    );
+    return NextResponse.json({ success: true });
   } catch (err) {
     console.error("Onboarding complete error:", err);
     return NextResponse.json(

@@ -82,6 +82,20 @@ export default function DashboardLayout({ children }) {
     return pathname.startsWith(href);
   };
 
+  const isOnboarding = pathname === "/dashboard/onboarding";
+
+  // Redirect to onboarding if coach hasn't completed it (and isn't a stub)
+  useEffect(() => {
+    if (
+      coach &&
+      !coach.onboarding_completed &&
+      !coach.is_stub &&
+      !isOnboarding
+    ) {
+      router.push("/dashboard/onboarding");
+    }
+  }, [coach, isOnboarding]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -90,6 +104,20 @@ export default function DashboardLayout({ children }) {
           <p className="text-gray-400 text-lg font-semibold">Loading...</p>
         </div>
       </div>
+    );
+  }
+
+  // Onboarding page: skip nav, render full-page
+  if (isOnboarding) {
+    return (
+      <CoachContext.Provider value={{ coach, setCoach, supabase }}>
+        <ToastContext.Provider value={showToast}>
+          <div className="min-h-screen bg-[#faf7f2]">
+            {children}
+          </div>
+          <ToastContainer toasts={toasts} dismissToast={dismissToast} />
+        </ToastContext.Provider>
+      </CoachContext.Provider>
     );
   }
 

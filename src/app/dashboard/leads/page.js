@@ -1,12 +1,13 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from "react";
-import { useCoach } from "../layout";
+import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { useCoach, ToastContext } from "../layout";
 import { useRouter } from "next/navigation";
 import PageHeader from "../components/PageHeader";
 import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
 import ErrorBanner from "../components/ErrorBanner";
+import ConfirmDialog from "../components/ConfirmDialog";
 
 const STAGES = [
   { value: "prospect", label: "Prospect", color: "bg-gray-100 text-gray-700" },
@@ -34,9 +35,17 @@ const SOURCE_MAP = Object.fromEntries(SOURCE_OPTIONS.map((s) => [s.value, s.labe
 const SORT_OPTIONS = [
   { value: "created_at:desc", label: "Newest first" },
   { value: "created_at:asc", label: "Oldest first" },
-  { value: "next_followup_date:asc", label: "Follow-up date" },
+  { value: "last_contact_date:asc", label: "Least recently contacted" },
+  { value: "next_followup_date:asc", label: "Next follow-up" },
   { value: "last_contact_date:desc", label: "Last contact" },
   { value: "full_name:asc", label: "Name A-Z" },
+];
+
+const CATEGORY_FILTERS = [
+  { value: "", label: "All" },
+  { value: "prospect", label: "Hundreds List" },
+  { value: "conversation", label: "In Conversation" },
+  { value: "ha_scheduled,ha_completed", label: "HA Pipeline" },
 ];
 
 function StageBadge({ stage }) {
@@ -91,6 +100,7 @@ function formatFollowup(dateStr) {
 export default function LeadsPage() {
   const { coach } = useCoach();
   const router = useRouter();
+  const showToast = useContext(ToastContext);
 
   const [leads, setLeads] = useState([]);
   const [total, setTotal] = useState(0);
@@ -114,12 +124,16 @@ export default function LeadsPage() {
     phone: "",
     facebook_url: "",
     source: "",
+    originally_met_date: "",
     groups: "",
     notes: "",
     next_followup_date: "",
   });
   const [formError, setFormError] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+
+  // Delete
+  const [deleteTarget, setDeleteTarget] = useState(null);
 
   const debounceRef = useRef(null);
 
@@ -194,12 +208,30 @@ export default function LeadsPage() {
       phone: "",
       facebook_url: "",
       source: "",
+      originally_met_date: "",
       groups: "",
       notes: "",
       next_followup_date: "",
     });
     setFormError(null);
     setShowModal(true);
+  };
+
+  const handleDelete = async (lead) => {
+    try {
+      const res = await fetch(`/api/leads/${lead.id}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete lead");
+      }
+      setLeads((prev) => prev.filter((l) => l.id !== lead.id));
+      setTotal((prev) => prev - 1);
+      showToast({ message: "Lead deleted" });
+    } catch (err) {
+      showToast({ message: err.message, variant: "error" });
+    } finally {
+      setDeleteTarget(null);
+    }
   };
 
   const handleSubmit = async (e) => {
@@ -262,24 +294,30 @@ export default function LeadsPage() {
         }
       />
 
+      {/* Category quick filters */}
+      <div className="flex gap-2 overflow-x-auto pb-2 mb-3 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+        {CATEGORY_FILTERS.map((cat) => (
+          <button
+            key={cat.value}
+            onClick={() => { setStageFilter(cat.value); setPage(1); }}
+            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-150 ${
+              stageFilter === cat.value
+                ? "bg-[#E8735A] text-white shadow-sm"
+                : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
+            }`}
+          >
+            {cat.label}
+          </button>
+        ))}
+      </div>
+
       {/* Stage summary cards */}
       <div className="flex gap-2 overflow-x-auto pb-2 mb-4 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-        <button
-          onClick={() => { setStageFilter(""); setPage(1); }}
-          className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${
-            !stageFilter
-              ? "border-[#E8735A] bg-[#E8735A]/5 text-[#E8735A]"
-              : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
-          }`}
-        >
-          All
-          <span className="ml-1.5 text-xs opacity-70">{total}</span>
-        </button>
         {STAGES.map((s) => (
           <button
             key={s.value}
             onClick={() => { setStageFilter(stageFilter === s.value ? "" : s.value); setPage(1); }}
-            className={`flex-shrink-0 px-4 py-2.5 rounded-xl text-sm font-bold border-2 transition-all duration-150 ${
+            className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all duration-150 ${
               stageFilter === s.value
                 ? "border-[#E8735A] bg-[#E8735A]/5 text-[#E8735A]"
                 : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
@@ -356,6 +394,7 @@ export default function LeadsPage() {
                   <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">Source</th>
                   <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">Last Contact</th>
                   <th className="text-left px-5 py-3 font-display text-xs font-bold text-gray-400 uppercase tracking-wider">Next Follow-up</th>
+                  <th className="w-10"></th>
                 </tr>
               </thead>
               <tbody>
@@ -364,15 +403,29 @@ export default function LeadsPage() {
                   return (
                     <tr
                       key={lead.id}
-                      className="border-b border-gray-50 hover:bg-[#faf7f2] transition-colors duration-100"
+                      className="border-b border-gray-50 hover:bg-[#faf7f2] transition-colors duration-100 group"
                     >
                       <td className="px-5 py-3">
-                        <button
-                          onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                          className="font-body text-sm font-semibold text-gray-800 hover:text-[#E8735A] transition-colors duration-150 text-left"
-                        >
-                          {lead.full_name}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                            className="font-body text-sm font-semibold text-gray-800 hover:text-[#E8735A] transition-colors duration-150 text-left"
+                          >
+                            {lead.full_name}
+                          </button>
+                          {lead.facebook_url && (
+                            <a
+                              href={lead.facebook_url}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              onClick={(e) => e.stopPropagation()}
+                              className="text-gray-400 hover:text-[#E8735A] transition-colors duration-150"
+                              title="Open Facebook profile"
+                            >
+                              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                            </a>
+                          )}
+                        </div>
                         {lead.email && (
                           <p className="text-xs text-gray-400 mt-0.5">{lead.email}</p>
                         )}
@@ -383,8 +436,11 @@ export default function LeadsPage() {
                       <td className="px-5 py-3 font-body text-sm text-gray-500">
                         {SOURCE_MAP[lead.source] || lead.source || "\u2014"}
                       </td>
-                      <td className="px-5 py-3 font-body text-sm text-gray-500">
-                        {relativeTime(lead.last_contact_date)}
+                      <td className="px-5 py-3 font-body text-sm font-semibold text-gray-700">
+                        {lead.last_contact_date
+                          ? relativeTime(lead.last_contact_date)
+                          : <span className="text-red-400 font-normal">Never</span>
+                        }
                       </td>
                       <td className="px-5 py-3 font-body text-sm">
                         {followup ? (
@@ -392,6 +448,15 @@ export default function LeadsPage() {
                         ) : (
                           <span className="text-gray-400">{"\u2014"}</span>
                         )}
+                      </td>
+                      <td className="px-5 py-3">
+                        <button
+                          onClick={(e) => { e.stopPropagation(); setDeleteTarget(lead); }}
+                          className="opacity-0 group-hover:opacity-100 text-gray-400 hover:text-red-500 transition-all duration-150 p-1 rounded-lg hover:bg-red-50"
+                          title="Delete lead"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                        </button>
                       </td>
                     </tr>
                   );
@@ -405,25 +470,48 @@ export default function LeadsPage() {
             {leads.map((lead) => {
               const followup = formatFollowup(lead.next_followup_date);
               return (
-                <button
-                  key={lead.id}
-                  onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                  className="w-full text-left px-4 py-3.5 hover:bg-[#faf7f2] transition-colors duration-100"
-                >
-                  <div className="flex items-center justify-between mb-1">
-                    <span className="font-body text-sm font-semibold text-gray-800">
-                      {lead.full_name}
-                    </span>
-                    <StageBadge stage={lead.stage} />
-                  </div>
-                  <div className="flex items-center gap-3 text-xs text-gray-400">
-                    {lead.source && <span>{SOURCE_MAP[lead.source] || lead.source}</span>}
-                    <span>{relativeTime(lead.last_contact_date)}</span>
-                    {followup && (
-                      <span className={followup.className}>{followup.label}</span>
-                    )}
-                  </div>
-                </button>
+                <div key={lead.id} className="relative">
+                  <button
+                    onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
+                    className="w-full text-left px-4 py-3.5 hover:bg-[#faf7f2] transition-colors duration-100 pr-10"
+                  >
+                    <div className="flex items-center justify-between mb-1">
+                      <div className="flex items-center gap-2">
+                        <span className="font-body text-sm font-semibold text-gray-800">
+                          {lead.full_name}
+                        </span>
+                        {lead.facebook_url && (
+                          <a
+                            href={lead.facebook_url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            onClick={(e) => e.stopPropagation()}
+                            className="text-gray-400 hover:text-[#E8735A] transition-colors duration-150"
+                          >
+                            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                          </a>
+                        )}
+                      </div>
+                      <StageBadge stage={lead.stage} />
+                    </div>
+                    <div className="flex items-center gap-3 text-xs">
+                      {lead.source && <span className="text-gray-400">{SOURCE_MAP[lead.source] || lead.source}</span>}
+                      <span className={`font-semibold ${lead.last_contact_date ? "text-gray-600" : "text-red-400"}`}>
+                        {lead.last_contact_date ? relativeTime(lead.last_contact_date) : "Never contacted"}
+                      </span>
+                      {followup && (
+                        <span className={followup.className}>{followup.label}</span>
+                      )}
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => setDeleteTarget(lead)}
+                    className="absolute top-3.5 right-3 text-gray-300 hover:text-red-500 transition-colors duration-150 p-1 rounded-lg hover:bg-red-50"
+                    title="Delete lead"
+                  >
+                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
+                  </button>
+                </div>
               );
             })}
           </div>
@@ -470,6 +558,17 @@ export default function LeadsPage() {
           onAction={hasFilters ? clearFilters : openModal}
         />
       )}
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={!!deleteTarget}
+        title="Delete Lead"
+        message={`Are you sure you want to delete ${deleteTarget?.full_name}? This cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={() => handleDelete(deleteTarget)}
+        onCancel={() => setDeleteTarget(null)}
+      />
 
       {/* Add Lead Modal */}
       {showModal && (
@@ -548,14 +647,24 @@ export default function LeadsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Next Follow-up</label>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Originally Met</label>
                     <input
                       type="date"
-                      value={formData.next_followup_date}
-                      onChange={(e) => updateField("next_followup_date", e.target.value)}
+                      value={formData.originally_met_date}
+                      onChange={(e) => updateField("originally_met_date", e.target.value)}
                       className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
                     />
                   </div>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-semibold text-gray-700 mb-1">Next Follow-up</label>
+                  <input
+                    type="date"
+                    value={formData.next_followup_date}
+                    onChange={(e) => updateField("next_followup_date", e.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                  />
                 </div>
 
                 <div>

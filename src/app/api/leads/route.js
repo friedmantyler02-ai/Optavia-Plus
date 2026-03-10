@@ -36,18 +36,28 @@ export async function GET(request) {
     const safeSort = allowedSorts.includes(sort) ? sort : "created_at";
     const ascending = order !== "desc";
 
+    const orderOpts = { ascending };
+    if (safeSort === "last_contact_date" && ascending) {
+      orderOpts.nullsFirst = true;
+    }
+
     let query = supabase
       .from("leads")
       .select("*", { count: "exact" })
       .eq("coach_id", user.id)
-      .order(safeSort, { ascending })
+      .order(safeSort, orderOpts)
       .range(offset, offset + limit - 1);
 
     if (search) {
       query = query.ilike("full_name", `%${search}%`);
     }
     if (stage) {
-      query = query.eq("stage", stage);
+      const stages = stage.split(",").map((s) => s.trim()).filter(Boolean);
+      if (stages.length === 1) {
+        query = query.eq("stage", stages[0]);
+      } else if (stages.length > 1) {
+        query = query.in("stage", stages);
+      }
     }
     if (source) {
       query = query.eq("source", source);
@@ -89,7 +99,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { full_name, email, phone, facebook_url, source, stage, groups, notes, next_followup_date } = body;
+    const { full_name, email, phone, facebook_url, source, stage, groups, notes, next_followup_date, originally_met_date } = body;
 
     if (!full_name || !full_name.trim()) {
       return NextResponse.json(
@@ -111,6 +121,7 @@ export async function POST(request) {
         groups: groups || null,
         notes: notes || null,
         next_followup_date: next_followup_date || null,
+        originally_met_date: originally_met_date || null,
       })
       .select()
       .single();

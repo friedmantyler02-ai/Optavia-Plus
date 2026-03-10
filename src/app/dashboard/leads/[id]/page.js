@@ -1,10 +1,11 @@
 "use client";
 
-import { useState, useEffect } from "react";
-import { useCoach } from "../../layout";
+import { useState, useEffect, useContext } from "react";
+import { useCoach, ToastContext } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import LoadingSpinner from "../../components/LoadingSpinner";
+import ConfirmDialog from "../../components/ConfirmDialog";
 
 const STAGES = [
   { value: "prospect", label: "Prospect", color: "bg-gray-100 text-gray-700" },
@@ -43,6 +44,12 @@ const ACTION_ICONS = {
   email: "\uD83D\uDCE7",
   meeting: "\uD83E\uDD1D",
   facebook_message: "\uD83D\uDCAC",
+  facebook_comment: "\uD83D\uDCAC",
+  facebook_group_invite_sent: "\uD83D\uDC65",
+  facebook_group_invite_accepted: "\u2705",
+  facebook_friend_request_sent: "\uD83E\uDD1D",
+  facebook_friend_request_accepted: "\u2705",
+  facebook_tag: "\uD83C\uDFF7\uFE0F",
   note: "\uD83D\uDCDD",
   stage_change: "\u27A1\uFE0F",
   other: "\uD83D\uDCCC",
@@ -53,7 +60,13 @@ const ACTION_LABELS = {
   text: "Text",
   email: "Email",
   meeting: "Meeting",
-  facebook_message: "FB Message",
+  facebook_message: "Facebook message",
+  facebook_comment: "Commented on Facebook",
+  facebook_group_invite_sent: "Group invite sent",
+  facebook_group_invite_accepted: "Group invite accepted",
+  facebook_friend_request_sent: "Friend request sent",
+  facebook_friend_request_accepted: "Friend request accepted",
+  facebook_tag: "Tagged on post",
   note: "Note",
   stage_change: "Stage Change",
   other: "Other",
@@ -99,11 +112,14 @@ export default function LeadDetailPage() {
   const router = useRouter();
   const params = useParams();
   const leadId = params.id;
+  const showToast = useContext(ToastContext);
 
   const [lead, setLead] = useState(null);
   const [activities, setActivities] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   // Edit modal
   const [showEdit, setShowEdit] = useState(false);
@@ -187,9 +203,28 @@ export default function LeadDetailPage() {
       groups: lead.groups || "",
       notes: lead.notes || "",
       next_followup_date: lead.next_followup_date ? lead.next_followup_date.slice(0, 10) : "",
+      originally_met_date: lead.originally_met_date ? lead.originally_met_date.slice(0, 10) : "",
     });
     setEditError(null);
     setShowEdit(true);
+  };
+
+  const handleDeleteLead = async () => {
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/leads/${leadId}`, { method: "DELETE" });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || "Failed to delete lead");
+      }
+      showToast({ message: "Lead deleted" });
+      router.push("/dashboard/leads");
+    } catch (err) {
+      showToast({ message: err.message, variant: "error" });
+    } finally {
+      setDeleting(false);
+      setShowDeleteConfirm(false);
+    }
   };
 
   const handleEditSave = async (e) => {
@@ -258,11 +293,22 @@ export default function LeadDetailPage() {
     try {
       await postActivity(actionModal.action, actionDetails);
       setActionModal(null);
+      showToast({ message: "Activity logged" });
       fetchLead();
     } catch (err) {
       alert(err.message);
     } finally {
       setActionSaving(false);
+    }
+  };
+
+  const quickFbAction = async (action) => {
+    try {
+      await postActivity(action, null);
+      showToast({ message: "Activity logged" });
+      fetchLead();
+    } catch (err) {
+      showToast({ message: err.message, variant: "error" });
     }
   };
 
@@ -369,8 +415,9 @@ export default function LeadDetailPage() {
                 </a>
               )}
               {lead.facebook_url && (
-                <a href={lead.facebook_url} target="_blank" rel="noopener noreferrer" className="text-[#E8735A] hover:underline flex items-center gap-1">
-                  <span className="text-xs">{"\uD83D\uDD17"}</span> Facebook
+                <a href={lead.facebook_url} target="_blank" rel="noopener noreferrer" className="text-[#E8735A] underline hover:text-[#d4634d] flex items-center gap-1 truncate max-w-[300px]">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  {lead.facebook_url}
                 </a>
               )}
             </div>
@@ -393,7 +440,10 @@ export default function LeadDetailPage() {
               </div>
             )}
 
-            <p className="text-xs text-gray-400 mt-3">Added {formatDate(lead.created_at)}</p>
+            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-3">
+              <span>Added {formatDate(lead.created_at)}</span>
+              <span>Originally met: {lead.originally_met_date ? formatDate(lead.originally_met_date) : "Not set"}</span>
+            </div>
           </div>
 
           <button
@@ -556,6 +606,109 @@ export default function LeadDetailPage() {
         </div>
       </div>
 
+      {/* Facebook Engagement */}
+      <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 mb-4">
+        <h3 className="font-display text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+          <span className="w-5 h-5 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[10px]">{"\uD83D\uDCAC"}</span>
+          Facebook Engagement
+        </h3>
+        <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => openAction("facebook_comment", "Comment on Facebook", "\uD83D\uDCAC")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\uD83D\uDCAC"} Comment
+          </button>
+          <button
+            onClick={() => quickFbAction("facebook_group_invite_sent")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\uD83D\uDC65"} Group Invite Sent
+          </button>
+          <button
+            onClick={() => quickFbAction("facebook_group_invite_accepted")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\u2705"} Group Invite Accepted
+          </button>
+          <button
+            onClick={() => quickFbAction("facebook_friend_request_sent")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\uD83E\uDD1D"} Friend Request Sent
+          </button>
+          <button
+            onClick={() => quickFbAction("facebook_friend_request_accepted")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\u2705"} Friend Request Accepted
+          </button>
+          <button
+            onClick={() => openAction("facebook_tag", "Tagged on Post", "\uD83C\uDFF7\uFE0F")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\uD83C\uDFF7\uFE0F"} Tagged on Post
+          </button>
+          <button
+            onClick={() => openAction("facebook_message", "Facebook Message", "\uD83D\uDCAC")}
+            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+          >
+            {"\uD83D\uDCAC"} FB Message
+          </button>
+        </div>
+      </div>
+
+      {/* Facebook Group Engagement Tracker */}
+      {(() => {
+        const hasGroupInviteSent = activities.some((a) => a.action === "facebook_group_invite_sent");
+        const hasGroupInviteAccepted = activities.some((a) => a.action === "facebook_group_invite_accepted");
+        const hasTagged = activities.some((a) => a.action === "facebook_tag");
+        const steps = [
+          { label: "Group Invite Sent", done: hasGroupInviteSent },
+          { label: "Group Invite Accepted", done: hasGroupInviteAccepted },
+          { label: "Tagged on Post", done: hasTagged },
+        ];
+        // Find the furthest completed step index
+        let furthest = -1;
+        for (let i = steps.length - 1; i >= 0; i--) {
+          if (steps[i].done) { furthest = i; break; }
+        }
+        if (!hasGroupInviteSent && !hasGroupInviteAccepted && !hasTagged) return null;
+        return (
+          <div className="bg-white rounded-2xl border-2 border-gray-100 p-5 mb-4">
+            <h3 className="font-display text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+              <span className="w-5 h-5 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[10px]">{"\uD83D\uDC65"}</span>
+              Facebook Group Pipeline
+            </h3>
+            <div className="flex items-center">
+              {steps.map((step, i) => (
+                <div key={step.label} className="flex items-center flex-1">
+                  <div className="flex flex-col items-center w-full">
+                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                      step.done
+                        ? "bg-green-500 border-green-500 text-white"
+                        : "bg-white border-gray-200 text-gray-400"
+                    }`}>
+                      {step.done ? "\u2713" : i + 1}
+                    </div>
+                    <span className={`text-[10px] mt-1 font-medium text-center leading-tight ${
+                      step.done ? "text-green-600" : "text-gray-400"
+                    }`}>
+                      {step.label}
+                    </span>
+                  </div>
+                  {i < steps.length - 1 && (
+                    <div className={`flex-1 h-0.5 mx-1 mt-[-14px] ${
+                      steps[i].done && steps[i + 1].done ? "bg-green-500" : steps[i].done ? "bg-green-500/30" : "bg-gray-200"
+                    }`} />
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
+
       {/* Convert to Client */}
       {lead.stage === "client" && (
         <div className="mb-4">
@@ -614,6 +767,33 @@ export default function LeadDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Danger Zone */}
+      <div className="mt-4 border-2 border-red-100 rounded-2xl p-5">
+        <div className="flex items-center justify-between">
+          <div>
+            <h3 className="font-display text-sm font-bold text-red-600">Delete This Lead</h3>
+            <p className="text-xs text-gray-500 mt-0.5">This action cannot be undone.</p>
+          </div>
+          <button
+            onClick={() => setShowDeleteConfirm(true)}
+            className="px-4 py-2 rounded-xl text-sm font-bold text-red-600 border-2 border-red-200 hover:bg-red-50 transition-colors duration-150"
+          >
+            Delete Lead
+          </button>
+        </div>
+      </div>
+
+      {/* Delete Confirm Dialog */}
+      <ConfirmDialog
+        isOpen={showDeleteConfirm}
+        title="Delete Lead"
+        message={`Are you sure you want to delete ${lead.full_name}? This cannot be undone.`}
+        confirmLabel="Delete"
+        confirmVariant="danger"
+        onConfirm={handleDeleteLead}
+        onCancel={() => setShowDeleteConfirm(false)}
+      />
 
       {/* --- Modals --- */}
 
@@ -823,14 +1003,25 @@ export default function LeadDetailPage() {
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Next Follow-up</label>
-                  <input
-                    type="date"
-                    value={editData.next_followup_date}
-                    onChange={(e) => setEditData((d) => ({ ...d, next_followup_date: e.target.value }))}
-                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                  />
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Next Follow-up</label>
+                    <input
+                      type="date"
+                      value={editData.next_followup_date}
+                      onChange={(e) => setEditData((d) => ({ ...d, next_followup_date: e.target.value }))}
+                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-semibold text-gray-700 mb-1">Originally Met</label>
+                    <input
+                      type="date"
+                      value={editData.originally_met_date}
+                      onChange={(e) => setEditData((d) => ({ ...d, originally_met_date: e.target.value }))}
+                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
+                    />
+                  </div>
                 </div>
 
                 <div>

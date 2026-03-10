@@ -52,7 +52,7 @@ function StageBadge({ stage }) {
   const info = STAGE_MAP[stage];
   if (!info) return <span className="text-xs text-gray-400">{stage}</span>;
   return (
-    <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${info.color}`}>
+    <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${info.color}`}>
       {info.label}
     </span>
   );
@@ -300,10 +300,10 @@ export default function LeadsPage() {
           <button
             key={cat.value}
             onClick={() => { setStageFilter(cat.value); setPage(1); }}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-medium transition-all duration-150 ${
+            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all duration-150 ${
               stageFilter === cat.value
                 ? "bg-[#E8735A] text-white shadow-sm"
-                : "bg-white text-gray-500 border border-gray-200 hover:border-gray-300"
+                : "bg-white text-gray-500 border-2 border-gray-200 hover:border-gray-300"
             }`}
           >
             {cat.label}
@@ -477,7 +477,7 @@ export default function LeadsPage() {
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
-                        <span className="font-body text-sm font-semibold text-gray-800">
+                        <span className="font-body text-base font-semibold text-gray-800">
                           {lead.full_name}
                         </span>
                         {lead.facebook_url && (
@@ -525,7 +525,7 @@ export default function LeadsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-3 py-1.5 rounded-lg text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
+                className="px-4 py-2 rounded-xl text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
               >
                 Previous
               </button>
@@ -535,7 +535,7 @@ export default function LeadsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-3 py-1.5 rounded-lg text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
+                className="px-4 py-2 rounded-xl text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
               >
                 Next
               </button>
@@ -580,14 +580,14 @@ export default function LeadsPage() {
               <p className="text-sm text-gray-500 mb-5">Add someone to your hundreds list</p>
 
               {formError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4">
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl px-4 py-2.5 mb-4">
                   <p className="text-sm text-red-700">{formError}</p>
                 </div>
               )}
 
               <form onSubmit={handleSubmit} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name *</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Full Name *</label>
                   <input
                     type="text"
                     value={formData.full_name}
@@ -600,7 +600,7 @@ export default function LeadsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Email</label>
                     <input
                       type="email"
                       value={formData.email}
@@ -610,7 +610,7 @@ export default function LeadsPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Phone</label>
                     <input
                       type="tel"
                       value={formData.phone}
@@ -622,7 +622,7 @@ export default function LeadsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Facebook Profile URL</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
                   <input
                     type="url"
                     value={formData.facebook_url}
@@ -634,7 +634,7 @@ export default function LeadsPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Source</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
                     <select
                       value={formData.source}
                       onChange={(e) => updateField("source", e.target.value)}
@@ -647,7 +647,7 @@ export default function LeadsPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Originally Met</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Originally Met</label>
                     <input
                       type="date"
                       value={formData.originally_met_date}
@@ -658,7 +658,7 @@ export default function LeadsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Next Follow-up</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Next Follow-up</label>
                   <input
                     type="date"
                     value={formData.next_followup_date}
@@ -668,7 +668,7 @@ export default function LeadsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Groups</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Groups</label>
                   <input
                     type="text"
                     value={formData.groups}
@@ -679,7 +679,7 @@ export default function LeadsPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Notes</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Notes</label>
                   <textarea
                     value={formData.notes}
                     onChange={(e) => updateField("notes", e.target.value)}

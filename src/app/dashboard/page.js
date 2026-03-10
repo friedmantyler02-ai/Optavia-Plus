@@ -167,7 +167,7 @@ export default function DashboardHome() {
         <h1 className="font-display text-2xl md:text-3xl font-bold">
           {getGreeting()}, {firstName}!
         </h1>
-        <p className="text-sm text-gray-400 mt-1">{today}</p>
+        <p className="text-base text-gray-400 mt-1">{today}</p>
       </div>
 
       {/* Stats Bar */}
@@ -180,7 +180,7 @@ export default function DashboardHome() {
         ].map((stat) => (
           <div
             key={stat.label}
-            className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100"
+            className="bg-white rounded-2xl p-5 shadow-sm border-2 border-gray-100"
           >
             <div className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">
               {stat.label}
@@ -207,12 +207,12 @@ export default function DashboardHome() {
           return (
             <div
               key={section.key}
-              className="bg-white rounded-2xl shadow-sm border border-gray-100 overflow-hidden"
+              className="bg-white rounded-2xl shadow-sm border-2 border-gray-100 overflow-hidden"
               style={{ borderLeft: `4px solid ${section.color}` }}
             >
               {/* Header */}
               <div className="px-5 pt-5 pb-3 flex items-center justify-between">
-                <h2 className="font-display text-lg font-bold text-gray-800">
+                <h2 className="font-display text-lg md:text-xl font-bold text-gray-800">
                   {section.question}
                 </h2>
                 {total > 0 && (
@@ -228,7 +228,7 @@ export default function DashboardHome() {
               {/* Items */}
               <div className="px-5 pb-4">
                 {items.length === 0 ? (
-                  <p className="text-sm text-gray-400 py-3">
+                  <p className="text-base text-gray-400 py-4">
                     {section.emptyText}
                   </p>
                 ) : (
@@ -236,7 +236,7 @@ export default function DashboardHome() {
                     {items.slice(0, 5).map((item) => (
                       <div
                         key={item.id}
-                        className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl"
+                        className="flex items-center justify-between p-3.5 bg-[#faf7f2] rounded-xl"
                       >
                         <button
                           onClick={() => {
@@ -250,10 +250,10 @@ export default function DashboardHome() {
                           }}
                           className="flex-1 min-w-0 text-left hover:opacity-70 transition-opacity"
                         >
-                          <div className="font-bold text-sm truncate">
+                          <div className="font-bold text-base truncate">
                             {item.full_name}
                           </div>
-                          <div className="text-xs text-gray-500 mt-0.5">
+                          <div className="text-sm text-gray-500 mt-0.5">
                             {item.context}
                           </div>
                         </button>
@@ -264,7 +264,7 @@ export default function DashboardHome() {
                             section.key === "needSupport") && (
                             <button
                               onClick={() => handleDone(section.key, item)}
-                              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                              className="text-sm font-bold px-4 py-2 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
                             >
                               Done &#10003;
                             </button>
@@ -272,7 +272,7 @@ export default function DashboardHome() {
                           {section.key === "readyForHA" && (
                             <Link
                               href={`/dashboard/leads/${item.id}`}
-                              className="text-xs font-bold px-3 py-1.5 rounded-lg text-white hover:opacity-90 transition-opacity"
+                              className="text-sm font-bold px-4 py-2 rounded-xl text-white hover:opacity-90 transition-opacity"
                               style={{ backgroundColor: section.color }}
                             >
                               Schedule HA
@@ -286,7 +286,7 @@ export default function DashboardHome() {
                                   ? `/dashboard/leads/${item.id}`
                                   : `/dashboard/clients/${item.id}`
                               }
-                              className="text-xs font-bold px-3 py-1.5 rounded-lg bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              className="text-sm font-bold px-4 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
                             >
                               View
                             </Link>

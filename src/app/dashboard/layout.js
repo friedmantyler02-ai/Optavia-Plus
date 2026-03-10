@@ -50,16 +50,47 @@ export default function DashboardLayout({ children }) {
           .then();
       }
     } else {
-      // Profile doesn't exist yet — create it from auth metadata
+      // Profile doesn't exist yet — try merging with a stub first
       const meta = user.user_metadata || {};
-      const newProfile = {
-        id: user.id,
-        email: user.email,
-        full_name: meta.full_name || user.email.split("@")[0],
-        optavia_id: meta.optavia_id || null,
-      };
-      await supabase.from("coaches").insert(newProfile);
-      setCoach(newProfile);
+      const coachEmail = user.email;
+      const coachName = meta.full_name || user.email.split("@")[0];
+      const coachOptaviaId = meta.optavia_id || null;
+
+      // Attempt stub merge (from org CSV import)
+      const { data: merged, error: mergeError } = await supabase.rpc(
+        "merge_coach_stub",
+        {
+          auth_user_id: user.id,
+          coach_email: coachEmail,
+          coach_full_name: coachName,
+          coach_optavia_id: coachOptaviaId,
+        }
+      );
+
+      if (mergeError) {
+        console.error("Stub merge error:", mergeError);
+      }
+
+      if (merged) {
+        // Stub was merged — reload the profile (RPC returns JSON, but
+        // we re-fetch to get the full row with all columns)
+        const { data: mergedProfile } = await supabase
+          .from("coaches")
+          .select("*")
+          .eq("id", user.id)
+          .single();
+        setCoach(mergedProfile || merged);
+      } else {
+        // No stub matched — create a fresh profile
+        const newProfile = {
+          id: user.id,
+          email: coachEmail,
+          full_name: coachName,
+          optavia_id: coachOptaviaId,
+        };
+        await supabase.from("coaches").insert(newProfile);
+        setCoach(newProfile);
+      }
     }
     setLoading(false);
   };
@@ -75,6 +106,7 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard/clients", label: "Clients", icon: "👥" },
     { href: "/dashboard/leads", label: "Leads", icon: "🎯" },
     { href: "/dashboard/calendar", label: "Calendar", icon: "📅" },
+    { href: "/dashboard/help", label: "Help", icon: "❓" },
   ];
 
   const isActive = (href) => {

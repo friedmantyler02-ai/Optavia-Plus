@@ -195,7 +195,7 @@ function ImportOrdersModal({ onClose, onComplete }) {
                     onComplete();
                     onClose();
                   }}
-                  className="mt-3 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95"
+                  className="mt-3 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
                 >
                   Done
                 </button>
@@ -294,14 +294,14 @@ function ImportOrdersModal({ onClose, onComplete }) {
                   <div className="mt-4 flex gap-3">
                     <button
                       onClick={onClose}
-                      className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition"
+                      className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition"
                     >
                       Cancel
                     </button>
                     <button
                       onClick={handleImport}
                       disabled={importing}
-                      className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+                      className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50"
                     >
                       {importing
                         ? progress || "Importing..."
@@ -377,21 +377,21 @@ function ClientRow({ client, onAction, muted, router }) {
       <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={() => onAction(client, "checkin")}
-          className="px-2 py-1 rounded-lg text-xs hover:bg-green-50 transition"
+          className="w-9 h-9 rounded-xl text-base hover:bg-green-50 transition flex items-center justify-center"
           title="Check In"
         >
           ✅
         </button>
         <button
           onClick={() => onAction(client, "scale_pic")}
-          className="px-2 py-1 rounded-lg text-xs hover:bg-blue-50 transition"
+          className="w-9 h-9 rounded-xl text-base hover:bg-blue-50 transition flex items-center justify-center"
           title="Scale Pic"
         >
           📸
         </button>
         <button
           onClick={() => setShowNote(!showNote)}
-          className="px-2 py-1 rounded-lg text-xs hover:bg-yellow-50 transition"
+          className="w-9 h-9 rounded-xl text-base hover:bg-yellow-50 transition flex items-center justify-center"
           title="Add Note"
         >
           📝
@@ -417,7 +417,7 @@ function ClientRow({ client, onAction, muted, router }) {
             value={noteInput}
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder="Quick note..."
-            className="flex-1 px-3 py-1.5 text-xs border-2 border-gray-200 rounded-lg focus:border-brand-500 focus:outline-none"
+            className="flex-1 px-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
             onKeyDown={(e) => {
               if (e.key === "Enter" && noteInput.trim()) {
                 onAction(client, "note", noteInput.trim());
@@ -434,7 +434,7 @@ function ClientRow({ client, onAction, muted, router }) {
                 setShowNote(false);
               }
             }}
-            className="px-3 py-1.5 text-xs font-medium bg-[#E8735A] text-white rounded-lg hover:bg-[#d4634d] transition"
+            className="px-4 py-2.5 text-sm font-bold bg-[#E8735A] text-white rounded-xl hover:bg-[#d4634d] transition"
           >
             Save
           </button>
@@ -455,12 +455,12 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
     <div className={`rounded-2xl border-2 border-gray-100 bg-white overflow-hidden mb-4 border-l-4 ${borderColor}`}>
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-4 py-3 hover:bg-gray-50 transition"
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition"
       >
-        <h3 className="text-sm font-bold text-gray-700">
+        <h3 className="font-display text-base font-bold text-gray-700">
           {title} <span className="text-gray-400 font-normal">({count})</span>
         </h3>
-        <span className="text-gray-400 text-xs">{collapsed ? "▼" : "▲"}</span>
+        <span className="text-gray-400 text-sm">{collapsed ? "▼" : "▲"}</span>
       </button>
       {!collapsed && (
         <div className="border-t border-gray-100">
@@ -519,29 +519,29 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
         <div className="hidden sm:block w-24 text-right text-xs text-gray-400">
           {client.last_checkin_date ? timeAgo(client.last_checkin_date) : "Never"}
         </div>
-        <div className="flex items-center gap-3 shrink-0">
-          <label className="flex items-center gap-1.5 cursor-pointer">
+        <div className="flex items-center gap-4 shrink-0">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={checkedIn}
               onChange={() => handleToggle(client, "last_checkin_date")}
-              className="w-4 h-4 rounded border-gray-300 text-green-600 focus:ring-green-500"
+              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
             />
-            <span className="text-xs text-gray-500">Check-in</span>
+            <span className="text-sm text-gray-500">Check-in</span>
           </label>
-          <label className="flex items-center gap-1.5 cursor-pointer">
+          <label className="flex items-center gap-2 cursor-pointer">
             <input
               type="checkbox"
               checked={scalePic}
               onChange={() => handleToggle(client, "last_scale_pic_date")}
-              className="w-4 h-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
             />
-            <span className="text-xs text-gray-500">Scale Pic</span>
+            <span className="text-sm text-gray-500">Scale Pic</span>
           </label>
           {showValueAdd && (
             <button
               onClick={() => handleValueAdd(client)}
-              className="px-2 py-1 rounded-lg text-xs hover:bg-purple-50 transition"
+              className="w-10 h-10 rounded-xl text-base hover:bg-purple-50 transition flex items-center justify-center"
               title="Send Value Add"
             >
               💌
@@ -555,18 +555,18 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
   return (
     <div className="space-y-4">
       {/* Progress bar */}
-      <div className="rounded-2xl border-2 border-gray-100 bg-white p-4">
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-sm font-bold text-gray-700">
+      <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
+        <div className="flex items-center justify-between mb-3">
+          <span className="font-display text-base font-bold text-gray-700">
             Weekly Progress
           </span>
           <span className="text-sm text-gray-500">
             {checkedInCount} of {weeklyClients.length} clients checked in
           </span>
         </div>
-        <div className="w-full bg-gray-100 rounded-full h-2.5">
+        <div className="w-full bg-gray-100 rounded-full h-3">
           <div
-            className="bg-green-500 h-2.5 rounded-full transition-all duration-300"
+            className="bg-green-500 h-3 rounded-full transition-all duration-300"
             style={{
               width: `${weeklyClients.length > 0 ? (checkedInCount / weeklyClients.length) * 100 : 0}%`,
             }}
@@ -577,8 +577,8 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
       {/* Weekly check-in clients */}
       {weeklyClients.length > 0 && (
         <div className="rounded-2xl border-2 border-gray-100 bg-white overflow-hidden border-l-4 border-l-green-500">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-700">
+          <div className="px-5 py-3.5 border-b border-gray-100">
+            <h3 className="font-display text-base font-bold text-gray-700">
               Weekly Check-In Clients <span className="text-gray-400 font-normal">({weeklyClients.length})</span>
             </h3>
           </div>
@@ -596,8 +596,8 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
       {/* Value-add only clients */}
       {valueAddClients.length > 0 && (
         <div className="rounded-2xl border-2 border-gray-100 bg-white overflow-hidden border-l-4 border-l-purple-400">
-          <div className="px-4 py-3 border-b border-gray-100">
-            <h3 className="text-sm font-bold text-gray-700">
+          <div className="px-5 py-3.5 border-b border-gray-100">
+            <h3 className="font-display text-base font-bold text-gray-700">
               Value Add Only <span className="text-gray-400 font-normal">({valueAddClients.length})</span>
             </h3>
           </div>
@@ -750,7 +750,7 @@ export default function ClientsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowImportModal(true)}
-              className="px-4 py-2 rounded-xl text-sm font-medium border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95"
+              className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95"
             >
               Upload Orders
             </button>
@@ -806,16 +806,16 @@ export default function ClientsPage() {
           <div className="flex rounded-xl border-2 border-gray-200 overflow-hidden">
             <button
               onClick={() => setViewMode("list")}
-              className={`px-3 py-2 text-xs font-bold transition ${
-                viewMode === "list" ? "bg-brand-500 text-white" : "text-gray-400 hover:bg-gray-50"
+              className={`px-4 py-2.5 text-sm font-bold transition ${
+                viewMode === "list" ? "bg-[#E8735A] text-white" : "text-gray-400 hover:bg-gray-50"
               }`}
             >
               List
             </button>
             <button
               onClick={() => setViewMode("checklist")}
-              className={`px-3 py-2 text-xs font-bold transition ${
-                viewMode === "checklist" ? "bg-brand-500 text-white" : "text-gray-400 hover:bg-gray-50"
+              className={`px-4 py-2.5 text-sm font-bold transition ${
+                viewMode === "checklist" ? "bg-[#E8735A] text-white" : "text-gray-400 hover:bg-gray-50"
               }`}
             >
               Checklist

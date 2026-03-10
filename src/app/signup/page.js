@@ -51,17 +51,38 @@ export default function SignUpPage() {
       return;
     }
 
-    // 2. Create the coach profile row
+    // 2. Create the coach profile — merge with existing stub if one matches
     if (data.user) {
-      const { error: profileError } = await supabase.from("coaches").insert({
-        id: data.user.id,
-        email: email.trim().toLowerCase(),
-        full_name: fullName.trim(),
-        optavia_id: optaviaId.trim() || null,
-      });
+      const normalEmail = email.trim().toLowerCase();
+      const normalOptaviaId = optaviaId.trim() || null;
 
-      if (profileError && !profileError.message.includes("duplicate")) {
-        console.error("Profile creation error:", profileError);
+      // Try to merge with an existing stub (from org CSV import)
+      const { data: merged, error: mergeError } = await supabase.rpc(
+        "merge_coach_stub",
+        {
+          auth_user_id: data.user.id,
+          coach_email: normalEmail,
+          coach_full_name: fullName.trim(),
+          coach_optavia_id: normalOptaviaId,
+        }
+      );
+
+      if (mergeError) {
+        console.error("Stub merge RPC error:", mergeError);
+      }
+
+      // If no stub was merged, create a fresh coach profile
+      if (!merged) {
+        const { error: profileError } = await supabase.from("coaches").insert({
+          id: data.user.id,
+          email: normalEmail,
+          full_name: fullName.trim(),
+          optavia_id: normalOptaviaId,
+        });
+
+        if (profileError && !profileError.message.includes("duplicate")) {
+          console.error("Profile creation error:", profileError);
+        }
       }
     }
 

@@ -63,20 +63,20 @@ export default function SettingsPage() {
       <div className="space-y-4">
         {/* Profile Card */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Profile</h2>
+          <h2 className="font-display text-lg font-bold text-gray-900 mb-4">Profile</h2>
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Full Name</label>
-              <p className="text-sm text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border-2 border-gray-100">{coach?.full_name || "—"}</p>
+              <p className="text-base text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border-2 border-gray-100">{coach?.full_name || "—"}</p>
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Email</label>
-              <p className="text-sm text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border-2 border-gray-100">{coach?.email || "—"}</p>
+              <p className="text-base text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border-2 border-gray-100">{coach?.email || "—"}</p>
             </div>
             {coach?.optavia_id && (
               <div>
                 <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Optavia ID</label>
-                <p className="text-sm text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border-2 border-gray-100">{coach.optavia_id}</p>
+                <p className="text-base text-gray-900 bg-gray-50 px-4 py-3 rounded-xl border-2 border-gray-100">{coach.optavia_id}</p>
               </div>
             )}
           </div>
@@ -85,7 +85,7 @@ export default function SettingsPage() {
 
         {/* Password Card */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Password</h2>
+          <h2 className="font-display text-lg font-bold text-gray-900 mb-4">Password</h2>
 
           {passwordError && (
             <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-semibold">
@@ -107,7 +107,7 @@ export default function SettingsPage() {
                 value={currentPassword}
                 onChange={(e) => setCurrentPassword(e.target.value)}
                 placeholder="Enter current password"
-                className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl font-body focus:border-brand-500 focus:outline-none transition"
+                className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl font-body focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
               />
             </div>
             <div>
@@ -117,7 +117,7 @@ export default function SettingsPage() {
                 value={newPassword}
                 onChange={(e) => setNewPassword(e.target.value)}
                 placeholder="At least 8 characters"
-                className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl font-body focus:border-brand-500 focus:outline-none transition"
+                className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl font-body focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
               />
             </div>
             <div>
@@ -127,13 +127,13 @@ export default function SettingsPage() {
                 value={confirmPassword}
                 onChange={(e) => setConfirmPassword(e.target.value)}
                 placeholder="Re-enter new password"
-                className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl font-body focus:border-brand-500 focus:outline-none transition"
+                className="w-full px-4 py-3 text-sm border-2 border-gray-200 rounded-xl font-body focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
               />
             </div>
             <button
               type="submit"
               disabled={passwordLoading}
-              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50 mt-1"
+              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 mt-2 shadow-sm"
             >
               {passwordLoading ? "Updating..." : "Update Password"}
             </button>
@@ -142,7 +142,7 @@ export default function SettingsPage() {
 
         {/* Preferences Card */}
         <div className="rounded-2xl border-2 border-gray-100 bg-white p-6">
-          <h2 className="text-lg font-semibold text-gray-900 mb-1">Preferences</h2>
+          <h2 className="font-display text-lg font-bold text-gray-900 mb-1">Preferences</h2>
           <p className="text-sm text-gray-500">Customize notifications and display options.</p>
           <p className="text-sm text-gray-400 mt-3 italic">Coming soon</p>
         </div>

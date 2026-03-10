@@ -50,7 +50,7 @@ function ProgressBar({ currentStep, totalSteps }) {
             </div>
             {step < totalSteps && (
               <div
-                className={`w-8 h-0.5 transition-colors duration-300 ${
+                className={`w-10 h-1 rounded-full transition-colors duration-300 ${
                   step < currentStep ? "bg-[#E8735A]" : "bg-gray-200"
                 }`}
               />
@@ -138,7 +138,7 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
   return (
     <div>
       {label && (
-        <p className="text-sm font-semibold text-gray-700 mb-1">{label}</p>
+        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">{label}</p>
       )}
       {sublabel && (
         <p className="text-xs text-gray-400 mb-2">{sublabel}</p>
@@ -185,7 +185,7 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
               className="hidden"
               onChange={(e) => handleFile(e.target.files[0])}
             />
-            <div className="text-2xl mb-1">{"\uD83D\uDCC4"}</div>
+            <div className="text-3xl mb-2">{"\uD83D\uDCC4"}</div>
             {file ? (
               <p className="text-sm font-semibold text-gray-700">
                 {file.name}{" "}
@@ -195,10 +195,10 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
               </p>
             ) : (
               <>
-                <p className="text-sm font-semibold text-gray-600">
+                <p className="text-base font-semibold text-gray-600">
                   Drop CSV here or click to browse
                 </p>
-                <p className="text-xs text-gray-400 mt-1">
+                <p className="text-sm text-gray-400 mt-1">
                   Frontline order export CSV
                 </p>
               </>
@@ -234,7 +234,7 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
               <button
                 onClick={(e) => { e.stopPropagation(); handleImport(); }}
                 disabled={importing}
-                className="mt-3 w-full bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-medium transition-all duration-150 active:scale-95 disabled:opacity-50"
+                className="mt-3 w-full bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 shadow-sm"
               >
                 {importing ? "Importing..." : `Import ${parsedRows.length} Clients`}
               </button>
@@ -275,7 +275,7 @@ function StepUploadClients({ onNext }) {
       <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">
         Upload Your Frontline Report
       </h2>
-      <p className="text-gray-500 text-sm mb-6">
+      <p className="text-gray-500 text-base mb-6">
         This is your client list from the Optavia back office. Go to Client Report {"\u2192"} Frontline {"\u2192"} Export CSV.
       </p>
 
@@ -284,7 +284,7 @@ function StepUploadClients({ onNext }) {
       <div className="flex gap-3 mt-6">
         <button
           onClick={onNext}
-          className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
+          className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
         >
           Skip this step {"\u2192"}
         </button>
@@ -310,7 +310,7 @@ function StepUploadOrders({ onNext }) {
       <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">
         Upload Your Recent Orders
       </h2>
-      <p className="text-gray-500 text-sm mb-6">
+      <p className="text-gray-500 text-base mb-6">
         Upload this month's and last month's order reports so we know who's active. Go to Client Orders {"\u2192"} Export CSV for each month.
       </p>
 
@@ -328,7 +328,7 @@ function StepUploadOrders({ onNext }) {
       <div className="flex gap-3 mt-6">
         <button
           onClick={onNext}
-          className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
+          className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
         >
           Skip {"\u2192"}
         </button>
@@ -406,19 +406,19 @@ function StepAddLeads({ onNext }) {
       <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">
         Add Some Leads
       </h2>
-      <p className="text-gray-500 text-sm mb-6">
+      <p className="text-gray-500 text-base mb-6">
         Who are you working on bringing into the program? Add a few people or skip for now.
       </p>
 
       {formError && (
-        <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4">
+        <div className="bg-red-50 border-2 border-red-200 rounded-xl px-4 py-2.5 mb-4">
           <p className="text-sm text-red-700">{formError}</p>
         </div>
       )}
 
       <form onSubmit={handleAddLead} className="space-y-3">
         <div>
-          <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name *</label>
+          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Full Name *</label>
           <input
             type="text"
             value={formData.full_name}
@@ -430,7 +430,7 @@ function StepAddLeads({ onNext }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Phone</label>
             <input
               type="tel"
               value={formData.phone}
@@ -440,7 +440,7 @@ function StepAddLeads({ onNext }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Email</label>
             <input
               type="email"
               value={formData.email}
@@ -453,7 +453,7 @@ function StepAddLeads({ onNext }) {
 
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Facebook Profile URL</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
             <input
               type="url"
               value={formData.facebook_url}
@@ -463,7 +463,7 @@ function StepAddLeads({ onNext }) {
             />
           </div>
           <div>
-            <label className="block text-sm font-semibold text-gray-700 mb-1">Source</label>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
             <select
               value={formData.source}
               onChange={(e) => updateField("source", e.target.value)}
@@ -505,7 +505,7 @@ function StepAddLeads({ onNext }) {
       <div className="flex gap-3 mt-6">
         <button
           onClick={onNext}
-          className="flex-1 px-4 py-2.5 text-sm font-medium rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
+          className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
         >
           Skip {"\u2192"}
         </button>
@@ -534,7 +534,7 @@ function StepAllSet({ onFinish, finishing }) {
       <h2 className="font-display text-3xl font-bold text-gray-900 mb-2">
         You're All Set! {"\uD83C\uDF89"}
       </h2>
-      <p className="text-gray-500 text-sm mb-8">
+      <p className="text-gray-500 text-lg mb-8">
         Your OPTAVIA Plus dashboard is ready. Here's what you can do:
       </p>
 
@@ -545,8 +545,8 @@ function StepAllSet({ onFinish, finishing }) {
             className="rounded-2xl border-2 border-gray-100 bg-[#faf7f2] p-5 text-center"
           >
             <div className="text-3xl mb-2">{card.icon}</div>
-            <p className="font-display text-sm font-bold text-gray-900 mb-1">{card.title}</p>
-            <p className="text-xs text-gray-500">{card.desc}</p>
+            <p className="font-display text-base font-bold text-gray-900 mb-1">{card.title}</p>
+            <p className="text-sm text-gray-500">{card.desc}</p>
           </div>
         ))}
       </div>

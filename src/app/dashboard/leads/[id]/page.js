@@ -366,9 +366,9 @@ export default function LeadDetailPage() {
           <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
             {error ? "\u26A0\uFE0F" : "\uD83D\uDD0D"}
           </div>
-          <h3 className="text-lg font-semibold text-gray-900 mb-1">{error || "Lead not found"}</h3>
-          <p className="text-sm text-gray-500 mb-6">This lead may have been deleted or you may not have access.</p>
-          <button onClick={() => router.push("/dashboard/leads")} className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2 rounded-xl text-sm font-medium transition-all duration-150">
+          <h3 className="font-display text-lg font-bold text-gray-900 mb-1">{error || "Lead not found"}</h3>
+          <p className="text-base text-gray-500 mb-6">This lead may have been deleted or you may not have access.</p>
+          <button onClick={() => router.push("/dashboard/leads")} className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 shadow-sm">
             Back to Leads
           </button>
         </div>
@@ -396,7 +396,7 @@ export default function LeadDetailPage() {
             <div className="flex items-center gap-3 mb-2">
               <h1 className="font-display text-2xl font-bold text-gray-900">{lead.full_name}</h1>
               {stageInfo && (
-                <span className={`inline-block rounded-full px-2.5 py-0.5 text-xs font-semibold ${stageInfo.color}`}>
+                <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${stageInfo.color}`}>
                   {stageInfo.label}
                 </span>
               )}
@@ -468,7 +468,7 @@ export default function LeadDetailPage() {
                   <button
                     onClick={() => isFuture && handleStageClick(s.value)}
                     disabled={!isFuture}
-                    className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-150 ${
+                    className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-150 ${
                       isCurrent
                         ? "bg-[#E8735A] border-[#E8735A] text-white shadow-md"
                         : isCompleted
@@ -478,7 +478,7 @@ export default function LeadDetailPage() {
                   >
                     {isCompleted ? "\u2713" : i + 1}
                   </button>
-                  <span className={`text-[10px] mt-1.5 font-semibold text-center leading-tight ${
+                  <span className={`text-xs mt-1.5 font-bold text-center leading-tight ${
                     isCurrent ? "text-[#E8735A]" : isCompleted ? "text-gray-600" : "text-gray-400"
                   }`}>
                     {s.label}
@@ -498,7 +498,7 @@ export default function LeadDetailPage() {
       {/* Health Assessment Section */}
       {showHA && (
         <div className="bg-white rounded-2xl border-2 border-gray-100 p-5 mb-4">
-          <h3 className="font-display text-sm font-bold text-gray-900 mb-3">Health Assessment</h3>
+          <h3 className="font-display text-base font-bold text-gray-900 mb-3">Health Assessment</h3>
           <div className="flex flex-wrap gap-4 text-sm">
             {lead.ha_date && (
               <div>
@@ -531,7 +531,7 @@ export default function LeadDetailPage() {
       {/* Follow-up & Last Contact */}
       <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-4">
         <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
-          <h3 className="font-display text-sm font-bold text-gray-900 mb-3">Next Follow-up</h3>
+          <h3 className="font-display text-base font-bold text-gray-900 mb-3">Next Follow-up</h3>
           {lead.next_followup_date ? (
             <div>
               <p className={`text-lg font-bold ${
@@ -556,12 +556,12 @@ export default function LeadDetailPage() {
               type="date"
               value={followupDate}
               onChange={(e) => setFollowupDate(e.target.value)}
-              className="rounded-lg border-2 border-gray-200 px-3 py-1.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
+              className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
             />
             <button
               onClick={saveFollowup}
               disabled={followupSaving || !followupDate}
-              className="px-3 py-1.5 rounded-lg text-sm font-bold bg-[#E8735A] text-white hover:bg-[#d4634d] disabled:bg-gray-300 transition-colors"
+              className="px-4 py-2 rounded-xl text-sm font-bold bg-[#E8735A] text-white hover:bg-[#d4634d] disabled:bg-gray-300 transition-colors shadow-sm"
             >
               {followupSaving ? "..." : "Set"}
             </button>
@@ -569,7 +569,7 @@ export default function LeadDetailPage() {
         </div>
 
         <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
-          <h3 className="font-display text-sm font-bold text-gray-900 mb-3">Last Contact</h3>
+          <h3 className="font-display text-base font-bold text-gray-900 mb-3">Last Contact</h3>
           {lead.last_contact_date ? (
             <div>
               <p className="text-lg font-bold text-gray-700">{relativeTime(lead.last_contact_date)}</p>
@@ -598,7 +598,7 @@ export default function LeadDetailPage() {
             <button
               key={a.action}
               onClick={() => openAction(a.action, a.label, a.icon)}
-              className="px-3 py-2 rounded-xl text-sm font-semibold border-2 border-gray-100 hover:border-[#E8735A]/30 hover:bg-[#E8735A]/5 text-gray-600 hover:text-[#E8735A] transition-all duration-150"
+              className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-100 hover:border-[#E8735A]/30 hover:bg-[#E8735A]/5 text-gray-600 hover:text-[#E8735A] transition-all duration-150"
             >
               <span className="mr-1">{a.icon}</span> {a.label}
             </button>
@@ -608,50 +608,50 @@ export default function LeadDetailPage() {
 
       {/* Facebook Engagement */}
       <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 mb-4">
-        <h3 className="font-display text-sm font-bold text-gray-900 mb-3 flex items-center gap-2">
+        <h3 className="font-display text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
           <span className="w-5 h-5 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[10px]">{"\uD83D\uDCAC"}</span>
           Facebook Engagement
         </h3>
         <div className="flex flex-wrap gap-2">
           <button
             onClick={() => openAction("facebook_comment", "Comment on Facebook", "\uD83D\uDCAC")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\uD83D\uDCAC"} Comment
           </button>
           <button
             onClick={() => quickFbAction("facebook_group_invite_sent")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\uD83D\uDC65"} Group Invite Sent
           </button>
           <button
             onClick={() => quickFbAction("facebook_group_invite_accepted")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\u2705"} Group Invite Accepted
           </button>
           <button
             onClick={() => quickFbAction("facebook_friend_request_sent")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\uD83E\uDD1D"} Friend Request Sent
           </button>
           <button
             onClick={() => quickFbAction("facebook_friend_request_accepted")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\u2705"} Friend Request Accepted
           </button>
           <button
             onClick={() => openAction("facebook_tag", "Tagged on Post", "\uD83C\uDFF7\uFE0F")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\uD83C\uDFF7\uFE0F"} Tagged on Post
           </button>
           <button
             onClick={() => openAction("facebook_message", "Facebook Message", "\uD83D\uDCAC")}
-            className="px-3 py-1.5 rounded-full text-xs font-semibold bg-[#1877F2]/5 border border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
+            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
           >
             {"\uD83D\uDCAC"} FB Message
           </button>
@@ -676,7 +676,7 @@ export default function LeadDetailPage() {
         if (!hasGroupInviteSent && !hasGroupInviteAccepted && !hasTagged) return null;
         return (
           <div className="bg-white rounded-2xl border-2 border-gray-100 p-5 mb-4">
-            <h3 className="font-display text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
+            <h3 className="font-display text-base font-bold text-gray-900 mb-4 flex items-center gap-2">
               <span className="w-5 h-5 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[10px]">{"\uD83D\uDC65"}</span>
               Facebook Group Pipeline
             </h3>
@@ -684,14 +684,14 @@ export default function LeadDetailPage() {
               {steps.map((step, i) => (
                 <div key={step.label} className="flex items-center flex-1">
                   <div className="flex flex-col items-center w-full">
-                    <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold border-2 ${
                       step.done
                         ? "bg-green-500 border-green-500 text-white"
                         : "bg-white border-gray-200 text-gray-400"
                     }`}>
                       {step.done ? "\u2713" : i + 1}
                     </div>
-                    <span className={`text-[10px] mt-1 font-medium text-center leading-tight ${
+                    <span className={`text-xs mt-1 font-bold text-center leading-tight ${
                       step.done ? "text-green-600" : "text-gray-400"
                     }`}>
                       {step.label}
@@ -732,7 +732,7 @@ export default function LeadDetailPage() {
 
       {/* Activity Timeline */}
       <div className="bg-white rounded-2xl border-2 border-gray-100 p-5">
-        <h3 className="font-display text-sm font-bold text-gray-900 mb-4">Activity Timeline</h3>
+        <h3 className="font-display text-base font-bold text-gray-900 mb-4">Activity Timeline</h3>
         {activities.length === 0 ? (
           <p className="text-sm text-gray-400 text-center py-6">No activities yet. Use the quick actions above to log your first interaction.</p>
         ) : (
@@ -809,7 +809,7 @@ export default function LeadDetailPage() {
 
             {stageConfirm.stage === "ha_scheduled" && (
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Health Assessment Date</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Health Assessment Date</label>
                 <input
                   type="date"
                   value={haDateInput}
@@ -821,7 +821,7 @@ export default function LeadDetailPage() {
 
             {stageConfirm.stage === "ha_completed" && (
               <div className="mb-4">
-                <label className="block text-sm font-semibold text-gray-700 mb-1">Outcome</label>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Outcome</label>
                 <select
                   value={haOutcomeInput}
                   onChange={(e) => setHaOutcomeInput(e.target.value)}
@@ -928,14 +928,14 @@ export default function LeadDetailPage() {
               <p className="text-sm text-gray-500 mb-5">Update {lead.full_name}&apos;s information</p>
 
               {editError && (
-                <div className="bg-red-50 border border-red-200 rounded-xl px-4 py-2.5 mb-4">
+                <div className="bg-red-50 border-2 border-red-200 rounded-xl px-4 py-2.5 mb-4">
                   <p className="text-sm text-red-700">{editError}</p>
                 </div>
               )}
 
               <form onSubmit={handleEditSave} className="space-y-4">
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Full Name *</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Full Name *</label>
                   <input
                     type="text"
                     value={editData.full_name}
@@ -946,7 +946,7 @@ export default function LeadDetailPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Email</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Email</label>
                     <input
                       type="email"
                       value={editData.email}
@@ -955,7 +955,7 @@ export default function LeadDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Phone</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Phone</label>
                     <input
                       type="tel"
                       value={editData.phone}
@@ -966,7 +966,7 @@ export default function LeadDetailPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Facebook Profile URL</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
                   <input
                     type="url"
                     value={editData.facebook_url}
@@ -977,7 +977,7 @@ export default function LeadDetailPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Source</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
                     <select
                       value={editData.source}
                       onChange={(e) => setEditData((d) => ({ ...d, source: e.target.value }))}
@@ -990,7 +990,7 @@ export default function LeadDetailPage() {
                     </select>
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Stage</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Stage</label>
                     <select
                       value={editData.stage}
                       onChange={(e) => setEditData((d) => ({ ...d, stage: e.target.value }))}
@@ -1005,7 +1005,7 @@ export default function LeadDetailPage() {
 
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Next Follow-up</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Next Follow-up</label>
                     <input
                       type="date"
                       value={editData.next_followup_date}
@@ -1014,7 +1014,7 @@ export default function LeadDetailPage() {
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-semibold text-gray-700 mb-1">Originally Met</label>
+                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Originally Met</label>
                     <input
                       type="date"
                       value={editData.originally_met_date}
@@ -1025,7 +1025,7 @@ export default function LeadDetailPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Groups</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Groups</label>
                   <input
                     type="text"
                     value={editData.groups}
@@ -1036,7 +1036,7 @@ export default function LeadDetailPage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-semibold text-gray-700 mb-1">Notes</label>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Notes</label>
                   <textarea
                     value={editData.notes}
                     onChange={(e) => setEditData((d) => ({ ...d, notes: e.target.value }))}

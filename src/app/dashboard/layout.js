@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, createContext, useContext } from "react";
+import { useState, useEffect, useRef, createContext, useContext } from "react";
 import useToast from "@/hooks/useToast";
 import ToastContainer from "./components/ToastContainer";
 import { createClient } from "@/lib/supabase-browser";
@@ -15,6 +15,7 @@ export default function DashboardLayout({ children }) {
   const [coach, setCoach] = useState(null);
   const [loading, setLoading] = useState(true);
   const [showMenu, setShowMenu] = useState(false);
+  const signInTracked = useRef(false);
   const router = useRouter();
   const pathname = usePathname();
   const supabase = createClient();
@@ -39,6 +40,15 @@ export default function DashboardLayout({ children }) {
 
     if (profile) {
       setCoach(profile);
+      // Track last sign-in (once per session)
+      if (!signInTracked.current) {
+        signInTracked.current = true;
+        supabase
+          .from("coaches")
+          .update({ last_sign_in_at: new Date().toISOString() })
+          .eq("id", profile.id)
+          .then();
+      }
     } else {
       // Profile doesn't exist yet — create it from auth metadata
       const meta = user.user_metadata || {};
@@ -61,12 +71,10 @@ export default function DashboardLayout({ children }) {
   };
 
   const navItems = [
-    { href: "/dashboard", label: "Home", icon: "🏠" },
-    { href: "/dashboard/organization", label: "Organization", icon: "🏢" },
+    { href: "/dashboard", label: "Dashboard", icon: "🏠" },
+    { href: "/dashboard/clients", label: "Clients", icon: "👥" },
     { href: "/dashboard/leads", label: "Leads", icon: "🎯" },
-    { href: "/dashboard/outreach", label: "Outreach", icon: "📧" },
-    { href: "/dashboard/analytics", label: "Analytics", icon: "📊" },
-    { href: "/dashboard/knowledge", label: "Knowledge", icon: "📚" },
+    { href: "/dashboard/calendar", label: "Calendar", icon: "📅" },
   ];
 
   const isActive = (href) => {
@@ -115,7 +123,28 @@ export default function DashboardLayout({ children }) {
             ))}
           </div>
 
-          {/* User menu */}
+          {/* Admin + Settings + User menu */}
+          <div className="flex items-center gap-2">
+            {coach?.is_admin && (
+              <button
+                onClick={() => router.push("/dashboard/admin")}
+                className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition ${
+                  isActive("/dashboard/admin")
+                    ? "bg-brand-100 text-brand-500"
+                    : "text-gray-400 hover:bg-gray-100 hover:text-gray-600"
+                }`}
+                title="Admin"
+              >
+                🔑
+              </button>
+            )}
+            <button
+              onClick={() => router.push("/dashboard/settings")}
+              className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
+              title="Settings"
+            >
+              ⚙️
+            </button>
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -151,6 +180,20 @@ export default function DashboardLayout({ children }) {
                   ))}
                 </div>
 
+                {coach?.is_admin && (
+                  <button
+                    onClick={() => { router.push("/dashboard/admin"); setShowMenu(false); }}
+                    className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3"
+                  >
+                    <span>🔑</span> Admin
+                  </button>
+                )}
+                <button
+                  onClick={() => { router.push("/dashboard/settings"); setShowMenu(false); }}
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100"
+                >
+                  <span>⚙️</span> Settings
+                </button>
                 <button
                   onClick={handleLogout}
                   className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors duration-150"
@@ -159,6 +202,7 @@ export default function DashboardLayout({ children }) {
                 </button>
               </div>
             )}
+          </div>
           </div>
         </nav>
 

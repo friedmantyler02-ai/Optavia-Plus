@@ -8,6 +8,7 @@ import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
 import ErrorBanner from "../components/ErrorBanner";
 import ConfirmDialog from "../components/ConfirmDialog";
+import LeadImporter from "../components/LeadImporter";
 
 const STAGES = [
   { value: "prospect", label: "Prospect", color: "bg-gray-100 text-gray-700" },
@@ -134,6 +135,9 @@ export default function LeadsPage() {
 
   // Delete
   const [deleteTarget, setDeleteTarget] = useState(null);
+
+  // Import modal
+  const [showImportModal, setShowImportModal] = useState(false);
 
   const debounceRef = useRef(null);
 
@@ -285,12 +289,20 @@ export default function LeadsPage() {
         title="My Leads"
         subtitle="Your hundreds list — supercharged"
         actions={
-          <button
-            onClick={openModal}
-            className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
-          >
-            Add Lead +
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowImportModal(true)}
+              className="px-4 py-3 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95"
+            >
+              Import Leads
+            </button>
+            <button
+              onClick={openModal}
+              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
+            >
+              Add Lead +
+            </button>
+          </div>
         }
       />
 
@@ -569,6 +581,34 @@ export default function LeadsPage() {
         onConfirm={() => handleDelete(deleteTarget)}
         onCancel={() => setDeleteTarget(null)}
       />
+
+      {/* Import Leads Modal */}
+      {showImportModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowImportModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-lg max-h-[90vh] overflow-y-auto">
+            <div className="p-6">
+              <div className="flex items-center justify-between mb-1">
+                <h2 className="font-display text-xl font-bold text-gray-900">Import Leads</h2>
+                <button
+                  onClick={() => setShowImportModal(false)}
+                  className="text-gray-400 hover:text-gray-600 text-lg"
+                >
+                  &times;
+                </button>
+              </div>
+              <p className="text-sm text-gray-500 mb-5">
+                Upload a CSV of your hundreds list to bulk-import leads.
+              </p>
+              <LeadImporter
+                onImportComplete={() => {
+                  fetchLeads();
+                }}
+              />
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Lead Modal */}
       {showModal && (

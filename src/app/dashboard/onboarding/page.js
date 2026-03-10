@@ -4,16 +4,8 @@ import { useState, useRef, useContext } from "react";
 import { useCoach, ToastContext } from "../layout";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
-
-const SOURCE_OPTIONS = [
-  { value: "facebook_post", label: "Facebook Post" },
-  { value: "facebook_group", label: "Facebook Group" },
-  { value: "instagram", label: "Instagram" },
-  { value: "referral", label: "Referral" },
-  { value: "in_person", label: "In Person" },
-  { value: "past_client", label: "Past Client" },
-  { value: "other", label: "Other" },
-];
+import { importCSVChunked } from "@/lib/chunked-import";
+import LeadImporter from "../components/LeadImporter";
 
 function cleanHeader(h) {
   if (!h) return "";
@@ -62,13 +54,14 @@ function ProgressBar({ currentStep, totalSteps }) {
   );
 }
 
-// ── CSV Upload Zone ──────────────────────────────────────
+// ── CSV Upload Zone (with chunked import) ────────────────
 
 function CsvUploadZone({ label, sublabel, onImportComplete }) {
   const [file, setFile] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
   const [preview, setPreview] = useState([]);
   const [importing, setImporting] = useState(false);
+  const [batchProgress, setBatchProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [parseError, setParseError] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -82,6 +75,7 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
     setFile(f);
     setParseError("");
     setResult(null);
+    setBatchProgress(null);
 
     Papa.parse(f, {
       header: true,
@@ -115,23 +109,20 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
   const handleImport = async () => {
     setImporting(true);
     setResult(null);
+    setBatchProgress(null);
+
     try {
-      const res = await fetch("/api/clients/import-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orders: parsedRows }),
+      const data = await importCSVChunked(parsedRows, (progress) => {
+        setBatchProgress(progress);
       });
-      const data = await res.json();
-      if (!res.ok) {
-        setResult({ error: data.error || "Import failed" });
-      } else {
-        setResult(data);
-        if (onImportComplete) onImportComplete(data);
-      }
+
+      setResult(data);
+      if (onImportComplete) onImportComplete(data);
     } catch {
       setResult({ error: "Network error. Please try again." });
     } finally {
       setImporting(false);
+      setBatchProgress(null);
     }
   };
 
@@ -152,6 +143,7 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
           <p className="text-xs text-green-600 mt-1">
             Updated {result.updated || 0}, Created {result.created || 0}
             {result.alerts > 0 && `, ${result.alerts} alerts`}
+            {result.failedBatches > 0 && ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
           </p>
         </div>
       ) : (
@@ -236,7 +228,11 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
                 disabled={importing}
                 className="mt-3 w-full bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 shadow-sm"
               >
-                {importing ? "Importing..." : `Import ${parsedRows.length} Clients`}
+                {importing
+                  ? batchProgress
+                    ? `Importing... batch ${batchProgress.current} of ${batchProgress.total}`
+                    : "Importing..."
+                  : `Import ${parsedRows.length} Clients`}
               </button>
             </div>
           )}
@@ -345,162 +341,19 @@ function StepUploadOrders({ onNext }) {
   );
 }
 
-function StepAddLeads({ onNext }) {
-  const showToast = useContext(ToastContext);
-  const [addedLeads, setAddedLeads] = useState([]);
-  const [submitting, setSubmitting] = useState(false);
-  const [formError, setFormError] = useState(null);
-  const [formData, setFormData] = useState({
-    full_name: "",
-    phone: "",
-    email: "",
-    facebook_url: "",
-    source: "",
-  });
-
-  const updateField = (field, value) => {
-    setFormData((prev) => ({ ...prev, [field]: value }));
-  };
-
-  const handleAddLead = async (e) => {
-    e.preventDefault();
-    if (!formData.full_name.trim()) {
-      setFormError("Name is required");
-      return;
-    }
-
-    setSubmitting(true);
-    setFormError(null);
-
-    try {
-      const body = { ...formData, stage: "prospect" };
-      Object.keys(body).forEach((k) => {
-        if (body[k] === "") body[k] = null;
-      });
-      body.full_name = formData.full_name.trim();
-
-      const res = await fetch("/api/leads", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      const data = await res.json();
-
-      if (!res.ok) {
-        setFormError(data.error || "Failed to create lead");
-        return;
-      }
-
-      setAddedLeads((prev) => [...prev, data]);
-      setFormData({ full_name: "", phone: "", email: "", facebook_url: "", source: "" });
-      if (showToast) showToast({ message: "Lead added!", variant: "success" });
-    } catch {
-      setFormError("Network error. Please try again.");
-    } finally {
-      setSubmitting(false);
-    }
-  };
+function StepImportHundredsList({ onNext }) {
+  const [imported, setImported] = useState(false);
 
   return (
     <div>
       <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">
-        Add Some Leads
+        Import Your Hundreds List
       </h2>
       <p className="text-gray-500 text-base mb-6">
-        Who are you working on bringing into the program? Add a few people or skip for now.
+        Got a list of people you'd like to reach out to? Upload it as a CSV and we'll add them as leads. You can also add leads anytime from the Leads page.
       </p>
 
-      {formError && (
-        <div className="bg-red-50 border-2 border-red-200 rounded-xl px-4 py-2.5 mb-4">
-          <p className="text-sm text-red-700">{formError}</p>
-        </div>
-      )}
-
-      <form onSubmit={handleAddLead} className="space-y-3">
-        <div>
-          <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Full Name *</label>
-          <input
-            type="text"
-            value={formData.full_name}
-            onChange={(e) => updateField("full_name", e.target.value)}
-            placeholder="Jane Smith"
-            className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
-          />
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Phone</label>
-            <input
-              type="tel"
-              value={formData.phone}
-              onChange={(e) => updateField("phone", e.target.value)}
-              placeholder="(555) 123-4567"
-              className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Email</label>
-            <input
-              type="email"
-              value={formData.email}
-              onChange={(e) => updateField("email", e.target.value)}
-              placeholder="jane@example.com"
-              className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
-            />
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
-            <input
-              type="url"
-              value={formData.facebook_url}
-              onChange={(e) => updateField("facebook_url", e.target.value)}
-              placeholder="https://facebook.com/janesmith"
-              className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
-            />
-          </div>
-          <div>
-            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
-            <select
-              value={formData.source}
-              onChange={(e) => updateField("source", e.target.value)}
-              className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
-            >
-              <option value="">Select source...</option>
-              {SOURCE_OPTIONS.map((s) => (
-                <option key={s.value} value={s.value}>{s.label}</option>
-              ))}
-            </select>
-          </div>
-        </div>
-
-        <button
-          type="submit"
-          disabled={submitting}
-          className="w-full bg-[#E8735A] hover:bg-[#d4634d] disabled:bg-gray-300 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
-        >
-          {submitting ? "Adding..." : "Add Lead"}
-        </button>
-      </form>
-
-      {addedLeads.length > 0 && (
-        <div className="mt-4">
-          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
-            Added ({addedLeads.length})
-          </p>
-          <div className="rounded-xl border-2 border-gray-100 divide-y divide-gray-50">
-            {addedLeads.map((lead) => (
-              <div key={lead.id} className="px-4 py-2.5 flex items-center justify-between">
-                <span className="text-sm font-semibold text-gray-800">{lead.full_name}</span>
-                <span className="text-xs text-gray-400">{lead.email || lead.phone || ""}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
+      <LeadImporter onImportComplete={() => setImported(true)} />
 
       <div className="flex gap-3 mt-6">
         <button
@@ -509,12 +362,12 @@ function StepAddLeads({ onNext }) {
         >
           Skip {"\u2192"}
         </button>
-        {addedLeads.length > 0 && (
+        {imported && (
           <button
             onClick={onNext}
             className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
           >
-            I'm Done Adding Leads {"\u2192"}
+            Next {"\u2192"}
           </button>
         )}
       </div>
@@ -567,6 +420,7 @@ function StepAllSet({ onFinish, finishing }) {
 export default function OnboardingPage() {
   const { coach, setCoach } = useCoach();
   const router = useRouter();
+  const showToast = useContext(ToastContext);
   const [currentStep, setCurrentStep] = useState(1);
   const [finishing, setFinishing] = useState(false);
 
@@ -580,14 +434,19 @@ export default function OnboardingPage() {
     setFinishing(true);
     try {
       const res = await fetch("/api/onboarding/complete", { method: "POST" });
-      if (res.ok) {
-        setCoach((prev) => ({ ...prev, onboarding_completed: true }));
-        router.push("/dashboard");
+      const data = await res.json().catch(() => ({}));
+
+      if (!res.ok) {
+        if (showToast) showToast({ message: data.error || "Failed to complete onboarding", variant: "error" });
+        setFinishing(false);
+        return;
       }
-    } catch {
-      // Still navigate — worst case they see the wizard again
+
+      // Update local state BEFORE navigating so the layout redirect doesn't kick in
+      setCoach((prev) => ({ ...prev, onboarding_completed: true }));
       router.push("/dashboard");
-    } finally {
+    } catch {
+      if (showToast) showToast({ message: "Network error. Please try again.", variant: "error" });
       setFinishing(false);
     }
   };
@@ -607,7 +466,7 @@ export default function OnboardingPage() {
           {currentStep === 1 && <StepWelcome onNext={nextStep} />}
           {currentStep === 2 && <StepUploadClients onNext={nextStep} />}
           {currentStep === 3 && <StepUploadOrders onNext={nextStep} />}
-          {currentStep === 4 && <StepAddLeads onNext={nextStep} />}
+          {currentStep === 4 && <StepImportHundredsList onNext={nextStep} />}
           {currentStep === 5 && <StepAllSet onFinish={handleFinish} finishing={finishing} />}
         </div>
       </div>

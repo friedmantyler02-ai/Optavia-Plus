@@ -4,6 +4,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useCoach } from "../layout";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
+import { importCSVChunked } from "@/lib/chunked-import";
 import PageHeader from "../components/PageHeader";
 import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
@@ -84,6 +85,7 @@ function ImportOrdersModal({ onClose, onComplete }) {
   const [preview, setPreview] = useState([]);
   const [importing, setImporting] = useState(false);
   const [progress, setProgress] = useState("");
+  const [batchProgress, setBatchProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [parseError, setParseError] = useState("");
   const fileRef = useRef(null);
@@ -131,27 +133,20 @@ function ImportOrdersModal({ onClose, onComplete }) {
   const handleImport = async () => {
     setImporting(true);
     setProgress("Uploading orders...");
+    setBatchProgress(null);
     setResult(null);
 
     try {
-      const res = await fetch("/api/clients/import-orders", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orders: parsedRows }),
+      const data = await importCSVChunked(parsedRows, (progress) => {
+        setBatchProgress(progress);
       });
-
-      const data = await res.json();
-
-      if (!res.ok) {
-        setResult({ error: data.error || "Import failed" });
-      } else {
-        setResult(data);
-      }
+      setResult(data);
     } catch {
       setResult({ error: "Network error. Please try again." });
     } finally {
       setImporting(false);
       setProgress("");
+      setBatchProgress(null);
     }
   };
 
@@ -189,6 +184,8 @@ function ImportOrdersModal({ onClose, onComplete }) {
                   new, {result.alerts} alerts detected
                   {result.errors?.length > 0 &&
                     `, ${result.errors.length} errors`}
+                  {result.failedBatches > 0 &&
+                    ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
                 </p>
                 <button
                   onClick={() => {
@@ -304,7 +301,9 @@ function ImportOrdersModal({ onClose, onComplete }) {
                       className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50"
                     >
                       {importing
-                        ? progress || "Importing..."
+                        ? batchProgress
+                          ? `Importing... batch ${batchProgress.current} of ${batchProgress.total}`
+                          : progress || "Importing..."
                         : `Import ${parsedRows.length} Orders`}
                     </button>
                   </div>

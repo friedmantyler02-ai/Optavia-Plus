@@ -9,7 +9,7 @@ const CHUNK_SIZE = 100;
 
 /**
  * @param {object[]} rows - Parsed CSV rows from Papa Parse
- * @param {(progress: { current: number, total: number }) => void} onProgress
+ * @param {(progress: { current: number, total: number, rowsProcessed: number, totalRows: number }) => void} onProgress
  * @returns {Promise<{ updated: number, created: number, alerts: number, errors: object[], failedBatches: number }>}
  */
 export async function importCSVChunked(rows, onProgress) {
@@ -25,7 +25,8 @@ export async function importCSVChunked(rows, onProgress) {
   let failedBatches = 0;
 
   for (let i = 0; i < chunks.length; i++) {
-    onProgress({ current: i + 1, total: chunks.length });
+    const rowsProcessed = Math.min((i + 1) * CHUNK_SIZE, rows.length);
+    onProgress({ current: i + 1, total: chunks.length, rowsProcessed, totalRows: rows.length });
 
     try {
       const res = await fetch("/api/clients/import-orders", {

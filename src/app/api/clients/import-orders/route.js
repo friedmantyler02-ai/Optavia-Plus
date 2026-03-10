@@ -45,6 +45,25 @@ function parseNum(val) {
   return isNaN(n) ? null : n;
 }
 
+/**
+ * Run an array of async functions with limited concurrency.
+ */
+async function runConcurrent(tasks, limit = 10) {
+  const results = [];
+  let i = 0;
+
+  async function next() {
+    while (i < tasks.length) {
+      const idx = i++;
+      results[idx] = await tasks[idx]();
+    }
+  }
+
+  const workers = Array.from({ length: Math.min(limit, tasks.length) }, () => next());
+  await Promise.all(workers);
+  return results;
+}
+
 export async function POST(request) {
   try {
     const supabase = await createClient();
@@ -85,6 +104,10 @@ export async function POST(request) {
       }
     }
 
+    // Process all rows in memory — separate into updates and inserts
+    const updateOps = [];  // { id, updates }
+    const insertRows = []; // full records for new clients
+
     for (let i = 0; i < orders.length; i++) {
       const row = normalizeRow(orders[i]);
 
@@ -122,17 +145,14 @@ export async function POST(request) {
           last_order_import_date: new Date().toISOString(),
         };
 
-        // Update email if current is placeholder and CSV has a real one
         if (email && !email.toLowerCase().endsWith("@medifastinc.com")) {
           updates.email = email;
         }
-
         if (phone) updates.phone = phone;
 
         // Build alerts
         const alerts = [...(existing.order_alerts || [])];
 
-        // Alert: cancellation
         if (orderStatus && orderStatus.toLowerCase() === "cancelled") {
           alerts.push({
             type: "cancellation",
@@ -143,7 +163,6 @@ export async function POST(request) {
           alertCount++;
         }
 
-        // Alert: expected order date changed by more than 7 days
         if (orderDate && existing.expected_order_date) {
           const oldDate = new Date(existing.expected_order_date);
           const newDate = new Date(orderDate);
@@ -161,7 +180,6 @@ export async function POST(request) {
           }
         }
 
-        // Alert: QV dropped below 350
         if (
           qv != null &&
           existing.pqv != null &&
@@ -181,23 +199,9 @@ export async function POST(request) {
           updates.order_alerts = alerts;
         }
 
-        const { error: updateError } = await supabase
-          .from("clients")
-          .update(updates)
-          .eq("id", existing.id);
-
-        if (updateError) {
-          errors.push({
-            row: i,
-            optavia_id: optaviaId,
-            error: updateError.message,
-          });
-        } else {
-          updated++;
-        }
+        updateOps.push({ id: existing.id, updates, rowIndex: i, optaviaId });
       } else {
-        // Create new client
-        const newClient = {
+        insertRows.push({
           optavia_id: optaviaId,
           full_name: fullName || null,
           email:
@@ -218,20 +222,50 @@ export async function POST(request) {
           coach_id: coachId,
           last_order_import_date: new Date().toISOString(),
           order_alerts: [],
-        };
+          _rowIndex: i,
+          _optaviaId: optaviaId,
+        });
+      }
+    }
 
-        const { error: insertError } = await supabase
+    // Batch insert all new clients in one call
+    if (insertRows.length > 0) {
+      // Strip internal tracking fields before inserting
+      const cleanInserts = insertRows.map(({ _rowIndex, _optaviaId, ...row }) => row);
+
+      const { error: insertError } = await supabase
+        .from("clients")
+        .insert(cleanInserts);
+
+      if (insertError) {
+        console.error("Batch insert error:", insertError.message);
+        errors.push({ batch: "insert", error: insertError.message });
+      } else {
+        created += insertRows.length;
+      }
+    }
+
+    // Run all updates concurrently (max 10 at a time)
+    if (updateOps.length > 0) {
+      const tasks = updateOps.map((op) => async () => {
+        const { error: updateError } = await supabase
           .from("clients")
-          .insert(newClient);
+          .update(op.updates)
+          .eq("id", op.id);
 
-        if (insertError) {
-          errors.push({
-            row: i,
-            optavia_id: optaviaId,
-            error: insertError.message,
-          });
+        if (updateError) {
+          return { error: true, row: op.rowIndex, optavia_id: op.optaviaId, message: updateError.message };
+        }
+        return { error: false };
+      });
+
+      const results = await runConcurrent(tasks, 10);
+
+      for (const r of results) {
+        if (r.error) {
+          errors.push({ row: r.row, optavia_id: r.optavia_id, error: r.message });
         } else {
-          created++;
+          updated++;
         }
       }
     }

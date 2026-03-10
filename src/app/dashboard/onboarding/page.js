@@ -223,17 +223,27 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
                 </table>
               </div>
 
-              <button
-                onClick={(e) => { e.stopPropagation(); handleImport(); }}
-                disabled={importing}
-                className="mt-3 w-full bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 shadow-sm"
-              >
-                {importing
-                  ? batchProgress
-                    ? `Importing... batch ${batchProgress.current} of ${batchProgress.total}`
-                    : "Importing..."
-                  : `Import ${parsedRows.length} Clients`}
-              </button>
+              {importing && batchProgress ? (
+                <div className="mt-3">
+                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                    <div
+                      className="h-full bg-[#E8735A] rounded-full transition-all duration-300"
+                      style={{ width: `${(batchProgress.current / batchProgress.total) * 100}%` }}
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500 mt-1.5 text-center font-medium">
+                    Importing... batch {batchProgress.current} of {batchProgress.total} ({batchProgress.rowsProcessed} of {batchProgress.totalRows} rows)
+                  </p>
+                </div>
+              ) : (
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleImport(); }}
+                  disabled={importing}
+                  className="mt-3 w-full bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 shadow-sm"
+                >
+                  {importing ? "Preparing import..." : `Import ${parsedRows.length} Clients`}
+                </button>
+              )}
             </div>
           )}
         </>

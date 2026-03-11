@@ -22,13 +22,14 @@ export async function POST() {
       );
     }
 
-    const { error: rpcError } = await supabaseAdmin.rpc("complete_onboarding", {
-      coach_email: user.email,
-    });
+    const { error: updateError } = await supabaseAdmin
+      .from("coaches")
+      .update({ onboarding_completed: true, updated_at: new Date().toISOString() })
+      .eq("id", user.id);
 
-    if (rpcError) {
+    if (updateError) {
       return NextResponse.json(
-        { error: rpcError.message },
+        { error: updateError.message },
         { status: 500 }
       );
     }

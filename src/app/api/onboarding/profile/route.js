@@ -38,7 +38,7 @@ export async function POST(request) {
         optavia_id: optavia_id?.trim() || null,
         updated_at: new Date().toISOString(),
       })
-      .eq("email", user.email);
+      .eq("id", user.id);
 
     if (updateError) {
       return NextResponse.json(

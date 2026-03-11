@@ -106,7 +106,6 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard/clients", label: "Clients", icon: "👥" },
     { href: "/dashboard/leads", label: "Leads", icon: "🎯" },
     { href: "/dashboard/calendar", label: "Calendar", icon: "📅" },
-    { href: "/dashboard/help", label: "Help", icon: "❓" },
   ];
 
   const isActive = (href) => {
@@ -198,13 +197,6 @@ export default function DashboardLayout({ children }) {
                 🔑
               </button>
             )}
-            <button
-              onClick={() => router.push("/dashboard/settings")}
-              className="w-10 h-10 rounded-xl flex items-center justify-center text-lg text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition"
-              title="Settings"
-            >
-              ⚙️
-            </button>
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
@@ -250,9 +242,15 @@ export default function DashboardLayout({ children }) {
                 )}
                 <button
                   onClick={() => { router.push("/dashboard/settings"); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100"
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3"
                 >
                   <span>⚙️</span> Settings
+                </button>
+                <button
+                  onClick={() => { router.push("/dashboard/help"); setShowMenu(false); }}
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100"
+                >
+                  <span>❓</span> Help
                 </button>
                 <button
                   onClick={handleLogout}

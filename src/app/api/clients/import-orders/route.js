@@ -114,7 +114,7 @@ export async function POST(request) {
       const optaviaId = (row.OPTAVIAID || "").trim();
       if (!optaviaId || optaviaId === "OPTAVIAID") continue;
 
-      const orderDate = parseDate(row.OrderDate);
+      const orderDate = parseDate(row.OrderDate || row.LastOrderDate);
       const qv = parseNum(row.QV);
       const cv = parseNum(row.CV);
       const orderTotal = parseNum(row.OrderTotal);

@@ -259,9 +259,11 @@ function StepWelcomeSignup({ isLoggedIn, onNext, onSignedUp }) {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
   const [optaviaId, setOptaviaId] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [confirmError, setConfirmError] = useState("");
   const supabase = createClient();
 
   // Already logged in — just show welcome
@@ -292,6 +294,7 @@ function StepWelcomeSignup({ isLoggedIn, onNext, onSignedUp }) {
   const handleSignUp = async (e) => {
     e.preventDefault();
     setError("");
+    setConfirmError("");
     setLoading(true);
 
     if (!fullName.trim() || !email.trim() || !password) {
@@ -301,6 +304,11 @@ function StepWelcomeSignup({ isLoggedIn, onNext, onSignedUp }) {
     }
     if (password.length < 6) {
       setError("Password must be at least 6 characters.");
+      setLoading(false);
+      return;
+    }
+    if (password !== confirmPassword) {
+      setConfirmError("Passwords do not match.");
       setLoading(false);
       return;
     }
@@ -408,6 +416,27 @@ function StepWelcomeSignup({ isLoggedIn, onNext, onSignedUp }) {
             placeholder="At least 6 characters"
             className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#E8735A] focus:ring-2 focus:ring-[#E8735A]/20 outline-none text-base text-gray-900 placeholder:text-gray-300 transition"
           />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            Confirm Password <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="password"
+            value={confirmPassword}
+            onChange={(e) => {
+              setConfirmPassword(e.target.value);
+              if (confirmError) setConfirmError("");
+            }}
+            placeholder="Re-enter your password"
+            className={`w-full px-4 py-3 rounded-xl border-2 ${
+              confirmError ? "border-red-300 focus:border-red-400 focus:ring-red-200/20" : "border-gray-200 focus:border-[#E8735A] focus:ring-[#E8735A]/20"
+            } focus:ring-2 outline-none text-base text-gray-900 placeholder:text-gray-300 transition`}
+          />
+          {confirmError && (
+            <p className="text-sm text-red-500 font-semibold mt-1">{confirmError}</p>
+          )}
         </div>
 
         <div>

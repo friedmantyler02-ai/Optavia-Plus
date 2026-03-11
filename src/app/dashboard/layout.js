@@ -122,7 +122,7 @@ export default function DashboardLayout({ children }) {
       !coach.is_stub &&
       !isOnboarding
     ) {
-      router.push("/dashboard/onboarding");
+      router.push("/onboarding");
     }
   }, [coach, isOnboarding]);
 

@@ -50,46 +50,45 @@ export default function DashboardLayout({ children }) {
           .then();
       }
     } else {
-      // Profile doesn't exist yet — try merging with a stub first
+      // Profile doesn't exist yet — create via server-side API (bypasses RLS)
       const meta = user.user_metadata || {};
       const coachEmail = user.email;
       const coachName = meta.full_name || user.email.split("@")[0];
       const coachOptaviaId = meta.optavia_id || null;
 
-      // Attempt stub merge (from org CSV import)
-      const { data: merged, error: mergeError } = await supabase.rpc(
-        "merge_coach_stub",
-        {
-          auth_user_id: user.id,
-          coach_email: coachEmail,
-          coach_full_name: coachName,
-          coach_optavia_id: coachOptaviaId,
-        }
-      );
-
-      if (mergeError) {
-        console.error("Stub merge error:", mergeError);
+      try {
+        await fetch("/api/auth/create-coach", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            user_id: user.id,
+            email: coachEmail,
+            full_name: coachName,
+            optavia_id: coachOptaviaId,
+          }),
+        });
+      } catch (err) {
+        console.error("Coach creation fallback error:", err);
       }
 
-      if (merged) {
-        // Stub was merged — reload the profile (RPC returns JSON, but
-        // we re-fetch to get the full row with all columns)
-        const { data: mergedProfile } = await supabase
-          .from("coaches")
-          .select("*")
-          .eq("id", user.id)
-          .single();
-        setCoach(mergedProfile || merged);
+      // Re-fetch the profile (should exist now)
+      const { data: newProfile } = await supabase
+        .from("coaches")
+        .select("*")
+        .eq("id", user.id)
+        .single();
+
+      if (newProfile) {
+        setCoach(newProfile);
       } else {
-        // No stub matched — create a fresh profile
-        const newProfile = {
+        // Last resort: set a minimal coach object so onboarding redirect still works
+        setCoach({
           id: user.id,
           email: coachEmail,
           full_name: coachName,
           optavia_id: coachOptaviaId,
-        };
-        await supabase.from("coaches").insert(newProfile);
-        setCoach(newProfile);
+          onboarding_completed: false,
+        });
       }
     }
     setLoading(false);

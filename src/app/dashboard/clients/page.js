@@ -66,20 +66,58 @@ function cleanHeader(h) {
   return h.replace(/^\uFEFF/, "").replace(/^="?/, "").replace(/"$/, "").trim();
 }
 
-// ── ImportOrdersModal (preserved exactly) ────────────────
+// ── Import Modal ──────────────────────────────────────────
 
-function ImportOrdersModal({ onClose, onComplete }) {
+const IMPORT_TYPES = {
+  clients: {
+    title: "Upload Client List",
+    subtitle: "Import a Frontline Report CSV to add or update clients.",
+    dropLabel: "Frontline Report CSV",
+    buttonLabel: (n) => `Import ${n} Clients`,
+    previewCols: [
+      { key: "name", label: "Name", render: (r) => `${r.FirstName || ""} ${r.LastName || ""}`.trim() },
+      { key: "id", label: "Optavia ID", render: (r) => r.OPTAVIAID },
+      { key: "email", label: "Email", render: (r) => r.Email || "\u2014" },
+      { key: "status", label: "Status", render: (r) => r.AccountStatus || r.OrderStatus || "\u2014" },
+    ],
+  },
+  orders: {
+    title: "Upload Recent Orders",
+    subtitle: "Import a Client Orders CSV to update order dates and detect alerts.",
+    dropLabel: "Client Orders export CSV",
+    buttonLabel: (n) => `Import ${n} Orders`,
+    previewCols: [
+      { key: "name", label: "Name", render: (r) => `${r.FirstName || ""} ${r.LastName || ""}`.trim() },
+      { key: "id", label: "Optavia ID", render: (r) => r.OPTAVIAID },
+      { key: "date", label: "Order Date", render: (r) => r.OrderDate || r.LastOrderDate || "\u2014" },
+      { key: "qv", label: "QV", align: "right", render: (r) => r.QV || r.PQV || "\u2014" },
+      { key: "status", label: "Status", render: (r) => r.OrderStatus || "\u2014" },
+    ],
+  },
+};
+
+function ImportModal({ onClose, onComplete }) {
+  const [importType, setImportType] = useState(null);
   const [file, setFile] = useState(null);
   const [parsedRows, setParsedRows] = useState([]);
   const [preview, setPreview] = useState([]);
   const [importing, setImporting] = useState(false);
-  const [progress, setProgress] = useState("");
   const [batchProgress, setBatchProgress] = useState(null);
   const [result, setResult] = useState(null);
   const [parseError, setParseError] = useState("");
   const fileRef = useRef(null);
-  const dragRef = useRef(null);
   const [dragging, setDragging] = useState(false);
+
+  const config = importType ? IMPORT_TYPES[importType] : null;
+
+  const resetUpload = () => {
+    setFile(null);
+    setParsedRows([]);
+    setPreview([]);
+    setResult(null);
+    setParseError("");
+    setBatchProgress(null);
+  };
 
   const handleFile = (f) => {
     if (!f || !f.name.toLowerCase().endsWith(".csv")) {
@@ -100,14 +138,13 @@ function ImportOrdersModal({ onClose, onComplete }) {
         }
         const rows = results.data;
         setParsedRows(rows);
-        const previewRows = rows.slice(0, 5).map((row) => {
+        setPreview(rows.slice(0, 5).map((row) => {
           const clean = {};
           for (const [k, v] of Object.entries(row)) {
             clean[cleanHeader(k)] = v;
           }
           return clean;
-        });
-        setPreview(previewRows);
+        }));
       },
     });
   };
@@ -115,13 +152,11 @@ function ImportOrdersModal({ onClose, onComplete }) {
   const handleDrop = (e) => {
     e.preventDefault();
     setDragging(false);
-    const f = e.dataTransfer.files[0];
-    if (f) handleFile(f);
+    if (e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
   };
 
   const handleImport = async () => {
     setImporting(true);
-    setProgress("Uploading orders...");
     setBatchProgress(null);
     setResult(null);
 
@@ -134,7 +169,6 @@ function ImportOrdersModal({ onClose, onComplete }) {
       setResult({ error: "Network error. Please try again." });
     } finally {
       setImporting(false);
-      setProgress("");
       setBatchProgress(null);
     }
   };
@@ -148,154 +182,171 @@ function ImportOrdersModal({ onClose, onComplete }) {
           onClick={(e) => e.stopPropagation()}
         >
           <div className="p-6">
+            {/* Header */}
             <div className="flex items-center justify-between mb-1">
               <h3 className="font-display text-xl font-bold text-gray-900">
-                Upload Orders
+                {config ? config.title : "Import CSV"}
               </h3>
-              <button
-                onClick={onClose}
-                className="text-gray-400 hover:text-gray-600 text-lg"
-              >
+              <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-lg">
                 &times;
               </button>
             </div>
-            <p className="text-sm text-gray-500 mb-5">
-              Import a Frontline order CSV to update client records.
-            </p>
 
-            {result && !result.error && (
-              <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4">
-                <p className="text-sm font-semibold text-green-700 mb-1">
-                  Import complete!
-                </p>
-                <p className="text-sm text-green-600">
-                  Updated {result.updated} clients, Created {result.created}{" "}
-                  new, {result.alerts} alerts detected
-                  {result.errors?.length > 0 &&
-                    `, ${result.errors.length} errors`}
-                  {result.failedBatches > 0 &&
-                    ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
-                </p>
-                <button
-                  onClick={() => {
-                    onComplete();
-                    onClose();
-                  }}
-                  className="mt-3 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
-                >
-                  Done
-                </button>
-              </div>
-            )}
-
-            {result?.error && (
-              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-semibold">
-                {result.error}
-              </div>
-            )}
-
-            {parseError && (
-              <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-semibold">
-                {parseError}
-              </div>
-            )}
-
-            {!result?.updated && !result?.created && (
+            {/* Type picker */}
+            {!importType && (
               <>
-                <div
-                  ref={dragRef}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    setDragging(true);
-                  }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={handleDrop}
-                  onClick={() => fileRef.current?.click()}
-                  className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors duration-150 ${
-                    dragging
-                      ? "border-[#E8735A] bg-[#E8735A]/5"
-                      : "border-gray-200 hover:border-gray-300 bg-gray-50"
-                  }`}
-                >
-                  <input
-                    ref={fileRef}
-                    type="file"
-                    accept=".csv"
-                    className="hidden"
-                    onChange={(e) => handleFile(e.target.files[0])}
-                  />
-                  <div className="text-3xl mb-2">📄</div>
-                  {file ? (
-                    <p className="text-sm font-semibold text-gray-700">
-                      {file.name}{" "}
-                      <span className="text-gray-400 font-normal">
-                        ({parsedRows.length} rows)
-                      </span>
-                    </p>
-                  ) : (
-                    <>
-                      <p className="text-sm font-semibold text-gray-600">
-                        Drop CSV here or click to browse
-                      </p>
-                      <p className="text-xs text-gray-400 mt-1">
-                        Frontline order export CSV
-                      </p>
-                    </>
-                  )}
-                </div>
-
-                {preview.length > 0 && (
-                  <div className="mt-4">
-                    <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
-                      Preview (first {preview.length} rows)
-                    </p>
-                    <div className="overflow-x-auto rounded-xl border-2 border-gray-100">
-                      <table className="w-full text-xs">
-                        <thead>
-                          <tr className="bg-gray-50 border-b border-gray-100">
-                            <th className="text-left px-3 py-2 text-gray-400 font-bold">Name</th>
-                            <th className="text-left px-3 py-2 text-gray-400 font-bold">Optavia ID</th>
-                            <th className="text-left px-3 py-2 text-gray-400 font-bold">Order Date</th>
-                            <th className="text-right px-3 py-2 text-gray-400 font-bold">QV</th>
-                            <th className="text-left px-3 py-2 text-gray-400 font-bold">Status</th>
-                          </tr>
-                        </thead>
-                        <tbody>
-                          {preview.map((row, i) => (
-                            <tr key={i} className="border-b border-gray-50">
-                              <td className="px-3 py-2 text-gray-700">{row.FirstName} {row.LastName}</td>
-                              <td className="px-3 py-2 text-gray-500">{row.OPTAVIAID}</td>
-                              <td className="px-3 py-2 text-gray-500">{row.OrderDate}</td>
-                              <td className="px-3 py-2 text-gray-500 text-right">{row.QV}</td>
-                              <td className="px-3 py-2 text-gray-500">{row.OrderStatus}</td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
+                <p className="text-sm text-gray-500 mb-5">
+                  What would you like to import?
+                </p>
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setImportType("clients")}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-[#E8735A] hover:bg-[#faf7f2] transition text-left"
+                  >
+                    <span className="text-2xl">&#128101;</span>
+                    <div>
+                      <p className="font-bold text-sm text-gray-800">Upload Client List</p>
+                      <p className="text-xs text-gray-500">Frontline Report CSV &mdash; adds new clients and updates existing ones</p>
                     </div>
+                  </button>
+                  <button
+                    onClick={() => setImportType("orders")}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-[#E8735A] hover:bg-[#faf7f2] transition text-left"
+                  >
+                    <span className="text-2xl">&#128230;</span>
+                    <div>
+                      <p className="font-bold text-sm text-gray-800">Upload Recent Orders</p>
+                      <p className="text-xs text-gray-500">Client Orders CSV &mdash; updates order dates and detects alerts</p>
+                    </div>
+                  </button>
+                </div>
+              </>
+            )}
+
+            {/* Upload zone (after type selected) */}
+            {config && (
+              <>
+                {!result && (
+                  <button
+                    onClick={() => { setImportType(null); resetUpload(); }}
+                    className="text-xs font-semibold text-gray-400 hover:text-gray-600 mb-3 transition-colors"
+                  >
+                    &larr; Change import type
+                  </button>
+                )}
+                {!result && (
+                  <p className="text-sm text-gray-500 mb-4">{config.subtitle}</p>
+                )}
+
+                {/* Success */}
+                {result && !result.error && (
+                  <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4 mt-3">
+                    <p className="text-sm font-semibold text-green-700 mb-1">Import complete!</p>
+                    <p className="text-sm text-green-600">
+                      Updated {result.updated} clients, Created {result.created} new
+                      {result.alerts > 0 && `, ${result.alerts} alerts detected`}
+                      {result.errors?.length > 0 && `, ${result.errors.length} errors`}
+                      {result.failedBatches > 0 && ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
+                    </p>
+                    <button
+                      onClick={() => { onComplete(); onClose(); }}
+                      className="mt-3 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
+                    >
+                      Done
+                    </button>
                   </div>
                 )}
 
-                {parsedRows.length > 0 && (
-                  <div className="mt-4 flex gap-3">
-                    <button
-                      onClick={onClose}
-                      className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition"
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      onClick={handleImport}
-                      disabled={importing}
-                      className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50"
-                    >
-                      {importing
-                        ? batchProgress
-                          ? `Importing... batch ${batchProgress.current} of ${batchProgress.total}`
-                          : progress || "Importing..."
-                        : `Import ${parsedRows.length} Orders`}
-                    </button>
+                {result?.error && (
+                  <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-semibold">
+                    {result.error}
                   </div>
+                )}
+                {parseError && (
+                  <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-semibold">
+                    {parseError}
+                  </div>
+                )}
+
+                {!result?.updated && !result?.created && (
+                  <>
+                    {/* Drop zone */}
+                    <div
+                      onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+                      onDragLeave={() => setDragging(false)}
+                      onDrop={handleDrop}
+                      onClick={() => fileRef.current?.click()}
+                      className={`border-2 border-dashed rounded-2xl p-8 text-center cursor-pointer transition-colors duration-150 ${
+                        dragging ? "border-[#E8735A] bg-[#E8735A]/5" : "border-gray-200 hover:border-gray-300 bg-gray-50"
+                      }`}
+                    >
+                      <input ref={fileRef} type="file" accept=".csv" className="hidden" onChange={(e) => handleFile(e.target.files[0])} />
+                      <div className="text-3xl mb-2">&#128196;</div>
+                      {file ? (
+                        <p className="text-sm font-semibold text-gray-700">
+                          {file.name} <span className="text-gray-400 font-normal">({parsedRows.length} rows)</span>
+                        </p>
+                      ) : (
+                        <>
+                          <p className="text-sm font-semibold text-gray-600">Drop CSV here or click to browse</p>
+                          <p className="text-xs text-gray-400 mt-1">{config.dropLabel}</p>
+                        </>
+                      )}
+                    </div>
+
+                    {/* Preview table */}
+                    {preview.length > 0 && (
+                      <div className="mt-4">
+                        <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">
+                          Preview (first {preview.length} rows)
+                        </p>
+                        <div className="overflow-x-auto rounded-xl border-2 border-gray-100">
+                          <table className="w-full text-xs">
+                            <thead>
+                              <tr className="bg-gray-50 border-b border-gray-100">
+                                {config.previewCols.map((col) => (
+                                  <th key={col.key} className={`${col.align === "right" ? "text-right" : "text-left"} px-3 py-2 text-gray-400 font-bold`}>
+                                    {col.label}
+                                  </th>
+                                ))}
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {preview.map((row, i) => (
+                                <tr key={i} className="border-b border-gray-50">
+                                  {config.previewCols.map((col) => (
+                                    <td key={col.key} className={`px-3 py-2 ${col.align === "right" ? "text-right" : ""} text-gray-500`}>
+                                      {col.render(row)}
+                                    </td>
+                                  ))}
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Import / Cancel buttons */}
+                    {parsedRows.length > 0 && (
+                      <div className="mt-4 flex gap-3">
+                        <button onClick={onClose} className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-600 hover:bg-gray-50 transition">
+                          Cancel
+                        </button>
+                        <button
+                          onClick={handleImport}
+                          disabled={importing}
+                          className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50"
+                        >
+                          {importing
+                            ? batchProgress
+                              ? `Importing... batch ${batchProgress.current} of ${batchProgress.total}`
+                              : "Importing..."
+                            : config.buttonLabel(parsedRows.length)}
+                        </button>
+                      </div>
+                    )}
+                  </>
                 )}
               </>
             )}
@@ -520,7 +571,7 @@ export default function ClientsPage() {
   const [allClients, setAllClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [showImportModal, setShowImportModal] = useState(false);
+  const [showImport, setShowImport] = useState(false);
   const [weeklyCheckins, setWeeklyCheckins] = useState(new Set());
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
     if (typeof window === "undefined") return {};
@@ -705,10 +756,10 @@ export default function ClientsPage() {
         actions={
           <div className="flex gap-2">
             <button
-              onClick={() => setShowImportModal(true)}
+              onClick={() => setShowImport(true)}
               className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95"
             >
-              Upload Orders
+              Import CSV
             </button>
           </div>
         }
@@ -869,9 +920,9 @@ export default function ClientsPage() {
       )}
 
       {/* Import modal */}
-      {showImportModal && (
-        <ImportOrdersModal
-          onClose={() => setShowImportModal(false)}
+      {showImport && (
+        <ImportModal
+          onClose={() => setShowImport(false)}
           onComplete={fetchClients}
         />
       )}

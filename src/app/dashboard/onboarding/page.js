@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useContext } from "react";
+import { useState, useEffect, useRef, useContext } from "react";
 import { useCoach, ToastContext } from "../layout";
 import { useRouter } from "next/navigation";
 import Papa from "papaparse";
@@ -277,7 +277,7 @@ function StepWelcome({ onNext }) {
   );
 }
 
-function StepProfile({ coach, setCoach, onNext }) {
+function StepProfile({ coach, setCoach, authEmail, onNext }) {
   const [fullName, setFullName] = useState(coach?.full_name || "");
   const [optaviaId, setOptaviaId] = useState(coach?.optavia_id || "");
   const [saving, setSaving] = useState(false);
@@ -339,7 +339,7 @@ function StepProfile({ coach, setCoach, onNext }) {
           </label>
           <input
             type="email"
-            value={coach?.email || ""}
+            value={authEmail || ""}
             readOnly
             className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-gray-400 text-base cursor-not-allowed"
           />
@@ -539,11 +539,18 @@ function StepAllSet({ onFinish, finishing }) {
 // ── Main Wizard Page ─────────────────────────────────────
 
 export default function OnboardingPage() {
-  const { coach, setCoach } = useCoach();
+  const { coach, setCoach, supabase } = useCoach();
   const router = useRouter();
   const showToast = useContext(ToastContext);
   const [currentStep, setCurrentStep] = useState(1);
   const [finishing, setFinishing] = useState(false);
+  const [authEmail, setAuthEmail] = useState("");
+
+  useEffect(() => {
+    supabase.auth.getUser().then(({ data: { user } }) => {
+      if (user?.email) setAuthEmail(user.email);
+    });
+  }, [supabase]);
 
   const totalSteps = 6;
 
@@ -585,7 +592,7 @@ export default function OnboardingPage() {
 
         <div className="bg-white rounded-2xl shadow-sm border-2 border-gray-100 p-6 md:p-10">
           {currentStep === 1 && <StepWelcome onNext={nextStep} />}
-          {currentStep === 2 && <StepProfile coach={coach} setCoach={setCoach} onNext={nextStep} />}
+          {currentStep === 2 && <StepProfile coach={coach} setCoach={setCoach} authEmail={authEmail} onNext={nextStep} />}
           {currentStep === 3 && <StepUploadClients onNext={nextStep} />}
           {currentStep === 4 && <StepUploadOrders onNext={nextStep} />}
           {currentStep === 5 && <StepImportHundredsList onNext={nextStep} />}

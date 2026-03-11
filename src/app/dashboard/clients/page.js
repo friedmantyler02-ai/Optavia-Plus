@@ -308,7 +308,7 @@ function ImportOrdersModal({ onClose, onComplete }) {
 
 // ── Client Row (List View) ───────────────────────────────
 
-function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedAlerts, onDismissAlert }) {
+function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedAlerts, onDismissAlert, showLastOrderSubtitle }) {
   const [noteInput, setNoteInput] = useState("");
   const [showNote, setShowNote] = useState(false);
   const clientDismissed = dismissedAlerts[String(client.id)] || [];
@@ -327,6 +327,11 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
           >
             {client.full_name}
           </button>
+          {showLastOrderSubtitle && client.last_order_date && (
+            <span className={`text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
+              Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+            </span>
+          )}
           {isPremier ? (
             <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
           ) : client.order_type ? (
@@ -470,7 +475,7 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
 
 // ── Section Wrapper ──────────────────────────────────────
 
-function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins, dismissedAlerts, onDismissAlert }) {
+function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (count === 0) return null;
@@ -497,7 +502,7 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
             <div className="w-[88px]">Actions</div>
           </div>
           {clients.map((c) => (
-            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} />
+            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} />
           ))}
         </div>
       )}
@@ -709,8 +714,20 @@ export default function ClientsPage() {
         }
       />
 
-      {/* Alert banner */}
-      {alertClientCount > 0 && !showAlertOnly && (
+      {/* Alert banner / active filter bar */}
+      {showAlertOnly ? (
+        <div className="flex items-center justify-between mb-4 px-4 py-3 rounded-2xl bg-amber-50 border-2 border-amber-200">
+          <span className="text-sm font-semibold text-amber-700">
+            Showing {filtered.length} client{filtered.length !== 1 ? "s" : ""} with order alerts
+          </span>
+          <button
+            onClick={() => setShowAlertOnly(false)}
+            className="flex items-center gap-1 text-sm font-bold text-amber-600 hover:text-amber-800 transition-colors"
+          >
+            ← Back to all clients
+          </button>
+        </div>
+      ) : alertClientCount > 0 && (
         <button
           onClick={() => setShowAlertOnly(true)}
           className="w-full mb-4 px-4 py-3 rounded-2xl bg-amber-50 border-2 border-amber-200 text-left hover:bg-amber-100/70 transition"
@@ -822,6 +839,7 @@ export default function ClientsPage() {
             weeklyCheckins={weeklyCheckins}
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
+            showLastOrderSubtitle={true}
           />
 
           {filtered.length === 0 && (

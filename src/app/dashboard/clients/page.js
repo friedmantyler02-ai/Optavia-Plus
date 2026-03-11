@@ -41,18 +41,6 @@ function getMonthsAgo(dateStr) {
   return (now - d) / (1000 * 60 * 60 * 24 * 30.44);
 }
 
-function isThisWeek(dateStr) {
-  if (!dateStr) return false;
-  const now = new Date();
-  const d = new Date(dateStr);
-  const dayOfWeek = now.getDay();
-  const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
-  const monday = new Date(now);
-  monday.setDate(now.getDate() - mondayOffset);
-  monday.setHours(0, 0, 0, 0);
-  return d >= monday;
-}
-
 function bucketClient(c) {
   const months = getMonthsAgo(c.last_order_date);
   if (months <= 2) return "active";
@@ -320,10 +308,11 @@ function ImportOrdersModal({ onClose, onComplete }) {
 
 // ── Client Row (List View) ───────────────────────────────
 
-function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
+function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedAlerts, onDismissAlert }) {
   const [noteInput, setNoteInput] = useState("");
   const [showNote, setShowNote] = useState(false);
-  const alerts = getAlertBadges(client.order_alerts);
+  const clientDismissed = dismissedAlerts[String(client.id)] || [];
+  const alerts = getAlertBadges(client.order_alerts).filter((a) => !clientDismissed.includes(a.label));
   const qv = client.pqv;
   const isPremier = client.order_type?.toLowerCase()?.includes("premier");
 
@@ -347,8 +336,15 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
             <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600">Coach</span>
           )}
           {alerts.map((a, i) => (
-            <span key={i} className={`inline-block rounded-full px-2 py-0.5 text-[10px] font-bold ${a.cls}`}>
+            <span key={i} className={`inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-bold ${a.cls}`}>
               {a.emoji} {a.label}
+              <button
+                onClick={(e) => { e.stopPropagation(); onDismissAlert(client.id, a.label); }}
+                className="ml-0.5 w-3.5 h-3.5 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition"
+                title="Dismiss"
+              >
+                &times;
+              </button>
             </span>
           ))}
         </div>
@@ -362,8 +358,19 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
       </div>
 
       {/* Last order */}
-      <div className="hidden sm:block w-20 text-right">
-        <span className="text-xs text-gray-400">{formatDate(client.last_order_date)}</span>
+      <div className="hidden sm:block w-28 text-right">
+        {client.last_order_date ? (
+          <div className="flex items-center justify-end gap-1.5">
+            {getMonthsAgo(client.last_order_date) >= 3 && (
+              <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+ days</span>
+            )}
+            <span className={`text-xs ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-400"}`}>
+              {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+            </span>
+          </div>
+        ) : (
+          <span className="text-xs text-gray-300">No orders</span>
+        )}
       </div>
 
       {/* Last check-in */}
@@ -384,14 +391,23 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
         </button>
         <button
           onClick={() => onAction(client, "scale_pic")}
-          className={`w-9 h-9 rounded-xl text-sm font-bold transition flex items-center justify-center ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
             weeklyCheckins.has(`${client.id}:scale_photo`)
-              ? "bg-blue-100 text-blue-600"
-              : "text-gray-300 hover:bg-blue-50 hover:text-blue-400"
+              ? "bg-green-100 text-green-700"
+              : "bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500"
           }`}
           title={weeklyCheckins.has(`${client.id}:scale_photo`) ? "Scale pic received — click to undo" : "Mark scale pic received"}
         >
-          {weeklyCheckins.has(`${client.id}:scale_photo`) ? "📸" : "○"}
+          <span className={`inline-flex items-center justify-center w-4 h-4 rounded border ${
+            weeklyCheckins.has(`${client.id}:scale_photo`)
+              ? "border-green-500 bg-green-500 text-white"
+              : "border-gray-300"
+          }`}>
+            {weeklyCheckins.has(`${client.id}:scale_photo`) && (
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
+            )}
+          </span>
+          Scale Pic
         </button>
         <button
           onClick={() => setShowNote(!showNote)}
@@ -403,11 +419,15 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
       </div>
 
       {/* Mobile info row */}
-      <div className="flex sm:hidden items-center gap-3 text-xs text-gray-400">
+      <div className="flex sm:hidden items-center gap-3 text-xs text-gray-400 flex-wrap">
         <span className={qv != null ? (qv >= 350 ? "text-green-600 font-bold" : "text-orange-500 font-bold") : ""}>
           QV: {qv != null ? qv : "\u2014"}
         </span>
-        <span>{formatDate(client.last_order_date)}</span>
+        <span className={client.last_order_date && getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : ""}>
+          {client.last_order_date
+            ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")
+            : "No orders"}
+        </span>
         <span className={!client.last_checkin_date ? "text-red-400" : ""}>
           {client.last_checkin_date ? timeAgo(client.last_checkin_date) : "No check-in"}
         </span>
@@ -450,7 +470,7 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
 
 // ── Section Wrapper ──────────────────────────────────────
 
-function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins }) {
+function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins, dismissedAlerts, onDismissAlert }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (count === 0) return null;
@@ -472,145 +492,12 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
           <div className="hidden sm:flex items-center gap-4 px-4 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
             <div className="flex-1">Name</div>
             <div className="w-16 text-right">QV</div>
-            <div className="w-20 text-right">Last Order</div>
+            <div className="w-28 text-right">Last Order</div>
             <div className="hidden md:block w-24 text-right">Check-in</div>
             <div className="w-[88px]">Actions</div>
           </div>
           {clients.map((c) => (
-            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} />
-          ))}
-        </div>
-      )}
-    </div>
-  );
-}
-
-// ── Checklist View ───────────────────────────────────────
-
-function ChecklistView({ clients, onAction, supabase, coachId, weeklyCheckins }) {
-  const weeklyClients = clients.filter((c) => c.wants_weekly_checkin !== false);
-  const valueAddClients = clients.filter(
-    (c) => c.wants_weekly_checkin === false && c.wants_value_adds !== false
-  );
-
-  const checkedInCount = weeklyClients.filter((c) =>
-    isThisWeek(c.last_checkin_date)
-  ).length;
-
-  const handleToggle = async (client, field) => {
-    if (field === "last_scale_pic_date") {
-      onAction(client, "scale_pic");
-      return;
-    }
-    const alreadyDone = isThisWeek(client[field]);
-    if (alreadyDone) return;
-    onAction(client, "checkin");
-  };
-
-  const handleValueAdd = async (client) => {
-    onAction(client, "value_add");
-  };
-
-  function CheckRow({ client, showValueAdd }) {
-    const checkedIn = isThisWeek(client.last_checkin_date);
-    const scalePic = weeklyCheckins.has(`${client.id}:scale_photo`);
-    const allDone = showValueAdd ? checkedIn : checkedIn;
-
-    return (
-      <div className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 border-b border-gray-50 transition-colors ${allDone ? "bg-green-50/50" : ""}`}>
-        <div className="flex-1 min-w-0">
-          <span className="text-sm font-semibold text-gray-800">{client.full_name}</span>
-          <span className={`ml-2 text-xs font-bold ${client.pqv != null ? (client.pqv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
-            {client.pqv != null ? `${client.pqv} QV` : ""}
-          </span>
-        </div>
-        <div className="hidden sm:block w-24 text-right text-xs text-gray-400">
-          {client.last_checkin_date ? timeAgo(client.last_checkin_date) : "Never"}
-        </div>
-        <div className="flex items-center gap-4 shrink-0">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={checkedIn}
-              onChange={() => handleToggle(client, "last_checkin_date")}
-              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            <span className="text-sm text-gray-500">Check-in</span>
-          </label>
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={scalePic}
-              onChange={() => handleToggle(client, "last_scale_pic_date")}
-              className="w-5 h-5 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
-            />
-            <span className="text-sm text-gray-500">Scale Pic</span>
-          </label>
-          {showValueAdd && (
-            <button
-              onClick={() => handleValueAdd(client)}
-              className="w-10 h-10 rounded-xl text-base hover:bg-purple-50 transition flex items-center justify-center"
-              title="Send Value Add"
-            >
-              💌
-            </button>
-          )}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="space-y-4">
-      {/* Progress bar */}
-      <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
-        <div className="flex items-center justify-between mb-3">
-          <span className="font-display text-base font-bold text-gray-700">
-            Weekly Progress
-          </span>
-          <span className="text-sm text-gray-500">
-            {checkedInCount} of {weeklyClients.length} clients checked in
-          </span>
-        </div>
-        <div className="w-full bg-gray-100 rounded-full h-3">
-          <div
-            className="bg-green-500 h-3 rounded-full transition-all duration-300"
-            style={{
-              width: `${weeklyClients.length > 0 ? (checkedInCount / weeklyClients.length) * 100 : 0}%`,
-            }}
-          />
-        </div>
-      </div>
-
-      {/* Weekly check-in clients */}
-      {weeklyClients.length > 0 && (
-        <div className="rounded-2xl border-2 border-gray-100 bg-white overflow-hidden border-l-4 border-l-green-500">
-          <div className="px-5 py-3.5 border-b border-gray-100">
-            <h3 className="font-display text-base font-bold text-gray-700">
-              Weekly Check-In Clients <span className="text-gray-400 font-normal">({weeklyClients.length})</span>
-            </h3>
-          </div>
-          <div className="hidden sm:flex items-center gap-4 px-4 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-            <div className="flex-1">Name</div>
-            <div className="w-24 text-right">Last Check-in</div>
-            <div className="w-[220px]">This Week</div>
-          </div>
-          {weeklyClients.map((c) => (
-            <CheckRow key={c.id} client={c} showValueAdd={false} />
-          ))}
-        </div>
-      )}
-
-      {/* Value-add only clients */}
-      {valueAddClients.length > 0 && (
-        <div className="rounded-2xl border-2 border-gray-100 bg-white overflow-hidden border-l-4 border-l-purple-400">
-          <div className="px-5 py-3.5 border-b border-gray-100">
-            <h3 className="font-display text-base font-bold text-gray-700">
-              Value Add Only <span className="text-gray-400 font-normal">({valueAddClients.length})</span>
-            </h3>
-          </div>
-          {valueAddClients.map((c) => (
-            <CheckRow key={c.id} client={c} showValueAdd={true} />
+            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} />
           ))}
         </div>
       )}
@@ -630,16 +517,26 @@ export default function ClientsPage() {
   const [error, setError] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
   const [weeklyCheckins, setWeeklyCheckins] = useState(new Set());
+  const [dismissedAlerts, setDismissedAlerts] = useState(() => {
+    if (typeof window === "undefined") return {};
+    try { return JSON.parse(localStorage.getItem("optavia_dismissed_alerts") || "{}"); } catch { return {}; }
+  });
 
-  // View & filters
-  const [viewMode, setViewMode] = useState("list");
+  const dismissAlert = (clientId, alertType) => {
+    setDismissedAlerts((prev) => {
+      const key = String(clientId);
+      const next = { ...prev, [key]: [...(prev[key] || []), alertType] };
+      localStorage.setItem("optavia_dismissed_alerts", JSON.stringify(next));
+      return next;
+    });
+  };
+
+  // Filters
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
   const [orderTypeFilter, setOrderTypeFilter] = useState("");
   const [qvFilter, setQvFilter] = useState("");
   const [showAlertOnly, setShowAlertOnly] = useState(false);
-  const [pastExpanded, setPastExpanded] = useState(false);
-
   const debounceRef = useRef(null);
 
   const handleSearchChange = useCallback((value) => {
@@ -769,7 +666,12 @@ export default function ClientsPage() {
     if (orderTypeFilter === "ondemand" && c.order_type?.toLowerCase()?.includes("premier")) return false;
     if (qvFilter === "over350" && (c.pqv == null || c.pqv < 350)) return false;
     if (qvFilter === "under350" && c.pqv != null && c.pqv >= 350) return false;
-    if (showAlertOnly && (!c.order_alerts || c.order_alerts.length === 0)) return false;
+    if (showAlertOnly) {
+      if (!c.order_alerts || c.order_alerts.length === 0) return false;
+      const cd = dismissedAlerts[String(c.id)] || [];
+      const remaining = getAlertBadges(c.order_alerts).filter((a) => !cd.includes(a.label));
+      if (remaining.length === 0) return false;
+    }
     return true;
   });
 
@@ -778,10 +680,13 @@ export default function ClientsPage() {
   const atRisk = filtered.filter((c) => bucketClient(c) === "at_risk");
   const past = filtered.filter((c) => bucketClient(c) === "past");
 
-  // Alert count
-  const alertClientCount = allClients.filter(
-    (c) => c.order_alerts && Array.isArray(c.order_alerts) && c.order_alerts.length > 0
-  ).length;
+  // Alert count (exclude fully-dismissed clients)
+  const alertClientCount = allClients.filter((c) => {
+    if (!c.order_alerts || !Array.isArray(c.order_alerts) || c.order_alerts.length === 0) return false;
+    const cd = dismissedAlerts[String(c.id)] || [];
+    const remaining = getAlertBadges(c.order_alerts).filter((a) => !cd.includes(a.label));
+    return remaining.length > 0;
+  }).length;
 
   const activeCount = allClients.filter((c) => bucketClient(c) === "active").length;
 
@@ -808,12 +713,12 @@ export default function ClientsPage() {
       {alertClientCount > 0 && !showAlertOnly && (
         <button
           onClick={() => setShowAlertOnly(true)}
-          className="w-full mb-4 px-4 py-3 rounded-2xl bg-red-50 border-2 border-red-200 text-left hover:bg-red-100 transition"
+          className="w-full mb-4 px-4 py-3 rounded-2xl bg-amber-50 border-2 border-amber-200 text-left hover:bg-amber-100/70 transition"
         >
-          <span className="text-sm font-semibold text-red-700">
-            ⚠️ {alertClientCount} client{alertClientCount !== 1 ? "s have" : " has"} order alerts
+          <span className="text-sm font-semibold text-amber-700">
+            {alertClientCount} client{alertClientCount !== 1 ? "s have" : " has"} order alerts
           </span>
-          <span className="text-xs text-red-500 ml-2">Click to view</span>
+          <span className="text-xs text-amber-500 ml-2">Tap to review</span>
         </button>
       )}
 
@@ -847,26 +752,6 @@ export default function ClientsPage() {
             <option value="over350">Over 350</option>
             <option value="under350">Under 350</option>
           </select>
-
-          {/* View toggle */}
-          <div className="flex rounded-xl border-2 border-gray-200 overflow-hidden">
-            <button
-              onClick={() => setViewMode("list")}
-              className={`px-4 py-2.5 text-sm font-bold transition ${
-                viewMode === "list" ? "bg-[#E8735A] text-white" : "text-gray-400 hover:bg-gray-50"
-              }`}
-            >
-              List
-            </button>
-            <button
-              onClick={() => setViewMode("checklist")}
-              className={`px-4 py-2.5 text-sm font-bold transition ${
-                viewMode === "checklist" ? "bg-[#E8735A] text-white" : "text-gray-400 hover:bg-gray-50"
-              }`}
-            >
-              Checklist
-            </button>
-          </div>
 
           {(hasFilters || showAlertOnly) && (
             <button
@@ -903,69 +788,63 @@ export default function ClientsPage() {
       {/* Content */}
       {!loading && !error && (
         <>
-          {viewMode === "list" ? (
-            <>
-              <ClientSection
-                title="Active Clients"
-                count={active.length}
-                borderColor="border-l-green-500"
-                clients={active}
-                onAction={handleAction}
-                router={router}
-                weeklyCheckins={weeklyCheckins}
-              />
-              <ClientSection
-                title="At Risk"
-                count={atRisk.length}
-                borderColor="border-l-orange-500"
-                clients={atRisk}
-                onAction={handleAction}
-                router={router}
-                weeklyCheckins={weeklyCheckins}
-              />
-              <ClientSection
-                title="Past Clients"
-                count={past.length}
-                borderColor="border-l-gray-400"
-                clients={past}
-                onAction={handleAction}
-                router={router}
-                defaultCollapsed={true}
-                muted={true}
-                weeklyCheckins={weeklyCheckins}
-              />
+          <ClientSection
+            title="Active Clients"
+            count={active.length}
+            borderColor="border-l-green-500"
+            clients={active}
+            onAction={handleAction}
+            router={router}
+            weeklyCheckins={weeklyCheckins}
+            dismissedAlerts={dismissedAlerts}
+            onDismissAlert={dismissAlert}
+          />
+          <ClientSection
+            title="At Risk"
+            count={atRisk.length}
+            borderColor="border-l-orange-500"
+            clients={atRisk}
+            onAction={handleAction}
+            router={router}
+            weeklyCheckins={weeklyCheckins}
+            dismissedAlerts={dismissedAlerts}
+            onDismissAlert={dismissAlert}
+          />
+          <ClientSection
+            title="Past Clients"
+            count={past.length}
+            borderColor="border-l-gray-400"
+            clients={past}
+            onAction={handleAction}
+            router={router}
+            defaultCollapsed={true}
+            muted={true}
+            weeklyCheckins={weeklyCheckins}
+            dismissedAlerts={dismissedAlerts}
+            onDismissAlert={dismissAlert}
+          />
 
-              {filtered.length === 0 && (
-                <EmptyState
-                  icon={hasFilters ? "\uD83D\uDD0D" : "\uD83D\uDC64"}
-                  title={hasFilters ? "No clients match your filters" : "No clients yet"}
-                  subtitle={
-                    hasFilters
-                      ? "Try a different search or clear your filters"
-                      : "Upload an order CSV to get started"
-                  }
-                  actionLabel={hasFilters ? "Clear filters" : undefined}
-                  onAction={
-                    hasFilters
-                      ? () => {
-                          setSearch("");
-                          setDebouncedSearch("");
-                          setOrderTypeFilter("");
-                          setQvFilter("");
-                          setShowAlertOnly(false);
-                        }
-                      : undefined
-                  }
-                />
-              )}
-            </>
-          ) : (
-            <ChecklistView
-              clients={active}
-              onAction={handleAction}
-              supabase={supabase}
-              coachId={coach.id}
-              weeklyCheckins={weeklyCheckins}
+          {filtered.length === 0 && (
+            <EmptyState
+              icon={hasFilters ? "\uD83D\uDD0D" : "\uD83D\uDC64"}
+              title={hasFilters ? "No clients match your filters" : "No clients yet"}
+              subtitle={
+                hasFilters
+                  ? "Try a different search or clear your filters"
+                  : "Upload an order CSV to get started"
+              }
+              actionLabel={hasFilters ? "Clear filters" : undefined}
+              onAction={
+                hasFilters
+                  ? () => {
+                      setSearch("");
+                      setDebouncedSearch("");
+                      setOrderTypeFilter("");
+                      setQvFilter("");
+                      setShowAlertOnly(false);
+                    }
+                  : undefined
+              }
             />
           )}
         </>

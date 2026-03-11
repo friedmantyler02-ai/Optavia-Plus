@@ -12,6 +12,13 @@ const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archi
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
 const statusLabels = { active: "Active", new: "New Client", plateau: "Plateau", milestone: "Milestone!", lapsed: "Lapsed", archived: "Archived" };
 
+const programPhaseOptions = [
+  { value: "active_losing", label: "Active - Losing" },
+  { value: "active_gaining", label: "Active - Gaining" },
+  { value: "maintenance", label: "Maintenance" },
+  { value: "paused", label: "Paused" },
+];
+
 function getRelationshipScore(client) {
   const daysSinceContact = client.last_contact_date
     ? Math.floor((Date.now() - new Date(client.last_contact_date)) / 86400000)
@@ -48,6 +55,9 @@ export default function ClientDetailPage() {
   const [hasSequences, setHasSequences] = useState(true);
   const [loadError, setLoadError] = useState(null);
   const [deleteConfirm, setDeleteConfirm] = useState(false);
+  const [weightInput, setWeightInput] = useState("");
+  const [scalePicChecked, setScalePicChecked] = useState(false);
+  const [loggingWeight, setLoggingWeight] = useState(false);
   const showToast = useShowToast();
 
   useEffect(() => { loadClient(); }, [params.id]);
@@ -71,9 +81,68 @@ export default function ClientDetailPage() {
     }
   };
 
+  // Check if scale pic was already logged this week
+  useEffect(() => {
+    if (!client) return;
+    fetch("/api/clients/checkin-weekly")
+      .then(r => r.ok ? r.json() : { checkins: [] })
+      .then(({ checkins }) => {
+        setScalePicChecked(checkins.some(c => c.client_id === client.id && c.check_type === "scale_photo"));
+      })
+      .catch(() => {});
+  }, [client?.id]);
+
+  const logScalePicAndWeight = async () => {
+    setLoggingWeight(true);
+    try {
+      // Toggle scale pic via existing API
+      if (!scalePicChecked) {
+        await fetch("/api/clients/checkin-weekly", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ client_id: client.id, check_type: "scale_photo" }),
+        });
+        setScalePicChecked(true);
+      }
+
+      // Update weight if provided
+      if (weightInput) {
+        const newWeight = Number(weightInput);
+        await supabase.from("clients").update({
+          weight_current: newWeight,
+          updated_at: new Date().toISOString(),
+        }).eq("id", client.id);
+
+        await supabase.from("activities").insert({
+          coach_id: coach.id,
+          client_id: client.id,
+          action: "Logged weight",
+          details: `${newWeight} lbs`,
+        });
+
+        setClient(prev => ({ ...prev, weight_current: newWeight }));
+        setForm(prev => ({ ...prev, weight_current: newWeight }));
+        setWeightInput("");
+
+        // Refresh activities
+        const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", client.id).order("created_at", { ascending: false }).limit(20);
+        if (acts) setActivities(acts);
+      }
+
+      showToast({ message: "Scale pic & weight logged", variant: "success" });
+    } catch {
+      showToast({ message: "Something went wrong — please try again", variant: "error" });
+    } finally {
+      setLoggingWeight(false);
+    }
+  };
+
   const saveChanges = async () => {
     setSaving(true);
     try {
+      // weight_goal and program_phase require migration:
+      // ALTER TABLE clients ADD COLUMN IF NOT EXISTS weight_goal numeric;
+      // ALTER TABLE clients ADD COLUMN IF NOT EXISTS program_phase text DEFAULT 'active_losing';
       const updates = {
         full_name: form.full_name,
         email: form.email || null,
@@ -81,6 +150,8 @@ export default function ClientDetailPage() {
         plan: form.plan || null,
         weight_current: form.weight_current ? Number(form.weight_current) : null,
         weight_start: form.weight_start ? Number(form.weight_start) : null,
+        weight_goal: form.weight_goal ? Number(form.weight_goal) : null,
+        program_phase: form.program_phase || null,
         notes: form.notes || null,
         status: form.status,
         updated_at: new Date().toISOString(),
@@ -187,6 +258,66 @@ export default function ClientDetailPage() {
           <span className="text-2xl">▶️</span><span className="font-bold text-sm">{hasSequences ? "Start Sequence" : "No Sequences"}</span>
         </button>
       </div>
+      {/* Log Scale Pic & Weight */}
+      <div className="bg-white rounded-2xl p-5 shadow-sm mb-5">
+        <h2 className="text-lg font-extrabold mb-3">📸 Log Scale Pic & Weight</h2>
+        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
+          <label className="flex items-center gap-2 cursor-pointer">
+            <input
+              type="checkbox"
+              checked={scalePicChecked}
+              onChange={async () => {
+                try {
+                  await fetch("/api/clients/checkin-weekly", {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ client_id: client.id, check_type: "scale_photo" }),
+                  });
+                  setScalePicChecked(!scalePicChecked);
+                  showToast({ message: scalePicChecked ? "Scale pic unchecked" : "Scale pic checked", variant: "success" });
+                } catch {
+                  showToast({ message: "Failed to update — try again", variant: "error" });
+                }
+              }}
+              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
+            />
+            <span className={`text-sm font-semibold ${scalePicChecked ? "text-green-600" : "text-gray-500"}`}>
+              Scale pic received this week
+            </span>
+          </label>
+          <div className="flex-1 flex gap-2">
+            <input
+              type="number"
+              value={weightInput}
+              onChange={e => setWeightInput(e.target.value)}
+              placeholder="New weight (lbs)"
+              className="flex-1 px-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
+            />
+            <button
+              onClick={logScalePicAndWeight}
+              disabled={loggingWeight || (!weightInput && scalePicChecked)}
+              className="px-5 py-2.5 bg-[#E8735A] hover:bg-[#d4634d] text-white rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50"
+            >
+              {loggingWeight ? "Saving..." : "Log"}
+            </button>
+          </div>
+        </div>
+        {/* Recent weight entries */}
+        {activities.filter(a => a.action === "Logged weight").length > 0 && (
+          <div className="mt-3 pt-3 border-t border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Recent Weights</p>
+            <div className="flex flex-wrap gap-2">
+              {activities.filter(a => a.action === "Logged weight").slice(0, 8).map(a => (
+                <span key={a.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#faf7f2] rounded-lg text-xs">
+                  <span className="font-bold text-gray-700">{a.details}</span>
+                  <span className="text-gray-400">{new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
+                </span>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
       <div className="mt-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
           Active Sequences
@@ -223,6 +354,7 @@ export default function ClientDetailPage() {
               { key: "plan", label: "Plan" },
               { key: "weight_start", label: "Starting Weight" },
               { key: "weight_current", label: "Current Weight" },
+              { key: "weight_goal", label: "Goal Weight" },
             ].map(f => (
               <div key={f.key} className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
                 <span className="text-xs font-bold text-gray-400 uppercase">{f.label}</span>
@@ -234,17 +366,56 @@ export default function ClientDetailPage() {
                 )}
               </div>
             ))}
-            {client.weight_start && client.weight_current && (
-              <div className="p-3 bg-brand-50 rounded-xl">
-                <div className="flex justify-between text-xs font-bold mb-1">
-                  <span className="text-gray-400">Progress</span>
-                  <span className="text-brand-500">{weightLost > 0 ? weightLost + " lbs lost" : "Just starting"}</span>
-                </div>
-                <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
-                  <div className="h-full bg-brand-500 rounded-full transition-all" style={{ width: Math.min(100, Math.max(5, (weightLost / client.weight_start) * 100 * 3)) + "%" }} />
+            {/* Program Phase */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Program Phase</span>
+              {editing ? (
+                <select value={form.program_phase || "active_losing"} onChange={e => setForm(p => ({ ...p, program_phase: e.target.value }))}
+                  className="text-right text-sm font-semibold bg-white px-3 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150">
+                  {programPhaseOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
+                </select>
+              ) : (
+                <span className="text-sm font-semibold">{programPhaseOptions.find(o => o.value === client.program_phase)?.label || "Active - Losing"}</span>
+              )}
+            </div>
+            {/* Weight Progress */}
+            {client.program_phase === "maintenance" && client.weight_current ? (
+              <div className="p-3 bg-green-50 rounded-xl">
+                <div className="flex justify-between text-xs font-bold">
+                  <span className="text-gray-400">Maintenance</span>
+                  <span className="text-green-600">Maintaining at {client.weight_current} lbs</span>
                 </div>
               </div>
-            )}
+            ) : client.weight_start && client.weight_current ? (
+              <div className="p-3 bg-[#faf7f2] rounded-xl">
+                <div className="flex justify-between text-xs font-bold mb-1.5">
+                  <span className="text-gray-400">Progress</span>
+                  <span className="text-[#4a7c59]">{weightLost > 0 ? weightLost + " lbs lost" : "Just starting"}</span>
+                </div>
+                {client.weight_goal ? (
+                  <>
+                    <div className="flex items-center gap-2 text-xs mb-1.5">
+                      <span className="text-gray-400">{client.weight_start}</span>
+                      <div className="flex-1 h-3 bg-gray-100 rounded-full overflow-hidden">
+                        <div className="h-full bg-[#4a7c59] rounded-full transition-all" style={{
+                          width: Math.min(100, Math.max(5, ((client.weight_start - client.weight_current) / (client.weight_start - client.weight_goal)) * 100)) + "%"
+                        }} />
+                      </div>
+                      <span className="text-gray-400">{client.weight_goal}</span>
+                    </div>
+                    <div className="text-xs text-center font-semibold text-gray-500">
+                      {client.weight_current > client.weight_goal
+                        ? `${(client.weight_current - client.weight_goal).toFixed(1)} lbs to go`
+                        : "Goal reached!"}
+                    </div>
+                  </>
+                ) : (
+                  <div className="w-full h-3 bg-gray-100 rounded-full overflow-hidden">
+                    <div className="h-full bg-[#4a7c59] rounded-full transition-all" style={{ width: Math.min(100, Math.max(5, (weightLost / client.weight_start) * 100 * 3)) + "%" }} />
+                  </div>
+                )}
+              </div>
+            ) : null}
           </div>
           <div className="mt-4">
             <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>

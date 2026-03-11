@@ -474,7 +474,7 @@ function StepWelcomeSignup({ isLoggedIn, onNext, onSignedUp }) {
 
 // ── Step 2: Upload Clients ───────────────────────────────
 
-function StepUploadClients({ onNext }) {
+function StepUploadClients({ onNext, onBack }) {
   const [imported, setImported] = useState(false);
 
   return (
@@ -488,21 +488,26 @@ function StepUploadClients({ onNext }) {
 
       <CsvUploadZone onImportComplete={() => setImported(true)} />
 
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={onNext}
-          className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
-        >
-          Skip this step {"\u2192"}
+      <div className="flex items-center gap-3 mt-6">
+        <button onClick={onBack} className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+          {"\u2190"} Back
         </button>
-        {imported && (
+        <div className="flex-1 flex gap-3">
           <button
             onClick={onNext}
-            className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
+            className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
           >
-            Next {"\u2192"}
+            Skip this step {"\u2192"}
           </button>
-        )}
+          {imported && (
+            <button
+              onClick={onNext}
+              className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
+            >
+              Next {"\u2192"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -510,7 +515,7 @@ function StepUploadClients({ onNext }) {
 
 // ── Step 3: Upload Orders ────────────────────────────────
 
-function StepUploadOrders({ onNext }) {
+function StepUploadOrders({ onNext, onBack }) {
   const [thisMonthDone, setThisMonthDone] = useState(false);
   const [lastMonthDone, setLastMonthDone] = useState(false);
 
@@ -534,21 +539,26 @@ function StepUploadOrders({ onNext }) {
         />
       </div>
 
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={onNext}
-          className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
-        >
-          Skip {"\u2192"}
+      <div className="flex items-center gap-3 mt-6">
+        <button onClick={onBack} className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+          {"\u2190"} Back
         </button>
-        {(thisMonthDone || lastMonthDone) && (
+        <div className="flex-1 flex gap-3">
           <button
             onClick={onNext}
-            className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
+            className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
           >
-            Next {"\u2192"}
+            Skip {"\u2192"}
           </button>
-        )}
+          {(thisMonthDone || lastMonthDone) && (
+            <button
+              onClick={onNext}
+              className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
+            >
+              Next {"\u2192"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -556,7 +566,7 @@ function StepUploadOrders({ onNext }) {
 
 // ── Step 4: Import Hundreds List ─────────────────────────
 
-function StepImportHundredsList({ onNext }) {
+function StepImportHundredsList({ onNext, onBack }) {
   const [imported, setImported] = useState(false);
 
   return (
@@ -570,21 +580,26 @@ function StepImportHundredsList({ onNext }) {
 
       <LeadImporter onImportComplete={() => setImported(true)} />
 
-      <div className="flex gap-3 mt-6">
-        <button
-          onClick={onNext}
-          className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
-        >
-          Skip {"\u2192"}
+      <div className="flex items-center gap-3 mt-6">
+        <button onClick={onBack} className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+          {"\u2190"} Back
         </button>
-        {imported && (
+        <div className="flex-1 flex gap-3">
           <button
             onClick={onNext}
-            className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
+            className="flex-1 px-4 py-2.5 text-sm font-bold rounded-xl border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition"
           >
-            Next {"\u2192"}
+            Skip {"\u2192"}
           </button>
-        )}
+          {imported && (
+            <button
+              onClick={onNext}
+              className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
+            >
+              Next {"\u2192"}
+            </button>
+          )}
+        </div>
       </div>
     </div>
   );
@@ -592,7 +607,7 @@ function StepImportHundredsList({ onNext }) {
 
 // ── Step 5: All Set ──────────────────────────────────────
 
-function StepAllSet({ onFinish, finishing }) {
+function StepAllSet({ onFinish, finishing, onBack }) {
   const cards = [
     { icon: "\uD83D\uDC65", title: "Clients", desc: "See your active, at-risk, and past clients" },
     { icon: "\uD83C\uDFAF", title: "Leads", desc: "Track prospects through your pipeline" },
@@ -621,13 +636,18 @@ function StepAllSet({ onFinish, finishing }) {
         ))}
       </div>
 
-      <button
-        onClick={onFinish}
-        disabled={finishing}
-        className="bg-[#E8735A] hover:bg-[#d4634d] disabled:opacity-50 text-white px-8 py-3.5 rounded-xl text-lg font-bold transition-all duration-150 active:scale-95 shadow-sm"
-      >
-        {finishing ? "Setting up..." : `Go to Dashboard ${"\u2192"}`}
-      </button>
+      <div className="flex items-center justify-center gap-6">
+        <button onClick={onBack} className="text-sm font-semibold text-gray-400 hover:text-gray-600 transition-colors">
+          {"\u2190"} Back
+        </button>
+        <button
+          onClick={onFinish}
+          disabled={finishing}
+          className="bg-[#E8735A] hover:bg-[#d4634d] disabled:opacity-50 text-white px-8 py-3.5 rounded-xl text-lg font-bold transition-all duration-150 active:scale-95 shadow-sm"
+        >
+          {finishing ? "Setting up..." : `Go to Dashboard ${"\u2192"}`}
+        </button>
+      </div>
     </div>
   );
 }
@@ -710,6 +730,10 @@ export default function OnboardingPage() {
     setCurrentStep((prev) => Math.min(prev + 1, totalSteps));
   };
 
+  const prevStep = () => {
+    setCurrentStep((prev) => Math.max(prev - 1, 1));
+  };
+
   // Called after successful signup in step 1
   const handleSignedUp = (coachData) => {
     setIsLoggedIn(true);
@@ -771,10 +795,10 @@ export default function OnboardingPage() {
               onSignedUp={handleSignedUp}
             />
           )}
-          {currentStep === 2 && <StepUploadClients onNext={nextStep} />}
-          {currentStep === 3 && <StepUploadOrders onNext={nextStep} />}
-          {currentStep === 4 && <StepImportHundredsList onNext={nextStep} />}
-          {currentStep === 5 && <StepAllSet onFinish={handleFinish} finishing={finishing} />}
+          {currentStep === 2 && <StepUploadClients onNext={nextStep} onBack={prevStep} />}
+          {currentStep === 3 && <StepUploadOrders onNext={nextStep} onBack={prevStep} />}
+          {currentStep === 4 && <StepImportHundredsList onNext={nextStep} onBack={prevStep} />}
+          {currentStep === 5 && <StepAllSet onFinish={handleFinish} finishing={finishing} onBack={prevStep} />}
         </div>
       </div>
     </div>

@@ -55,14 +55,17 @@ export async function GET() {
         .limit(10),
 
       // 1b. Follow-up clients: wants_weekly_checkin AND overdue
+      // Only include clients with at least one logged interaction (last_checkin_date not null)
+      // to avoid flooding newly-imported clients with no app history
       supabase
         .from("clients")
         .select("id, full_name, last_checkin_date, last_order_date", { count: "exact" })
         .eq("coach_id", coachId)
         .eq("wants_weekly_checkin", true)
         .gt("last_order_date", sixtyDaysAgo)
-        .or(`last_checkin_date.is.null,last_checkin_date.lt.${sevenDaysAgo}`)
-        .order("last_checkin_date", { ascending: true, nullsFirst: true })
+        .not("last_checkin_date", "is", null)
+        .lt("last_checkin_date", sevenDaysAgo)
+        .order("last_checkin_date", { ascending: true })
         .limit(10),
 
       // 2. Ready for HA: conversation stage, no ha_date
@@ -86,31 +89,37 @@ export async function GET() {
         .limit(10),
 
       // 4a. Need support: at-risk window (30-90 days since order)
+      // Only include clients with at least one logged interaction
       supabase
         .from("clients")
-        .select("id, full_name, last_order_date, status", { count: "exact" })
+        .select("id, full_name, last_order_date, last_checkin_date, last_contact_date, status", { count: "exact" })
         .eq("coach_id", coachId)
         .lt("last_order_date", thirtyDaysAgo)
         .gt("last_order_date", ninetyDaysAgo)
+        .or("last_checkin_date.not.is.null,last_contact_date.not.is.null")
         .order("last_order_date", { ascending: true })
         .limit(10),
 
       // 4b. Need support: has order alerts
+      // Only include clients with at least one logged interaction
       supabase
         .from("clients")
-        .select("id, full_name, last_order_date, order_alerts", { count: "exact" })
+        .select("id, full_name, last_order_date, last_checkin_date, last_contact_date, order_alerts", { count: "exact" })
         .eq("coach_id", coachId)
         .gt("last_order_date", sixtyDaysAgo)
         .not("order_alerts", "is", null)
+        .or("last_checkin_date.not.is.null,last_contact_date.not.is.null")
         .limit(10),
 
       // 5. Reactivate: >90 days since last order
+      // Only include clients with at least one logged interaction
       supabase
         .from("clients")
-        .select("id, full_name, last_order_date", { count: "exact" })
+        .select("id, full_name, last_order_date, last_checkin_date, last_contact_date", { count: "exact" })
         .eq("coach_id", coachId)
         .not("last_order_date", "is", null)
         .lt("last_order_date", ninetyDaysAgo)
+        .or("last_checkin_date.not.is.null,last_contact_date.not.is.null")
         .order("last_order_date", { ascending: false })
         .limit(10),
     ]);
@@ -132,7 +141,7 @@ export async function GET() {
         type: "client",
         id: c.id,
         full_name: c.full_name,
-        context: days === null ? "Never checked in" : `No check-in in ${days} day${days !== 1 ? "s" : ""}`,
+        context: `No check-in in ${days} day${days !== 1 ? "s" : ""}`,
       };
     });
 

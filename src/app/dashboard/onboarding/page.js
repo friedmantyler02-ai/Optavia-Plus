@@ -254,9 +254,31 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
 
 // ── Step Components ──────────────────────────────────────
 
+function StepWelcome({ onNext }) {
+  return (
+    <div className="text-center py-8">
+      <div className="text-5xl mb-4">{"\uD83C\uDF1F"}</div>
+      <h1 className="font-display text-3xl md:text-4xl font-bold text-gray-900 mb-4">
+        Welcome to OPTAVIA Plus!
+      </h1>
+      <p className="text-gray-500 text-lg max-w-md mx-auto mb-3">
+        We're so glad you're here! This is your personal coaching hub — a simple place to keep track of your clients, follow up with leads, and stay on top of your business.
+      </p>
+      <p className="text-gray-400 text-base max-w-md mx-auto mb-8">
+        It only takes a few minutes to get set up. Ready?
+      </p>
+      <button
+        onClick={onNext}
+        className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-8 py-3.5 rounded-xl text-lg font-bold transition-all duration-150 active:scale-95 shadow-sm"
+      >
+        Let's Get Started {"\u2192"}
+      </button>
+    </div>
+  );
+}
+
 function StepProfile({ coach, setCoach, onNext }) {
   const [fullName, setFullName] = useState(coach?.full_name || "");
-  const [phone, setPhone] = useState(coach?.phone || "");
   const [optaviaId, setOptaviaId] = useState(coach?.optavia_id || "");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
@@ -274,7 +296,6 @@ function StepProfile({ coach, setCoach, onNext }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           full_name: fullName,
-          phone,
           optavia_id: optaviaId,
         }),
       });
@@ -287,7 +308,6 @@ function StepProfile({ coach, setCoach, onNext }) {
       setCoach((prev) => ({
         ...prev,
         full_name: fullName.trim(),
-        phone: phone.trim() || null,
         optavia_id: optaviaId.trim() || null,
       }));
       onNext();
@@ -303,7 +323,7 @@ function StepProfile({ coach, setCoach, onNext }) {
         Tell Us About You
       </h2>
       <p className="text-gray-500 text-base mb-6">
-        We just need a few details to set up your profile.
+        Just a couple of quick details so we can personalize your experience.
       </p>
 
       {error && (
@@ -340,19 +360,6 @@ function StepProfile({ coach, setCoach, onNext }) {
 
         <div>
           <label className="block text-sm font-bold text-gray-700 mb-1">
-            Phone Number
-          </label>
-          <input
-            type="tel"
-            value={phone}
-            onChange={(e) => setPhone(e.target.value)}
-            placeholder="e.g. (555) 123-4567"
-            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#E8735A] focus:ring-2 focus:ring-[#E8735A]/20 outline-none text-base text-gray-900 placeholder:text-gray-300 transition"
-          />
-        </div>
-
-        <div>
-          <label className="block text-sm font-bold text-gray-700 mb-1">
             Optavia Coach ID
           </label>
           <input
@@ -362,6 +369,7 @@ function StepProfile({ coach, setCoach, onNext }) {
             placeholder="e.g. 12345678"
             className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#E8735A] focus:ring-2 focus:ring-[#E8735A]/20 outline-none text-base text-gray-900 placeholder:text-gray-300 transition"
           />
+          <p className="text-xs text-gray-400 mt-1">Optional — you can find this in your back office.</p>
         </div>
       </div>
 
@@ -371,25 +379,6 @@ function StepProfile({ coach, setCoach, onNext }) {
         className="mt-6 w-full bg-[#E8735A] hover:bg-[#d4634d] disabled:opacity-50 text-white px-4 py-3.5 rounded-xl text-lg font-bold transition-all duration-150 active:scale-95 shadow-sm"
       >
         {saving ? "Saving..." : "Next \u2192"}
-      </button>
-    </div>
-  );
-}
-
-function StepWelcome({ onNext }) {
-  return (
-    <div className="text-center py-8">
-      <h1 className="font-display text-3xl md:text-4xl font-bold text-gray-900 mb-4">
-        Welcome to OPTAVIA Plus!
-      </h1>
-      <p className="text-gray-500 text-lg max-w-md mx-auto mb-8">
-        Let's get you set up in just a few minutes. We'll import your clients and help you start tracking leads.
-      </p>
-      <button
-        onClick={onNext}
-        className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-8 py-3.5 rounded-xl text-lg font-bold transition-all duration-150 active:scale-95 shadow-sm"
-      >
-        Let's Go {"\u2192"}
       </button>
     </div>
   );
@@ -595,8 +584,8 @@ export default function OnboardingPage() {
         <ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
 
         <div className="bg-white rounded-2xl shadow-sm border-2 border-gray-100 p-6 md:p-10">
-          {currentStep === 1 && <StepProfile coach={coach} setCoach={setCoach} onNext={nextStep} />}
-          {currentStep === 2 && <StepWelcome onNext={nextStep} />}
+          {currentStep === 1 && <StepWelcome onNext={nextStep} />}
+          {currentStep === 2 && <StepProfile coach={coach} setCoach={setCoach} onNext={nextStep} />}
           {currentStep === 3 && <StepUploadClients onNext={nextStep} />}
           {currentStep === 4 && <StepUploadOrders onNext={nextStep} />}
           {currentStep === 5 && <StepImportHundredsList onNext={nextStep} />}

@@ -22,7 +22,7 @@ export async function POST(request) {
       );
     }
 
-    const { full_name, phone, optavia_id } = await request.json();
+    const { full_name, optavia_id } = await request.json();
 
     if (!full_name || !full_name.trim()) {
       return NextResponse.json(
@@ -35,7 +35,6 @@ export async function POST(request) {
       .from("coaches")
       .update({
         full_name: full_name.trim(),
-        phone: phone?.trim() || null,
         optavia_id: optavia_id?.trim() || null,
         updated_at: new Date().toISOString(),
       })

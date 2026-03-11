@@ -7,7 +7,7 @@ const supabaseAdmin = createSupabaseClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export async function POST() {
+export async function POST(request) {
   try {
     const supabase = await createClient();
     const {
@@ -22,13 +22,28 @@ export async function POST() {
       );
     }
 
-    const { error: rpcError } = await supabaseAdmin.rpc("complete_onboarding", {
-      coach_email: user.email,
-    });
+    const { full_name, phone, optavia_id } = await request.json();
 
-    if (rpcError) {
+    if (!full_name || !full_name.trim()) {
       return NextResponse.json(
-        { error: rpcError.message },
+        { error: "Full name is required" },
+        { status: 400 }
+      );
+    }
+
+    const { error: updateError } = await supabaseAdmin
+      .from("coaches")
+      .update({
+        full_name: full_name.trim(),
+        phone: phone?.trim() || null,
+        optavia_id: optavia_id?.trim() || null,
+        updated_at: new Date().toISOString(),
+      })
+      .eq("email", user.email);
+
+    if (updateError) {
+      return NextResponse.json(
+        { error: updateError.message },
         { status: 500 }
       );
     }

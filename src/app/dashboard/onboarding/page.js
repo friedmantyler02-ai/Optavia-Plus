@@ -254,6 +254,128 @@ function CsvUploadZone({ label, sublabel, onImportComplete }) {
 
 // ── Step Components ──────────────────────────────────────
 
+function StepProfile({ coach, setCoach, onNext }) {
+  const [fullName, setFullName] = useState(coach?.full_name || "");
+  const [phone, setPhone] = useState(coach?.phone || "");
+  const [optaviaId, setOptaviaId] = useState(coach?.optavia_id || "");
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSave = async () => {
+    if (!fullName.trim()) {
+      setError("Please enter your name.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    try {
+      const res = await fetch("/api/onboarding/profile", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: fullName,
+          phone,
+          optavia_id: optaviaId,
+        }),
+      });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        setSaving(false);
+        return;
+      }
+      setCoach((prev) => ({
+        ...prev,
+        full_name: fullName.trim(),
+        phone: phone.trim() || null,
+        optavia_id: optaviaId.trim() || null,
+      }));
+      onNext();
+    } catch {
+      setError("Network error. Please try again.");
+      setSaving(false);
+    }
+  };
+
+  return (
+    <div>
+      <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">
+        Tell Us About You
+      </h2>
+      <p className="text-gray-500 text-base mb-6">
+        We just need a few details to set up your profile.
+      </p>
+
+      {error && (
+        <div className="bg-red-50 border-2 border-red-200 text-red-700 px-4 py-3 rounded-xl mb-4 text-sm font-semibold">
+          {error}
+        </div>
+      )}
+
+      <div className="space-y-4">
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            Email
+          </label>
+          <input
+            type="email"
+            value={coach?.email || ""}
+            readOnly
+            className="w-full px-4 py-3 rounded-xl border-2 border-gray-100 bg-gray-50 text-gray-400 text-base cursor-not-allowed"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            Full Name <span className="text-red-400">*</span>
+          </label>
+          <input
+            type="text"
+            value={fullName}
+            onChange={(e) => setFullName(e.target.value)}
+            placeholder="e.g. Jane Smith"
+            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#E8735A] focus:ring-2 focus:ring-[#E8735A]/20 outline-none text-base text-gray-900 placeholder:text-gray-300 transition"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            Phone Number
+          </label>
+          <input
+            type="tel"
+            value={phone}
+            onChange={(e) => setPhone(e.target.value)}
+            placeholder="e.g. (555) 123-4567"
+            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#E8735A] focus:ring-2 focus:ring-[#E8735A]/20 outline-none text-base text-gray-900 placeholder:text-gray-300 transition"
+          />
+        </div>
+
+        <div>
+          <label className="block text-sm font-bold text-gray-700 mb-1">
+            Optavia Coach ID
+          </label>
+          <input
+            type="text"
+            value={optaviaId}
+            onChange={(e) => setOptaviaId(e.target.value)}
+            placeholder="e.g. 12345678"
+            className="w-full px-4 py-3 rounded-xl border-2 border-gray-200 focus:border-[#E8735A] focus:ring-2 focus:ring-[#E8735A]/20 outline-none text-base text-gray-900 placeholder:text-gray-300 transition"
+          />
+        </div>
+      </div>
+
+      <button
+        onClick={handleSave}
+        disabled={saving}
+        className="mt-6 w-full bg-[#E8735A] hover:bg-[#d4634d] disabled:opacity-50 text-white px-4 py-3.5 rounded-xl text-lg font-bold transition-all duration-150 active:scale-95 shadow-sm"
+      >
+        {saving ? "Saving..." : "Next \u2192"}
+      </button>
+    </div>
+  );
+}
+
 function StepWelcome({ onNext }) {
   return (
     <div className="text-center py-8">
@@ -434,7 +556,7 @@ export default function OnboardingPage() {
   const [currentStep, setCurrentStep] = useState(1);
   const [finishing, setFinishing] = useState(false);
 
-  const totalSteps = 5;
+  const totalSteps = 6;
 
   const nextStep = () => {
     setCurrentStep((prev) => Math.min(prev + 1, totalSteps));
@@ -473,11 +595,12 @@ export default function OnboardingPage() {
         <ProgressBar currentStep={currentStep} totalSteps={totalSteps} />
 
         <div className="bg-white rounded-2xl shadow-sm border-2 border-gray-100 p-6 md:p-10">
-          {currentStep === 1 && <StepWelcome onNext={nextStep} />}
-          {currentStep === 2 && <StepUploadClients onNext={nextStep} />}
-          {currentStep === 3 && <StepUploadOrders onNext={nextStep} />}
-          {currentStep === 4 && <StepImportHundredsList onNext={nextStep} />}
-          {currentStep === 5 && <StepAllSet onFinish={handleFinish} finishing={finishing} />}
+          {currentStep === 1 && <StepProfile coach={coach} setCoach={setCoach} onNext={nextStep} />}
+          {currentStep === 2 && <StepWelcome onNext={nextStep} />}
+          {currentStep === 3 && <StepUploadClients onNext={nextStep} />}
+          {currentStep === 4 && <StepUploadOrders onNext={nextStep} />}
+          {currentStep === 5 && <StepImportHundredsList onNext={nextStep} />}
+          {currentStep === 6 && <StepAllSet onFinish={handleFinish} finishing={finishing} />}
         </div>
       </div>
     </div>

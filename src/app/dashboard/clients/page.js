@@ -8,6 +8,7 @@ import { importCSVChunked } from "@/lib/chunked-import";
 import PageHeader from "../components/PageHeader";
 import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
+import useShowToast from "@/hooks/useShowToast";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -319,7 +320,7 @@ function ImportOrdersModal({ onClose, onComplete }) {
 
 // ── Client Row (List View) ───────────────────────────────
 
-function ClientRow({ client, onAction, muted, router }) {
+function ClientRow({ client, onAction, muted, router, weeklyCheckins }) {
   const [noteInput, setNoteInput] = useState("");
   const [showNote, setShowNote] = useState(false);
   const alerts = getAlertBadges(client.order_alerts);
@@ -383,10 +384,14 @@ function ClientRow({ client, onAction, muted, router }) {
         </button>
         <button
           onClick={() => onAction(client, "scale_pic")}
-          className="w-9 h-9 rounded-xl text-base hover:bg-blue-50 transition flex items-center justify-center"
-          title="Scale Pic"
+          className={`w-9 h-9 rounded-xl text-sm font-bold transition flex items-center justify-center ${
+            weeklyCheckins.has(`${client.id}:scale_photo`)
+              ? "bg-blue-100 text-blue-600"
+              : "text-gray-300 hover:bg-blue-50 hover:text-blue-400"
+          }`}
+          title={weeklyCheckins.has(`${client.id}:scale_photo`) ? "Scale pic received — click to undo" : "Mark scale pic received"}
         >
-          📸
+          {weeklyCheckins.has(`${client.id}:scale_photo`) ? "📸" : "○"}
         </button>
         <button
           onClick={() => setShowNote(!showNote)}
@@ -445,7 +450,7 @@ function ClientRow({ client, onAction, muted, router }) {
 
 // ── Section Wrapper ──────────────────────────────────────
 
-function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false }) {
+function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (count === 0) return null;
@@ -472,7 +477,7 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
             <div className="w-[88px]">Actions</div>
           </div>
           {clients.map((c) => (
-            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} />
+            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} />
           ))}
         </div>
       )}
@@ -482,7 +487,7 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
 
 // ── Checklist View ───────────────────────────────────────
 
-function ChecklistView({ clients, onAction, supabase, coachId }) {
+function ChecklistView({ clients, onAction, supabase, coachId, weeklyCheckins }) {
   const weeklyClients = clients.filter((c) => c.wants_weekly_checkin !== false);
   const valueAddClients = clients.filter(
     (c) => c.wants_weekly_checkin === false && c.wants_value_adds !== false
@@ -493,9 +498,13 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
   ).length;
 
   const handleToggle = async (client, field) => {
+    if (field === "last_scale_pic_date") {
+      onAction(client, "scale_pic");
+      return;
+    }
     const alreadyDone = isThisWeek(client[field]);
     if (alreadyDone) return;
-    onAction(client, field === "last_checkin_date" ? "checkin" : "scale_pic");
+    onAction(client, "checkin");
   };
 
   const handleValueAdd = async (client) => {
@@ -504,7 +513,7 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
 
   function CheckRow({ client, showValueAdd }) {
     const checkedIn = isThisWeek(client.last_checkin_date);
-    const scalePic = isThisWeek(client.last_scale_pic_date);
+    const scalePic = weeklyCheckins.has(`${client.id}:scale_photo`);
     const allDone = showValueAdd ? checkedIn : checkedIn;
 
     return (
@@ -614,11 +623,13 @@ function ChecklistView({ clients, onAction, supabase, coachId }) {
 export default function ClientsPage() {
   const { coach, supabase } = useCoach();
   const router = useRouter();
+  const showToast = useShowToast();
 
   const [allClients, setAllClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showImportModal, setShowImportModal] = useState(false);
+  const [weeklyCheckins, setWeeklyCheckins] = useState(new Set());
 
   // View & filters
   const [viewMode, setViewMode] = useState("list");
@@ -637,11 +648,24 @@ export default function ClientsPage() {
     debounceRef.current = setTimeout(() => setDebouncedSearch(value), 300);
   }, []);
 
-  // Fetch clients directly from Supabase
+  // Fetch clients and weekly checkins
   useEffect(() => {
     if (!coach) return;
     fetchClients();
+    fetchWeeklyCheckins();
   }, [coach]);
+
+  const fetchWeeklyCheckins = async () => {
+    try {
+      const res = await fetch("/api/clients/checkin-weekly");
+      if (res.ok) {
+        const { checkins } = await res.json();
+        setWeeklyCheckins(new Set(checkins.map((c) => `${c.client_id}:${c.check_type}`)));
+      }
+    } catch {
+      // Silent fail — checkins will show as unchecked
+    }
+  };
 
   const fetchClients = async () => {
     setLoading(true);
@@ -682,19 +706,8 @@ export default function ClientsPage() {
         prev.map((c) => (c.id === client.id ? { ...c, last_checkin_date: now } : c))
       );
     } else if (action === "scale_pic") {
-      await supabase
-        .from("clients")
-        .update({ last_scale_pic_date: now })
-        .eq("id", client.id);
-      await supabase.from("activities").insert({
-        coach_id: coach.id,
-        client_id: client.id,
-        action: "Logged a scale pic",
-        details: client.full_name,
-      });
-      setAllClients((prev) =>
-        prev.map((c) => (c.id === client.id ? { ...c, last_scale_pic_date: now } : c))
-      );
+      await toggleScalePic(client);
+      return;
     } else if (action === "value_add") {
       await supabase.from("activities").insert({
         coach_id: coach.id,
@@ -709,6 +722,40 @@ export default function ClientsPage() {
         action: "Logged a note",
         details: noteText,
       });
+    }
+  };
+
+  const toggleScalePic = async (client) => {
+    const key = `${client.id}:scale_photo`;
+    const wasChecked = weeklyCheckins.has(key);
+
+    // Optimistic update
+    setWeeklyCheckins((prev) => {
+      const next = new Set(prev);
+      if (wasChecked) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+
+    try {
+      const res = await fetch("/api/clients/checkin-weekly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: client.id, check_type: "scale_photo" }),
+      });
+
+      if (!res.ok) {
+        throw new Error("Failed to toggle");
+      }
+    } catch {
+      // Revert on error
+      setWeeklyCheckins((prev) => {
+        const next = new Set(prev);
+        if (wasChecked) next.add(key);
+        else next.delete(key);
+        return next;
+      });
+      showToast?.({ message: "Failed to update scale pic — try again", variant: "error" });
     }
   };
 
@@ -865,6 +912,7 @@ export default function ClientsPage() {
                 clients={active}
                 onAction={handleAction}
                 router={router}
+                weeklyCheckins={weeklyCheckins}
               />
               <ClientSection
                 title="At Risk"
@@ -873,6 +921,7 @@ export default function ClientsPage() {
                 clients={atRisk}
                 onAction={handleAction}
                 router={router}
+                weeklyCheckins={weeklyCheckins}
               />
               <ClientSection
                 title="Past Clients"
@@ -883,6 +932,7 @@ export default function ClientsPage() {
                 router={router}
                 defaultCollapsed={true}
                 muted={true}
+                weeklyCheckins={weeklyCheckins}
               />
 
               {filtered.length === 0 && (
@@ -915,6 +965,7 @@ export default function ClientsPage() {
               onAction={handleAction}
               supabase={supabase}
               coachId={coach.id}
+              weeklyCheckins={weeklyCheckins}
             />
           )}
         </>

@@ -234,7 +234,7 @@ export default function ClientDetailPage() {
   );
   if (!client) return null;
 
-  const score = getRelationshipScore(client);
+  // const score = getRelationshipScore(client); // hidden for now
   const weightLost = client.weight_start && client.weight_current ? client.weight_start - client.weight_current : 0;
 
   return (
@@ -270,10 +270,7 @@ export default function ClientDetailPage() {
             </div>
           </div>
         </div>
-        <div className="text-center px-6 py-3 bg-[#faf7f2] rounded-2xl">
-          <div className="text-4xl font-extrabold" style={{ color: getScoreColor(score) }}>{score}</div>
-          <div className="text-xs font-bold text-gray-400 uppercase">Relationship Score</div>
-        </div>
+        {/* Relationship Score hidden — revisit later */}
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">

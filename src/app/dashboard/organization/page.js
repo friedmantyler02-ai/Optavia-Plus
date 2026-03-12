@@ -688,13 +688,7 @@ export default function OrganizationPage() {
                     Reverted
                     <SortArrow column="reverted_count" sortBy={sortBy} sortDir={sortDir} />
                   </th>
-                  <th
-                    onClick={() => handleSort("relationship_score")}
-                    className="font-body cursor-pointer whitespace-nowrap px-4 py-3 text-right text-xs font-semibold uppercase tracking-wide text-gray-500 select-none hover:text-gray-700"
-                  >
-                    Score
-                    <SortArrow column="relationship_score" sortBy={sortBy} sortDir={sortDir} />
-                  </th>
+                  {/* Relationship Score column hidden — revisit later */}
                 </tr>
               </thead>
               <tbody>
@@ -706,13 +700,12 @@ export default function OrganizationPage() {
                       <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
                       <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-12" /></td>
                       <td className="px-4 py-3 text-right hidden md:table-cell"><Skeleton className="ml-auto h-5 w-12" /></td>
-                      <td className="px-4 py-3 text-right"><Skeleton className="ml-auto h-5 w-16" /></td>
                     </tr>
                   ))}
 
                 {!coachesLoading && sortedCoaches.length === 0 && (
                   <tr>
-                    <td colSpan={6} className="px-4 py-6">
+                    <td colSpan={5} className="px-4 py-6">
                       {search ? (
                         <EmptyState icon={"\uD83D\uDD0D"} title="No coaches match your search" subtitle="Try clearing your search" />
                       ) : (
@@ -748,9 +741,7 @@ export default function OrganizationPage() {
                       <td className="font-body whitespace-nowrap px-4 py-3 text-right font-semibold text-coral-400 hidden md:table-cell">
                         {coach.reverted_count.toLocaleString()}
                       </td>
-                      <td className="whitespace-nowrap px-4 py-3 text-right">
-                        <ScoreBadge score={coach.relationship_score} />
-                      </td>
+                      {/* Score cell hidden */}
                     </tr>
                   ))}
               </tbody>

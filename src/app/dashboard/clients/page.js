@@ -524,12 +524,59 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
   );
 }
 
+// ── Sorting helpers ──────────────────────────────────────
+
+function sortClients(clients, sortKey, sortDir) {
+  if (!sortKey) return clients;
+  const dir = sortDir === "desc" ? -1 : 1;
+  return [...clients].sort((a, b) => {
+    let av, bv;
+    switch (sortKey) {
+      case "name":
+        av = (a.full_name || "").toLowerCase();
+        bv = (b.full_name || "").toLowerCase();
+        return av < bv ? -1 * dir : av > bv ? 1 * dir : 0;
+      case "qv":
+        av = a.pqv ?? -Infinity;
+        bv = b.pqv ?? -Infinity;
+        return (av - bv) * dir;
+      case "last_order":
+        av = a.last_order_date ? new Date(a.last_order_date).getTime() : 0;
+        bv = b.last_order_date ? new Date(b.last_order_date).getTime() : 0;
+        return (av - bv) * dir;
+      case "checkin":
+        av = a.last_checkin_date ? new Date(a.last_checkin_date).getTime() : 0;
+        bv = b.last_checkin_date ? new Date(b.last_checkin_date).getTime() : 0;
+        return (av - bv) * dir;
+      default:
+        return 0;
+    }
+  });
+}
+
+function SortableHeader({ label, sortKey, currentSort, currentDir, onSort, className = "" }) {
+  const isActive = currentSort === sortKey;
+  return (
+    <button
+      onClick={() => onSort(sortKey)}
+      className={`flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors hover:text-gray-600 ${isActive ? "text-[#E8735A]" : "text-gray-400"} ${className}`}
+    >
+      {label}
+      <span className="text-[9px] ml-0.5">
+        {isActive ? (currentDir === "asc" ? "▲" : "▼") : ""}
+      </span>
+    </button>
+  );
+}
+
 // ── Section Wrapper ──────────────────────────────────────
 
-function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false }) {
+function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false, sortKey, sortDir, onSort }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (count === 0) return null;
+
+  const sorted = sortClients(clients, sortKey, sortDir);
 
   return (
     <div className={`rounded-2xl border-2 border-gray-100 bg-white overflow-hidden mb-4 border-l-4 ${borderColor}`}>
@@ -545,14 +592,22 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
       {!collapsed && (
         <div className="border-t border-gray-100">
           {/* Column headers - desktop */}
-          <div className="hidden sm:flex items-center gap-4 px-4 py-2 border-b border-gray-100 text-[10px] font-bold text-gray-400 uppercase tracking-wider">
-            <div className="flex-1">Name</div>
-            <div className="w-16 text-right">QV</div>
-            <div className="w-28 text-right">Last Order</div>
-            <div className="hidden md:block w-24 text-right">Check-in</div>
-            <div className="w-[88px]">Actions</div>
+          <div className="hidden sm:flex items-center gap-4 px-4 py-2 border-b border-gray-100">
+            <div className="flex-1">
+              <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
+            </div>
+            <div className="w-16 text-right">
+              <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+            </div>
+            <div className="w-28 text-right">
+              <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+            </div>
+            <div className="hidden md:block w-24 text-right">
+              <SortableHeader label="Check-in" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+            </div>
+            <div className="w-[88px] text-[10px] font-bold text-gray-400 uppercase tracking-wider">Actions</div>
           </div>
-          {clients.map((c) => (
+          {sorted.map((c) => (
             <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} />
           ))}
         </div>
@@ -587,10 +642,25 @@ export default function ClientsPage() {
     });
   };
 
+  // Sorting
+  const [sortKey, setSortKey] = useState("");
+  const [sortDir, setSortDir] = useState("asc");
+
+  const handleSort = useCallback((key) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((d) => (d === "asc" ? "desc" : "asc"));
+        return key;
+      }
+      setSortDir(key === "qv" || key === "last_order" || key === "checkin" ? "desc" : "asc");
+      return key;
+    });
+  }, []);
+
   // Filters
   const [search, setSearch] = useState("");
   const [debouncedSearch, setDebouncedSearch] = useState("");
-  const [orderTypeFilter, setOrderTypeFilter] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
   const [qvFilter, setQvFilter] = useState("");
   const [showAlertOnly, setShowAlertOnly] = useState(false);
   const debounceRef = useRef(null);
@@ -718,10 +788,15 @@ export default function ClientsPage() {
       const q = debouncedSearch.toLowerCase();
       if (!(c.full_name || "").toLowerCase().includes(q)) return false;
     }
-    if (orderTypeFilter === "premier" && !c.order_type?.toLowerCase()?.includes("premier")) return false;
-    if (orderTypeFilter === "ondemand" && c.order_type?.toLowerCase()?.includes("premier")) return false;
+    if (statusFilter) {
+      const bucket = bucketClient(c);
+      if (statusFilter === "active" && bucket !== "active") return false;
+      if (statusFilter === "at_risk" && bucket !== "at_risk") return false;
+      if (statusFilter === "past" && bucket !== "past") return false;
+    }
     if (qvFilter === "over350" && (c.pqv == null || c.pqv < 350)) return false;
     if (qvFilter === "under350" && c.pqv != null && c.pqv >= 350) return false;
+    if (qvFilter === "noqv" && c.pqv != null) return false;
     if (showAlertOnly) {
       if (!c.order_alerts || c.order_alerts.length === 0) return false;
       const cd = dismissedAlerts[String(c.id)] || [];
@@ -746,7 +821,7 @@ export default function ClientsPage() {
 
   const activeCount = allClients.filter((c) => bucketClient(c) === "active").length;
 
-  const hasFilters = debouncedSearch || orderTypeFilter || qvFilter || showAlertOnly;
+  const hasFilters = debouncedSearch || statusFilter || qvFilter || showAlertOnly;
 
   return (
     <div>
@@ -802,23 +877,25 @@ export default function ClientsPage() {
           />
 
           <select
-            value={orderTypeFilter}
-            onChange={(e) => setOrderTypeFilter(e.target.value)}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
+            value={statusFilter}
+            onChange={(e) => setStatusFilter(e.target.value)}
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           >
-            <option value="">All Types</option>
-            <option value="premier">Premier+</option>
-            <option value="ondemand">On Demand</option>
+            <option value="">All Statuses</option>
+            <option value="active">Active</option>
+            <option value="at_risk">At Risk</option>
+            <option value="past">Past</option>
           </select>
 
           <select
             value={qvFilter}
             onChange={(e) => setQvFilter(e.target.value)}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           >
-            <option value="">All QV</option>
-            <option value="over350">Over 350</option>
-            <option value="under350">Under 350</option>
+            <option value="">All QV Levels</option>
+            <option value="over350">QV 350+</option>
+            <option value="under350">QV Under 350</option>
+            <option value="noqv">No QV Data</option>
           </select>
 
           {(hasFilters || showAlertOnly) && (
@@ -826,7 +903,7 @@ export default function ClientsPage() {
               onClick={() => {
                 setSearch("");
                 setDebouncedSearch("");
-                setOrderTypeFilter("");
+                setStatusFilter("");
                 setQvFilter("");
                 setShowAlertOnly(false);
               }}
@@ -866,6 +943,9 @@ export default function ClientsPage() {
             weeklyCheckins={weeklyCheckins}
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
           />
           <ClientSection
             title="At Risk"
@@ -877,6 +957,9 @@ export default function ClientsPage() {
             weeklyCheckins={weeklyCheckins}
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
           />
           <ClientSection
             title="Past Clients"
@@ -891,6 +974,9 @@ export default function ClientsPage() {
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
             showLastOrderSubtitle={true}
+            sortKey={sortKey}
+            sortDir={sortDir}
+            onSort={handleSort}
           />
 
           {filtered.length === 0 && (
@@ -908,7 +994,7 @@ export default function ClientsPage() {
                   ? () => {
                       setSearch("");
                       setDebouncedSearch("");
-                      setOrderTypeFilter("");
+                      setStatusFilter("");
                       setQvFilter("");
                       setShowAlertOnly(false);
                     }

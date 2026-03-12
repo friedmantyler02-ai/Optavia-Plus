@@ -30,7 +30,6 @@ export default function GetTheAppModal({ onClose }) {
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      // Fallback
       const input = document.createElement("input");
       input.value = appUrl;
       document.body.appendChild(input);
@@ -49,22 +48,6 @@ export default function GetTheAppModal({ onClose }) {
     onClose();
   };
 
-  const iphoneSteps = [
-    { num: 1, text: "Open this link on your iPhone (copy it below)" },
-    { num: 2, text: <>Tap the <strong>Share</strong> button <span className="inline-block text-lg align-middle">⬆️</span> at the bottom of Safari</> },
-    { num: 3, text: <>Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong></> },
-    { num: 4, text: <>Tap <strong>&quot;Add&quot;</strong> — that&apos;s it!</> },
-  ];
-
-  const androidSteps = [
-    { num: 1, text: "Open this link on your phone (copy it below)" },
-    { num: 2, text: <>Tap the <strong>three-dot menu</strong> <span className="inline-block text-lg align-middle">⋮</span> in Chrome</> },
-    { num: 3, text: <>Tap <strong>&quot;Add to Home Screen&quot;</strong> or <strong>&quot;Install App&quot;</strong></> },
-    { num: 4, text: <>Tap <strong>&quot;Add&quot;</strong> — done!</> },
-  ];
-
-  const steps = platform === "android" ? androidSteps : iphoneSteps;
-
   return (
     <>
       <div className="fixed inset-0 bg-black/30 z-50" onClick={handleClose} />
@@ -80,10 +63,10 @@ export default function GetTheAppModal({ onClose }) {
                 <span className="text-white font-bold text-xl">O+</span>
               </div>
               <h2 className="font-display text-xl font-bold text-gray-900">
-                Get OPTAVIA+ on your phone!
+                Add OPTAVIA+ to Your Phone
               </h2>
               <p className="text-sm text-gray-500 mt-1.5 leading-relaxed">
-                Access your clients, leads, and calendar right from your home screen — just like a real app.
+                It works just like an app from the App Store — right on your home screen!
               </p>
             </div>
 
@@ -97,7 +80,7 @@ export default function GetTheAppModal({ onClose }) {
                     : "text-gray-500 hover:text-gray-700"
                 }`}
               >
-                iPhone
+                iPhone / iPad
               </button>
               <button
                 onClick={() => setPlatform("android")}
@@ -112,22 +95,76 @@ export default function GetTheAppModal({ onClose }) {
             </div>
 
             {/* Steps */}
-            <div className="space-y-3 mb-5">
-              {steps.map((step) => (
-                <div key={step.num} className="flex items-start gap-3">
-                  <div className="w-7 h-7 rounded-full bg-[#E8735A] text-white flex items-center justify-center text-sm font-bold flex-shrink-0 mt-0.5">
-                    {step.num}
-                  </div>
-                  <p className="text-sm text-gray-700 leading-relaxed pt-0.5">
-                    {step.text}
-                  </p>
-                </div>
-              ))}
-            </div>
+            {platform === "iphone" ? (
+              <div className="space-y-4 mb-5">
+                <StepCard num={1}>
+                  Open <strong>optaviaplus.com</strong> in <strong>Safari</strong>
+                  <span className="block text-xs text-gray-400 mt-1">
+                    (It must be Safari — this won&apos;t work in Chrome or other browsers on iPhone)
+                  </span>
+                </StepCard>
+                <StepCard num={2}>
+                  Tap the <strong>Share button</strong> at the bottom of the screen
+                  <span className="block mt-2 text-center">
+                    <span className="inline-block bg-blue-50 border-2 border-blue-200 rounded-xl px-4 py-2 text-2xl">
+                      &#x2B06;&#xFE0F;
+                    </span>
+                  </span>
+                  <span className="block text-xs text-gray-400 mt-1.5 text-center">
+                    It&apos;s the square with an arrow pointing up
+                  </span>
+                </StepCard>
+                <StepCard num={3}>
+                  Scroll down and tap <strong>&quot;Add to Home Screen&quot;</strong>
+                  <span className="block mt-2 text-center">
+                    <span className="inline-block bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-2 text-sm font-semibold text-gray-700">
+                      + Add to Home Screen
+                    </span>
+                  </span>
+                </StepCard>
+                <StepCard num={4}>
+                  Tap <strong>&quot;Add&quot;</strong> in the top right corner
+                  <span className="block text-xs text-green-600 font-semibold mt-1">
+                    Done! You&apos;ll see the OPTAVIA+ icon on your home screen.
+                  </span>
+                </StepCard>
+              </div>
+            ) : (
+              <div className="space-y-4 mb-5">
+                <StepCard num={1}>
+                  Open <strong>optaviaplus.com</strong> in <strong>Chrome</strong>
+                </StepCard>
+                <StepCard num={2}>
+                  Tap the <strong>three dots</strong> in the top-right corner
+                  <span className="block mt-2 text-center">
+                    <span className="inline-block bg-gray-50 border-2 border-gray-200 rounded-xl px-4 py-2 text-2xl tracking-widest font-bold text-gray-600">
+                      &#8942;
+                    </span>
+                  </span>
+                  <span className="block text-xs text-gray-400 mt-1.5 text-center">
+                    Three vertical dots at the top of Chrome
+                  </span>
+                </StepCard>
+                <StepCard num={3}>
+                  Tap <strong>&quot;Add to Home screen&quot;</strong> or <strong>&quot;Install app&quot;</strong>
+                  <span className="block text-xs text-gray-400 mt-1">
+                    (The wording depends on your phone — both do the same thing)
+                  </span>
+                </StepCard>
+                <StepCard num={4}>
+                  Tap <strong>&quot;Install&quot;</strong> or <strong>&quot;Add&quot;</strong>
+                  <span className="block text-xs text-green-600 font-semibold mt-1">
+                    Done! You&apos;ll see the OPTAVIA+ icon on your home screen.
+                  </span>
+                </StepCard>
+              </div>
+            )}
 
             {/* Copy URL box */}
             <div className="bg-[#faf7f2] rounded-xl p-3 mb-5">
-              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Your app link</p>
+              <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">
+                Send this link to your phone
+              </p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-white rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 font-medium truncate">
                   optaviaplus.com
@@ -171,5 +208,18 @@ export default function GetTheAppModal({ onClose }) {
         </div>
       </div>
     </>
+  );
+}
+
+function StepCard({ num, children }) {
+  return (
+    <div className="flex items-start gap-3 bg-gray-50 rounded-xl p-3.5">
+      <div className="w-8 h-8 rounded-full bg-[#E8735A] text-white flex items-center justify-center text-base font-bold flex-shrink-0">
+        {num}
+      </div>
+      <p className="font-body text-[15px] text-gray-700 leading-relaxed pt-0.5">
+        {children}
+      </p>
+    </div>
   );
 }

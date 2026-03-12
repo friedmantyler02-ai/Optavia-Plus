@@ -16,7 +16,7 @@ export async function PATCH(request, { params }) {
 
     const { error } = await supabase
       .from("clients")
-      .update({ last_checkin_date: now, updated_at: now })
+      .update({ last_checkin_date: now, last_contact_date: now, updated_at: now })
       .eq("id", id)
       .eq("coach_id", user.id);
 

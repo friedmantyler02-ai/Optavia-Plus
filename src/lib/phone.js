@@ -24,3 +24,28 @@ export function normalizeOrgCsvPhone(raw) {
 
   return null;
 }
+
+/**
+ * Format a phone string for display.
+ * - 10-digit US: +1 (240) 222-2222
+ * - 11-digit starting with 1: +1 (240) 222-2222
+ * - Other/international: return as-is with + prefix
+ * - null/empty: return ""
+ */
+export function formatPhoneDisplay(raw) {
+  if (!raw) return "";
+  const digits = String(raw).replace(/\D/g, "");
+  if (!digits) return String(raw);
+
+  let d = digits;
+  if (d.length === 11 && d.startsWith("1")) {
+    d = d.slice(1);
+  }
+  if (d.length === 10) {
+    return `+1 (${d.slice(0, 3)}) ${d.slice(3, 6)}-${d.slice(6)}`;
+  }
+
+  // Non-US or unrecognized: return original with + if missing
+  const s = String(raw).trim();
+  return s.startsWith("+") ? s : `+${s}`;
+}

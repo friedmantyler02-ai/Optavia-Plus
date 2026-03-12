@@ -7,6 +7,7 @@ import AssignSequence from "./AssignSequence";
 import TouchpointTimeline from './TouchpointTimeline';
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useShowToast from "@/hooks/useShowToast";
+import { formatPhoneDisplay } from "@/lib/phone";
 
 const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
@@ -18,6 +19,17 @@ const programPhaseOptions = [
   { value: "maintenance", label: "Maintenance" },
   { value: "paused", label: "Paused" },
 ];
+
+const sourceOptions = [
+  { value: "facebook_post", label: "Facebook Post" },
+  { value: "facebook_group", label: "Facebook Group" },
+  { value: "instagram", label: "Instagram" },
+  { value: "referral", label: "Referral" },
+  { value: "in_person", label: "In Person" },
+  { value: "past_client", label: "Past Client" },
+  { value: "other", label: "Other" },
+];
+const sourceMap = Object.fromEntries(sourceOptions.map((s) => [s.value, s.label]));
 
 function getRelationshipScore(client) {
   const daysSinceContact = client.last_contact_date
@@ -58,6 +70,8 @@ export default function ClientDetailPage() {
   const [weightInput, setWeightInput] = useState("");
   const [scalePicChecked, setScalePicChecked] = useState(false);
   const [loggingWeight, setLoggingWeight] = useState(false);
+  const [noteModal, setNoteModal] = useState(false);
+  const [noteText, setNoteText] = useState("");
   const showToast = useShowToast();
 
   useEffect(() => { loadClient(); }, [params.id]);
@@ -152,6 +166,10 @@ export default function ClientDetailPage() {
         weight_start: form.weight_start ? Number(form.weight_start) : null,
         weight_goal: form.weight_goal ? Number(form.weight_goal) : null,
         program_phase: form.program_phase || null,
+        facebook_url: form.facebook_url || null,
+        source: form.source || null,
+        groups: form.groups || null,
+        originally_met_date: form.originally_met_date || null,
         notes: form.notes || null,
         status: form.status,
         updated_at: new Date().toISOString(),
@@ -169,10 +187,10 @@ export default function ClientDetailPage() {
     }
   };
 
-  const logQuickAction = async (actionType) => {
+  const logQuickAction = async (actionType, details) => {
     try {
       const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : "Logged a note";
-      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: client.full_name });
+      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: details || client.full_name });
       await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
       setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
       const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
@@ -182,6 +200,19 @@ export default function ClientDetailPage() {
     } catch (err) {
       console.error("Error logging action:", err);
       showToast({ message: "Something went wrong — please try again", variant: "error" });
+    }
+  };
+
+  const deleteActivity = async (actId) => {
+    if (!window.confirm("Delete this activity entry?")) return;
+    setActivities((prev) => prev.filter((a) => a.id !== actId));
+    const { error } = await supabase.from("activities").delete().eq("id", actId).eq("coach_id", coach.id);
+    if (error) {
+      showToast({ message: "Failed to delete — please try again", variant: "error" });
+      const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
+      if (acts) setActivities(acts);
+    } else {
+      showToast({ message: "Activity deleted", variant: "success" });
     }
   };
 
@@ -218,7 +249,7 @@ export default function ClientDetailPage() {
           </div>
           <div>
             <h1 className="font-display text-2xl font-bold">{client.full_name}</h1>
-            <p className="text-sm text-gray-400">{client.email || "No email"} · {client.phone || "No phone"}</p>
+            <p className="text-sm text-gray-400">{client.email || "No email"} · {formatPhoneDisplay(client.phone) || "No phone"}</p>
             <div className="flex gap-2 mt-2 flex-wrap">
               {statusOptions.map(s => (
                 <button key={s} onClick={async () => {
@@ -251,7 +282,7 @@ export default function ClientDetailPage() {
         <button onClick={() => logQuickAction("text")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">💬</span><span className="font-bold text-sm">Log a Text</span>
         </button>
-        <button onClick={() => logQuickAction("note")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
+        <button onClick={() => { setNoteText(""); setNoteModal(true); }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📝</span><span className="font-bold text-sm">Log a Note</span>
         </button>
         <button onClick={() => setShowAssign(true)} disabled={!hasSequences} className={"rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation " + (hasSequences ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed")}>
@@ -338,6 +369,91 @@ export default function ClientDetailPage() {
           onClose={() => setShowAssign(false)}
         />
       )}
+      {/* Profile & Social */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
+        <h2 className="text-lg font-extrabold mb-4">🔗 Profile & Social</h2>
+        {editing ? (
+          <div className="space-y-3">
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
+              <input
+                type="url"
+                value={form.facebook_url || ""}
+                onChange={(e) => setForm((p) => ({ ...p, facebook_url: e.target.value }))}
+                placeholder="https://facebook.com/..."
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
+                <select
+                  value={form.source || ""}
+                  onChange={(e) => setForm((p) => ({ ...p, source: e.target.value }))}
+                  className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                >
+                  <option value="">Select source...</option>
+                  {sourceOptions.map((s) => (
+                    <option key={s.value} value={s.value}>{s.label}</option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Originally Met</label>
+                <input
+                  type="date"
+                  value={form.originally_met_date ? form.originally_met_date.slice(0, 10) : ""}
+                  onChange={(e) => setForm((p) => ({ ...p, originally_met_date: e.target.value }))}
+                  className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                />
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Groups</label>
+              <input
+                type="text"
+                value={form.groups || ""}
+                onChange={(e) => setForm((p) => ({ ...p, groups: e.target.value }))}
+                placeholder="e.g. Local running club, Mom's group on FB"
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+              />
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {client.facebook_url && (
+              <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+                <span className="text-xs font-bold text-gray-400 uppercase">Facebook</span>
+                <a href={client.facebook_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
+                  {client.facebook_url.replace(/^https?:\/\/(www\.)?/, "")}
+                </a>
+              </div>
+            )}
+            {client.source && (
+              <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+                <span className="text-xs font-bold text-gray-400 uppercase">Source</span>
+                <span className="text-sm font-semibold">{sourceMap[client.source] || client.source}</span>
+              </div>
+            )}
+            {client.originally_met_date && (
+              <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+                <span className="text-xs font-bold text-gray-400 uppercase">Originally Met</span>
+                <span className="text-sm font-semibold">{new Date(client.originally_met_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
+              </div>
+            )}
+            {client.groups && (
+              <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+                <span className="text-xs font-bold text-gray-400 uppercase">Groups</span>
+                <span className="text-sm font-semibold">{client.groups}</span>
+              </div>
+            )}
+            {!client.facebook_url && !client.source && !client.originally_met_date && !client.groups && (
+              <p className="text-sm text-gray-400 py-2">No profile info yet. Click Edit above to add details.</p>
+            )}
+          </div>
+        )}
+      </div>
+
       <div className="grid md:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-6 shadow-sm">
           <div className="flex items-center justify-between mb-4">
@@ -440,15 +556,58 @@ export default function ClientDetailPage() {
           ) : (
             <div className="space-y-2 max-h-96 overflow-y-auto">
               {activities.map(act => (
-                <div key={act.id} className="p-3 bg-[#faf7f2] rounded-xl">
-                  <div className="font-semibold text-sm">{act.action}</div>
-                  <div className="text-xs text-gray-400 mt-1">{new Date(act.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                <div key={act.id} className="group p-3 bg-[#faf7f2] rounded-xl flex items-start justify-between gap-2">
+                  <div className="min-w-0">
+                    <div className="font-semibold text-sm">{act.action}</div>
+                    {act.details && act.details !== client.full_name && <div className="text-xs text-gray-500 mt-0.5">{act.details}</div>}
+                    <div className="text-xs text-gray-400 mt-1">{new Date(act.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" })}</div>
+                  </div>
+                  <button
+                    onClick={() => deleteActivity(act.id)}
+                    className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-red-500 text-sm font-bold px-1.5 py-0.5 rounded transition-all shrink-0"
+                    title="Delete this entry"
+                  >
+                    &times;
+                  </button>
                 </div>
               ))}
             </div>
           )}
         </div>
       </div>
+      {noteModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setNoteModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-sm p-6">
+            <h2 className="font-display text-lg font-bold text-gray-900 mb-1">📝 Log a Note</h2>
+            <p className="text-sm text-gray-500 mb-4">Add a note about {client.full_name}</p>
+            <textarea
+              value={noteText}
+              onChange={(e) => setNoteText(e.target.value)}
+              placeholder="Type your note here..."
+              rows={3}
+              className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors resize-none mb-4"
+              autoFocus
+            />
+            <div className="flex gap-3">
+              <button onClick={() => setNoteModal(false)} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  await logQuickAction("note", noteText.trim() || undefined);
+                  setNoteModal(false);
+                  setNoteText("");
+                }}
+                disabled={!noteText.trim()}
+                className={"flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors " + (noteText.trim() ? "bg-[#E8735A] text-white hover:bg-[#d4654e]" : "bg-gray-200 text-gray-400 cursor-not-allowed")}
+              >
+                Save Note
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       <ConfirmDialog
         isOpen={deleteConfirm}
         title="Delete this client?"

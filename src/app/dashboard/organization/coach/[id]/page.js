@@ -8,6 +8,7 @@ import EmptyState from "../../../components/EmptyState";
 import PageHeader from "../../../components/PageHeader";
 import BulkAssignModal from "../../../components/BulkAssignModal";
 import RankProgressCard from "../../../components/RankProgressCard";
+import { formatPhoneDisplay } from "@/lib/phone";
 
 // ---------------------------------------------------------------------------
 // Skeleton
@@ -273,7 +274,7 @@ export default function CoachDetailPage() {
               <div className="font-body mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-gray-500">
                 <span>ID: {coach?.optavia_id}</span>
                 {coach?.email && <span>📧 {coach.email}</span>}
-                {coach?.phone && <span>📱 {coach.phone}</span>}
+                {coach?.phone && <span>📱 {formatPhoneDisplay(coach.phone)}</span>}
                 {coach?.rank && coach.rank !== "New Coach" && (
                   <span>🏅 {coach.rank}</span>
                 )}
@@ -458,7 +459,7 @@ export default function CoachDetailPage() {
                       {client.email || "—"}
                     </td>
                     <td className="font-body whitespace-nowrap px-4 py-3 text-gray-500 hidden md:table-cell">
-                      {client.phone || "—"}
+                      {formatPhoneDisplay(client.phone) || "—"}
                     </td>
                     <td className="whitespace-nowrap px-4 py-3">
                       <StatusBadge status={client.account_status} />

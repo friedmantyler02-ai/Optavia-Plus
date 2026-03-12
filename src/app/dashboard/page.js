@@ -291,6 +291,14 @@ export default function DashboardHome() {
                               Schedule HA
                             </Link>
                           )}
+                          {section.key === "reactivate" && (
+                            <button
+                              onClick={() => handleDone(section.key, item)}
+                              className="text-sm font-bold px-4 py-2 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors min-h-[44px] touch-manipulation"
+                            >
+                              Done &#10003;
+                            </button>
+                          )}
                           {(section.key === "potentialClients" ||
                             section.key === "reactivate") && (
                             <Link

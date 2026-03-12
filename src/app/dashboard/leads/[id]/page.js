@@ -6,6 +6,7 @@ import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
 import LoadingSpinner from "../../components/LoadingSpinner";
 import ConfirmDialog from "../../components/ConfirmDialog";
+import { formatPhoneDisplay } from "@/lib/phone";
 
 const STAGES = [
   { value: "prospect", label: "Prospect", color: "bg-gray-100 text-gray-700" },
@@ -302,6 +303,19 @@ export default function LeadDetailPage() {
     }
   };
 
+  const deleteActivity = async (actId) => {
+    if (!window.confirm("Delete this activity entry?")) return;
+    setActivities((prev) => prev.filter((a) => a.id !== actId));
+    try {
+      const res = await fetch(`/api/leads/${leadId}/activities?activityId=${actId}`, { method: "DELETE" });
+      if (!res.ok) throw new Error();
+      showToast({ message: "Activity deleted" });
+    } catch {
+      showToast({ message: "Failed to delete — please try again", variant: "error" });
+      fetchLead();
+    }
+  };
+
   const quickFbAction = async (action) => {
     try {
       await postActivity(action, null);
@@ -411,7 +425,7 @@ export default function LeadDetailPage() {
               )}
               {lead.phone && (
                 <a href={`tel:${lead.phone}`} className="text-[#E8735A] hover:underline flex items-center gap-1">
-                  <span className="text-xs">{"\uD83D\uDCDE"}</span> {lead.phone}
+                  <span className="text-xs">{"\uD83D\uDCDE"}</span> {formatPhoneDisplay(lead.phone)}
                 </a>
               )}
               {lead.facebook_url && (
@@ -751,12 +765,19 @@ export default function LeadDetailPage() {
                   )}
                 </div>
                 {/* Content */}
-                <div className="pb-4 flex-1 min-w-0">
+                <div className="pb-4 flex-1 min-w-0 group">
                   <div className="flex items-center gap-2">
                     <span className="text-sm font-semibold text-gray-700">
                       {ACTION_LABELS[act.action] || act.action}
                     </span>
                     <span className="text-xs text-gray-400">{relativeTime(act.created_at)}</span>
+                    <button
+                      onClick={() => deleteActivity(act.id)}
+                      className="opacity-0 group-hover:opacity-100 focus:opacity-100 text-gray-400 hover:text-red-500 text-sm font-bold px-1.5 py-0.5 rounded transition-all ml-auto"
+                      title="Delete this entry"
+                    >
+                      &times;
+                    </button>
                   </div>
                   {act.details && (
                     <p className="text-sm text-gray-500 mt-0.5">{act.details}</p>

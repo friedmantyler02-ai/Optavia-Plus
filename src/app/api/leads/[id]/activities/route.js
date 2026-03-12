@@ -131,3 +131,40 @@ export async function POST(request, { params }) {
     );
   }
 }
+
+export async function DELETE(request, { params }) {
+  try {
+    const supabase = await createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
+    const { id } = await params;
+    const { searchParams } = new URL(request.url);
+    const activityId = searchParams.get("activityId");
+
+    if (!activityId) {
+      return NextResponse.json({ error: "activityId is required" }, { status: 400 });
+    }
+
+    const { error } = await supabase
+      .from("lead_activities")
+      .delete()
+      .eq("id", activityId)
+      .eq("coach_id", user.id)
+      .eq("lead_id", id);
+
+    if (error) {
+      console.error("Lead activity delete error:", error);
+      return NextResponse.json({ error: "Failed to delete activity" }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (err) {
+    console.error("Lead activities DELETE error:", err);
+    return NextResponse.json({ error: "Internal server error" }, { status: 500 });
+  }
+}

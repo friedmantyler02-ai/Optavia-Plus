@@ -2,6 +2,7 @@
 
 import { useState, useRef } from "react";
 import Papa from "papaparse";
+import { formatPhoneDisplay } from "@/lib/phone";
 
 // ── Lead field definitions ──────────────────────────────
 
@@ -328,7 +329,7 @@ export default function LeadImporter({ onImportComplete, compact = false }) {
                   <tr key={i} className="border-b border-gray-50">
                     <td className="px-3 py-2 text-gray-700">{row.full_name || "\u2014"}</td>
                     <td className="px-3 py-2 text-gray-500">{row.email || "\u2014"}</td>
-                    <td className="px-3 py-2 text-gray-500">{row.phone || "\u2014"}</td>
+                    <td className="px-3 py-2 text-gray-500">{formatPhoneDisplay(row.phone) || "\u2014"}</td>
                   </tr>
                 ))}
               </tbody>

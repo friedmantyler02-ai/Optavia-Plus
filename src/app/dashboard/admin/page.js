@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useCoach } from "../layout";
+import { formatPhoneDisplay } from "@/lib/phone";
 
 const ADMIN_EMAILS = ["friedmantyler02@gmail.com"];
 
@@ -458,7 +459,7 @@ export default function AdminPage() {
                           {c.email || "—"}
                         </td>
                         <td className="px-5 py-3 text-gray-500">
-                          {c.phone || "—"}
+                          {formatPhoneDisplay(c.phone) || "—"}
                         </td>
                         <td className="px-5 py-3">
                           {c.status ? (

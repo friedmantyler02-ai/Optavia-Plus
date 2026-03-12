@@ -256,12 +256,12 @@ export default function DashboardLayout({ children }) {
         </main>
 
         {/* MOBILE BOTTOM TAB BAR */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-[#e5e0d8] flex items-stretch justify-around pt-2 pb-7 safe-bottom">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-[#e5e0d8] flex items-stretch justify-evenly px-6 pt-2 pb-7 safe-bottom">
           {navItems.map((item) => (
             <button
               key={item.href}
               onClick={() => router.push(item.href)}
-              className={`flex-1 flex flex-col items-center justify-center min-h-[60px] touch-manipulation transition-colors duration-150 ${
+              className={`flex flex-col items-center justify-center min-h-[60px] min-w-[60px] touch-manipulation transition-colors duration-150 ${
                 isActive(item.href)
                   ? "text-[#E8735A]"
                   : "text-gray-400"
@@ -273,15 +273,6 @@ export default function DashboardLayout({ children }) {
               </span>
             </button>
           ))}
-          <button
-            onClick={() => setShowMenu(!showMenu)}
-            className={`flex-1 flex flex-col items-center justify-center min-h-[60px] touch-manipulation transition-colors duration-150 ${
-              showMenu ? "text-[#E8735A]" : "text-gray-400"
-            }`}
-          >
-            <span className="text-[22px] leading-none">•••</span>
-            <span className={`text-xs font-bold mt-1 ${showMenu ? "text-[#E8735A]" : "text-gray-400"}`}>More</span>
-          </button>
         </nav>
       </div>
 

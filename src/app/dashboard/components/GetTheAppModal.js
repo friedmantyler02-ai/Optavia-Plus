@@ -152,7 +152,15 @@ export default function GetTheAppModal({ onClose }) {
               <span className="text-sm text-gray-500">Don&apos;t show this again</span>
             </label>
 
-            {/* Close */}
+            {/* Got it */}
+            <button
+              onClick={handleClose}
+              className="w-full py-3.5 bg-[#E8735A] hover:bg-[#d4634d] text-white rounded-xl text-base font-bold transition-all duration-150 active:scale-[0.98] min-h-[44px] touch-manipulation mb-2"
+            >
+              Got it!
+            </button>
+
+            {/* Maybe Later */}
             <button
               onClick={handleClose}
               className="w-full text-center py-3 text-sm font-bold text-gray-400 hover:text-gray-600 transition-colors min-h-[44px] touch-manipulation"

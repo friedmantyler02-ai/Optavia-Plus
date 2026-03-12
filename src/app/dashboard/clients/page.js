@@ -8,7 +8,6 @@ import { importCSVChunked } from "@/lib/chunked-import";
 import PageHeader from "../components/PageHeader";
 import LoadingSpinner from "../components/LoadingSpinner";
 import EmptyState from "../components/EmptyState";
-import useShowToast from "@/hooks/useShowToast";
 
 // ── Helpers ──────────────────────────────────────────────
 
@@ -359,25 +358,25 @@ function ImportModal({ onClose, onComplete }) {
 
 // ── Client Row (List View) ───────────────────────────────
 
-function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedAlerts, onDismissAlert, showLastOrderSubtitle }) {
-  const [noteInput, setNoteInput] = useState("");
-  const [showNote, setShowNote] = useState(false);
+function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, showLastOrderSubtitle }) {
   const clientDismissed = dismissedAlerts[String(client.id)] || [];
   const alerts = getAlertBadges(client.order_alerts).filter((a) => !clientDismissed.includes(a.label));
   const qv = client.pqv;
   const isPremier = client.order_type?.toLowerCase()?.includes("premier");
 
+  const contactDate = client.last_checkin_date || client.last_contact_date;
+
   return (
-    <div className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-4 px-4 py-3 border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors ${muted ? "opacity-70" : ""}`}>
+    <div
+      onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+      className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 px-4 py-3 border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors cursor-pointer ${muted ? "opacity-70" : ""}`}
+    >
       {/* Name + badges */}
-      <div className="flex-1 min-w-0">
+      <div className="flex-1 min-w-0 sm:pr-4">
         <div className="flex items-center gap-2 flex-wrap">
-          <button
-            onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-            className="font-body text-base sm:text-sm font-semibold text-gray-800 hover:text-[#E8735A] transition-colors truncate text-left min-h-[44px] sm:min-h-0 flex items-center touch-manipulation"
-          >
+          <span className="font-body text-base font-semibold text-gray-800 truncate">
             {client.full_name}
-          </button>
+          </span>
           {showLastOrderSubtitle && client.last_order_date && (
             <span className={`text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
               Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
@@ -407,71 +406,33 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
       </div>
 
       {/* QV */}
-      <div className="hidden sm:block w-16 text-right">
+      <div className="hidden sm:block w-20 text-right shrink-0">
         <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
           {qv != null ? qv.toLocaleString() : "\u2014"}
         </span>
       </div>
 
       {/* Last order */}
-      <div className="hidden sm:block w-28 text-right">
+      <div className="hidden sm:block w-28 text-right shrink-0">
         {client.last_order_date ? (
           <div className="flex items-center justify-end gap-1.5">
             {getMonthsAgo(client.last_order_date) >= 3 && (
-              <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+ days</span>
+              <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+</span>
             )}
-            <span className={`text-xs ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-400"}`}>
+            <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
               {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
             </span>
           </div>
         ) : (
-          <span className="text-xs text-gray-300">No orders</span>
+          <span className="text-sm text-gray-300">{"\u2014"}</span>
         )}
       </div>
 
-      {/* Last check-in */}
-      <div className="hidden md:block w-24 text-right">
-        <span className={`text-xs ${client.last_checkin_date ? "text-gray-400" : "text-red-400 font-semibold"}`}>
-          {client.last_checkin_date ? timeAgo(client.last_checkin_date) : "Never"}
+      {/* Last Contact */}
+      <div className="hidden md:block w-28 text-right shrink-0">
+        <span className={`text-sm ${contactDate ? "text-gray-500" : "text-gray-300"}`}>
+          {contactDate ? timeAgo(contactDate) : "\u2014"}
         </span>
-      </div>
-
-      {/* Quick actions */}
-      <div className="flex items-center gap-1 shrink-0">
-        <button
-          onClick={() => onAction(client, "checkin")}
-          className="w-11 h-11 rounded-xl text-base hover:bg-green-50 transition flex items-center justify-center touch-manipulation"
-          title="Check In"
-        >
-          ✅
-        </button>
-        <button
-          onClick={() => onAction(client, "scale_pic")}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition min-h-[44px] touch-manipulation ${
-            weeklyCheckins.has(`${client.id}:scale_photo`)
-              ? "bg-green-100 text-green-700"
-              : "bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500"
-          }`}
-          title={weeklyCheckins.has(`${client.id}:scale_photo`) ? "Scale pic received — click to undo" : "Mark scale pic received"}
-        >
-          <span className={`inline-flex items-center justify-center w-4 h-4 rounded border ${
-            weeklyCheckins.has(`${client.id}:scale_photo`)
-              ? "border-green-500 bg-green-500 text-white"
-              : "border-gray-300"
-          }`}>
-            {weeklyCheckins.has(`${client.id}:scale_photo`) && (
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={3} d="M5 13l4 4L19 7" /></svg>
-            )}
-          </span>
-          Scale Pic
-        </button>
-        <button
-          onClick={() => setShowNote(!showNote)}
-          className="w-11 h-11 rounded-xl text-base hover:bg-yellow-50 transition flex items-center justify-center touch-manipulation"
-          title="Add Note"
-        >
-          📝
-        </button>
       </div>
 
       {/* Mobile info row */}
@@ -484,42 +445,10 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
             ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")
             : "No orders"}
         </span>
-        <span className={!client.last_checkin_date ? "text-red-400" : ""}>
-          {client.last_checkin_date ? timeAgo(client.last_checkin_date) : "No check-in"}
+        <span>
+          {contactDate ? timeAgo(contactDate) : "\u2014"}
         </span>
       </div>
-
-      {/* Inline note input */}
-      {showNote && (
-        <div className="w-full flex gap-2 mt-1 sm:mt-0">
-          <input
-            type="text"
-            value={noteInput}
-            onChange={(e) => setNoteInput(e.target.value)}
-            placeholder="Quick note..."
-            className="flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors min-h-[44px]"
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && noteInput.trim()) {
-                onAction(client, "note", noteInput.trim());
-                setNoteInput("");
-                setShowNote(false);
-              }
-            }}
-          />
-          <button
-            onClick={() => {
-              if (noteInput.trim()) {
-                onAction(client, "note", noteInput.trim());
-                setNoteInput("");
-                setShowNote(false);
-              }
-            }}
-            className="px-4 py-2.5 text-sm font-bold bg-[#E8735A] text-white rounded-xl hover:bg-[#d4634d] transition min-h-[44px] touch-manipulation"
-          >
-            Save
-          </button>
-        </div>
-      )}
     </div>
   );
 }
@@ -559,10 +488,10 @@ function SortableHeader({ label, sortKey, currentSort, currentDir, onSort, class
   return (
     <button
       onClick={() => onSort(sortKey)}
-      className={`flex items-center gap-0.5 text-[10px] font-bold uppercase tracking-wider transition-colors hover:text-gray-600 ${isActive ? "text-[#E8735A]" : "text-gray-400"} ${className}`}
+      className={`flex items-center gap-1 text-sm font-semibold tracking-wide transition-colors hover:text-gray-700 ${isActive ? "text-[#E8735A]" : "text-gray-500"} ${className}`}
     >
       {label}
-      <span className="text-[9px] ml-0.5">
+      <span className="text-xs">
         {isActive ? (currentDir === "asc" ? "▲" : "▼") : ""}
       </span>
     </button>
@@ -571,7 +500,7 @@ function SortableHeader({ label, sortKey, currentSort, currentDir, onSort, class
 
 // ── Section Wrapper ──────────────────────────────────────
 
-function ClientSection({ title, count, borderColor, clients, onAction, router, defaultCollapsed = false, muted = false, weeklyCheckins, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false, sortKey, sortDir, onSort }) {
+function ClientSection({ title, count, borderColor, clients, router, defaultCollapsed = false, muted = false, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false, sortKey, sortDir, onSort }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (count === 0) return null;
@@ -592,23 +521,22 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
       {!collapsed && (
         <div className="border-t border-gray-100">
           {/* Column headers - desktop */}
-          <div className="hidden sm:flex items-center gap-4 px-4 py-2 border-b border-gray-100">
-            <div className="flex-1">
+          <div className="hidden sm:flex items-center px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
+            <div className="flex-1 pr-4">
               <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
             </div>
-            <div className="w-16 text-right">
+            <div className="w-20 text-right shrink-0">
               <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="w-28 text-right">
+            <div className="w-28 text-right shrink-0">
               <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="hidden md:block w-24 text-right">
-              <SortableHeader label="Check-in" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+            <div className="hidden md:block w-28 text-right shrink-0">
+              <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="w-[88px] text-[10px] font-bold text-gray-400 uppercase tracking-wider">Actions</div>
           </div>
           {sorted.map((c) => (
-            <ClientRow key={c.id} client={c} onAction={onAction} muted={muted} router={router} weeklyCheckins={weeklyCheckins} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} />
+            <ClientRow key={c.id} client={c} muted={muted} router={router} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} />
           ))}
         </div>
       )}
@@ -621,13 +549,10 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
 export default function ClientsPage() {
   const { coach, supabase } = useCoach();
   const router = useRouter();
-  const showToast = useShowToast();
-
   const [allClients, setAllClients] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showImport, setShowImport] = useState(false);
-  const [weeklyCheckins, setWeeklyCheckins] = useState(new Set());
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(localStorage.getItem("optavia_dismissed_alerts") || "{}"); } catch { return {}; }
@@ -675,20 +600,7 @@ export default function ClientsPage() {
   useEffect(() => {
     if (!coach) return;
     fetchClients();
-    fetchWeeklyCheckins();
   }, [coach]);
-
-  const fetchWeeklyCheckins = async () => {
-    try {
-      const res = await fetch("/api/clients/checkin-weekly");
-      if (res.ok) {
-        const { checkins } = await res.json();
-        setWeeklyCheckins(new Set(checkins.map((c) => `${c.client_id}:${c.check_type}`)));
-      }
-    } catch {
-      // Silent fail — checkins will show as unchecked
-    }
-  };
 
   const fetchClients = async () => {
     setLoading(true);
@@ -708,78 +620,6 @@ export default function ClientsPage() {
       setAllClients(data || []);
     }
     setLoading(false);
-  };
-
-  // Quick actions
-  const handleAction = async (client, action, noteText) => {
-    const now = new Date().toISOString();
-
-    if (action === "checkin") {
-      await supabase
-        .from("clients")
-        .update({ last_checkin_date: now })
-        .eq("id", client.id);
-      await supabase.from("activities").insert({
-        coach_id: coach.id,
-        client_id: client.id,
-        action: "Logged a check-in",
-        details: client.full_name,
-      });
-      setAllClients((prev) =>
-        prev.map((c) => (c.id === client.id ? { ...c, last_checkin_date: now } : c))
-      );
-    } else if (action === "scale_pic") {
-      await toggleScalePic(client);
-      return;
-    } else if (action === "value_add") {
-      await supabase.from("activities").insert({
-        coach_id: coach.id,
-        client_id: client.id,
-        action: "value_add_sent",
-        details: client.full_name,
-      });
-    } else if (action === "note" && noteText) {
-      await supabase.from("activities").insert({
-        coach_id: coach.id,
-        client_id: client.id,
-        action: "Logged a note",
-        details: noteText,
-      });
-    }
-  };
-
-  const toggleScalePic = async (client) => {
-    const key = `${client.id}:scale_photo`;
-    const wasChecked = weeklyCheckins.has(key);
-
-    // Optimistic update
-    setWeeklyCheckins((prev) => {
-      const next = new Set(prev);
-      if (wasChecked) next.delete(key);
-      else next.add(key);
-      return next;
-    });
-
-    try {
-      const res = await fetch("/api/clients/checkin-weekly", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ client_id: client.id, check_type: "scale_photo" }),
-      });
-
-      if (!res.ok) {
-        throw new Error("Failed to toggle");
-      }
-    } catch {
-      // Revert on error
-      setWeeklyCheckins((prev) => {
-        const next = new Set(prev);
-        if (wasChecked) next.add(key);
-        else next.delete(key);
-        return next;
-      });
-      showToast?.({ message: "Failed to update scale pic — try again", variant: "error" });
-    }
   };
 
   // Filter clients
@@ -865,9 +705,9 @@ export default function ClientsPage() {
         </button>
       )}
 
-      {/* Toolbar: search + filters + view toggle */}
+      {/* Toolbar: search */}
       <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 mb-4">
-        <div className="flex flex-col sm:flex-row gap-3 items-stretch sm:items-center">
+        <div className="flex gap-3 items-center">
           <input
             type="text"
             value={search}
@@ -875,28 +715,6 @@ export default function ClientsPage() {
             placeholder="Search clients..."
             className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           />
-
-          <select
-            value={statusFilter}
-            onChange={(e) => setStatusFilter(e.target.value)}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
-          >
-            <option value="">All Statuses</option>
-            <option value="active">Active</option>
-            <option value="at_risk">At Risk</option>
-            <option value="past">Past</option>
-          </select>
-
-          <select
-            value={qvFilter}
-            onChange={(e) => setQvFilter(e.target.value)}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
-          >
-            <option value="">All QV Levels</option>
-            <option value="over350">QV 350+</option>
-            <option value="under350">QV Under 350</option>
-            <option value="noqv">No QV Data</option>
-          </select>
 
           {(hasFilters || showAlertOnly) && (
             <button
@@ -909,7 +727,7 @@ export default function ClientsPage() {
               }}
               className="text-sm font-semibold text-[#E8735A] hover:text-[#d4644d] whitespace-nowrap transition-colors duration-150"
             >
-              Clear filters
+              Clear
             </button>
           )}
         </div>
@@ -938,9 +756,7 @@ export default function ClientsPage() {
             count={active.length}
             borderColor="border-l-green-500"
             clients={active}
-            onAction={handleAction}
             router={router}
-            weeklyCheckins={weeklyCheckins}
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
             sortKey={sortKey}
@@ -952,9 +768,7 @@ export default function ClientsPage() {
             count={atRisk.length}
             borderColor="border-l-orange-500"
             clients={atRisk}
-            onAction={handleAction}
             router={router}
-            weeklyCheckins={weeklyCheckins}
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
             sortKey={sortKey}
@@ -966,11 +780,9 @@ export default function ClientsPage() {
             count={past.length}
             borderColor="border-l-gray-400"
             clients={past}
-            onAction={handleAction}
             router={router}
             defaultCollapsed={true}
             muted={true}
-            weeklyCheckins={weeklyCheckins}
             dismissedAlerts={dismissedAlerts}
             onDismissAlert={dismissAlert}
             showLastOrderSubtitle={true}

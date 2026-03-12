@@ -208,7 +208,7 @@ export default function ClientDetailPage() {
 
   return (
     <div className="animate-fade-up">
-      <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition-colors duration-150">
+      <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation">
         ← Back to All Clients
       </button>
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
@@ -232,7 +232,7 @@ export default function ClientDetailPage() {
                     showToast({ message: "Something went wrong — please try again", variant: "error" });
                   }
                 }}
-                  className={"px-2 py-1 rounded-lg text-xs font-bold transition " + (client.status === s ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}>
+                  className={"px-3 py-2 rounded-lg text-xs font-bold transition min-h-[44px] touch-manipulation " + (client.status === s ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}>
                   {statusEmojis[s]} {statusLabels[s]}
                 </button>
               ))}
@@ -245,16 +245,16 @@ export default function ClientDetailPage() {
         </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95">
+        <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📞</span><span className="font-bold text-sm">Log a Call</span>
         </button>
-        <button onClick={() => logQuickAction("text")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95">
+        <button onClick={() => logQuickAction("text")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">💬</span><span className="font-bold text-sm">Log a Text</span>
         </button>
-        <button onClick={() => logQuickAction("note")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95">
+        <button onClick={() => logQuickAction("note")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📝</span><span className="font-bold text-sm">Log a Note</span>
         </button>
-        <button onClick={() => setShowAssign(true)} disabled={!hasSequences} className={"rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 transition-all duration-150 active:scale-95 " + (hasSequences ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed")}>
+        <button onClick={() => setShowAssign(true)} disabled={!hasSequences} className={"rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation " + (hasSequences ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed")}>
           <span className="text-2xl">▶️</span><span className="font-bold text-sm">{hasSequences ? "Start Sequence" : "No Sequences"}</span>
         </button>
       </div>
@@ -291,12 +291,12 @@ export default function ClientDetailPage() {
               value={weightInput}
               onChange={e => setWeightInput(e.target.value)}
               placeholder="New weight (lbs)"
-              className="flex-1 px-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
+              className="flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors min-h-[44px]"
             />
             <button
               onClick={logScalePicAndWeight}
               disabled={loggingWeight || (!weightInput && scalePicChecked)}
-              className="px-5 py-2.5 bg-[#E8735A] hover:bg-[#d4634d] text-white rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50"
+              className="px-5 py-2.5 bg-[#E8735A] hover:bg-[#d4634d] text-white rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 min-h-[44px] touch-manipulation"
             >
               {loggingWeight ? "Saving..." : "Log"}
             </button>
@@ -360,7 +360,7 @@ export default function ClientDetailPage() {
                 <span className="text-xs font-bold text-gray-400 uppercase">{f.label}</span>
                 {editing ? (
                   <input value={form[f.key] || ""} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    className="text-right text-sm font-semibold bg-white px-3 py-1 rounded-lg border border-gray-200 w-40 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
+                    className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 w-40 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]" />
                 ) : (
                   <span className="text-sm font-semibold">{client[f.key] || "—"}{(f.key.includes("weight") && client[f.key]) ? " lbs" : ""}</span>
                 )}
@@ -371,7 +371,7 @@ export default function ClientDetailPage() {
               <span className="text-xs font-bold text-gray-400 uppercase">Program Phase</span>
               {editing ? (
                 <select value={form.program_phase || "active_losing"} onChange={e => setForm(p => ({ ...p, program_phase: e.target.value }))}
-                  className="text-right text-sm font-semibold bg-white px-3 py-1 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150">
+                  className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]">
                   {programPhaseOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
                 </select>
               ) : (
@@ -421,7 +421,7 @@ export default function ClientDetailPage() {
             <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
             {editing ? (
               <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
-                className="w-full mt-1 px-4 py-3 text-sm border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
+                className="w-full mt-1 px-4 py-3 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
             ) : (
               <p className="mt-1 text-sm text-gray-600 bg-[#faf7f2] p-3 rounded-xl">{client.notes || "No notes yet."}</p>
             )}

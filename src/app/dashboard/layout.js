@@ -199,7 +199,7 @@ export default function DashboardLayout({ children }) {
           <div className="relative">
             <button
               onClick={() => setShowMenu(!showMenu)}
-              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-50 hover:bg-brand-100 transition"
+              className="flex items-center gap-2 px-3 py-2 rounded-xl bg-brand-50 hover:bg-brand-100 transition min-h-[44px] touch-manipulation"
             >
               <div className="w-8 h-8 rounded-lg bg-brand-500 text-white flex items-center justify-center text-sm font-bold">
                 {coach?.full_name?.charAt(0)?.toUpperCase() || "?"}
@@ -216,20 +216,7 @@ export default function DashboardLayout({ children }) {
                   {coach?.optavia_id && <p className="text-xs text-brand-500 mt-1">ID: {coach.optavia_id}</p>}
                 </div>
 
-                {/* Mobile nav */}
-                <div className="md:hidden border-b border-gray-100">
-                  {navItems.map((item) => (
-                    <button
-                      key={item.href}
-                      onClick={() => { router.push(item.href); setShowMenu(false); }}
-                      className={`w-full text-left px-4 py-3 text-sm font-semibold flex items-center gap-3 ${
-                        isActive(item.href) ? "bg-brand-50 text-brand-500" : "text-gray-500 hover:bg-gray-50"
-                      }`}
-                    >
-                      <span>{item.icon}</span> {item.label}
-                    </button>
-                  ))}
-                </div>
+                {/* Mobile nav — main nav items are in bottom tab bar, so only show overflow here */}
 
                 {coach?.email && ['friedmantyler02@gmail.com'].includes(coach.email) && (
                   <button
@@ -241,19 +228,19 @@ export default function DashboardLayout({ children }) {
                 )}
                 <button
                   onClick={() => { router.push("/dashboard/settings"); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3"
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3 min-h-[44px] touch-manipulation"
                 >
                   <span>⚙️</span> Settings
                 </button>
                 <button
                   onClick={() => { router.push("/dashboard/help"); setShowMenu(false); }}
-                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100"
+                  className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3 border-b border-gray-100 min-h-[44px] touch-manipulation"
                 >
                   <span>❓</span> Help
                 </button>
                 <button
                   onClick={handleLogout}
-                  className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors duration-150"
+                  className="w-full text-left px-4 py-3 text-sm font-bold text-red-500 hover:bg-red-50 transition-colors duration-150 min-h-[44px] touch-manipulation"
                 >
                   Sign Out
                 </button>
@@ -263,10 +250,39 @@ export default function DashboardLayout({ children }) {
           </div>
         </nav>
 
-        {/* PAGE CONTENT */}
-        <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8">
+        {/* PAGE CONTENT — extra bottom padding on mobile for tab bar */}
+        <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8 pb-24 md:pb-8">
           {children}
         </main>
+
+        {/* MOBILE BOTTOM TAB BAR */}
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-[#e5e0d8] flex items-stretch justify-around safe-bottom">
+          {navItems.map((item) => (
+            <button
+              key={item.href}
+              onClick={() => router.push(item.href)}
+              className={`flex-1 flex flex-col items-center justify-center min-h-[56px] py-2 touch-manipulation transition-colors duration-150 ${
+                isActive(item.href)
+                  ? "text-[#E8735A]"
+                  : "text-gray-400"
+              }`}
+            >
+              <span className="text-xl leading-none">{item.icon}</span>
+              <span className={`text-[11px] font-bold mt-1 ${isActive(item.href) ? "text-[#E8735A]" : "text-gray-400"}`}>
+                {item.label}
+              </span>
+            </button>
+          ))}
+          <button
+            onClick={() => setShowMenu(!showMenu)}
+            className={`flex-1 flex flex-col items-center justify-center min-h-[56px] py-2 touch-manipulation transition-colors duration-150 ${
+              showMenu ? "text-[#E8735A]" : "text-gray-400"
+            }`}
+          >
+            <span className="text-xl leading-none">•••</span>
+            <span className={`text-[11px] font-bold mt-1 ${showMenu ? "text-[#E8735A]" : "text-gray-400"}`}>More</span>
+          </button>
+        </nav>
       </div>
 
       {/* Click outside to close menu */}

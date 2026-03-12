@@ -292,13 +292,13 @@ export default function LeadsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowImportModal(true)}
-              className="px-4 py-3 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95"
+              className="px-4 py-3 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95 min-h-[44px] touch-manipulation"
             >
               Import Leads
             </button>
             <button
               onClick={openModal}
-              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
+              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-3 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm min-h-[44px] touch-manipulation"
             >
               Add Lead +
             </button>
@@ -312,7 +312,7 @@ export default function LeadsPage() {
           <button
             key={cat.value}
             onClick={() => { setStageFilter(cat.value); setPage(1); }}
-            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all duration-150 ${
+            className={`flex-shrink-0 px-4 py-2 rounded-full text-sm font-bold transition-all duration-150 min-h-[44px] touch-manipulation ${
               stageFilter === cat.value
                 ? "bg-[#E8735A] text-white shadow-sm"
                 : "bg-white text-gray-500 border-2 border-gray-200 hover:border-gray-300"
@@ -329,7 +329,7 @@ export default function LeadsPage() {
           <button
             key={s.value}
             onClick={() => { setStageFilter(stageFilter === s.value ? "" : s.value); setPage(1); }}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-xl text-xs font-bold border-2 transition-all duration-150 ${
+            className={`flex-shrink-0 px-3 py-2 rounded-xl text-xs font-bold border-2 transition-all duration-150 min-h-[44px] touch-manipulation ${
               stageFilter === s.value
                 ? "border-[#E8735A] bg-[#E8735A]/5 text-[#E8735A]"
                 : "border-gray-100 bg-white text-gray-500 hover:border-gray-200"
@@ -348,13 +348,13 @@ export default function LeadsPage() {
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search by name..."
-            className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+            className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           />
 
           <select
             value={sourceFilter}
             onChange={(e) => { setSourceFilter(e.target.value); setPage(1); }}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           >
             <option value="">All Sources</option>
             {SOURCE_OPTIONS.map((s) => (
@@ -365,7 +365,7 @@ export default function LeadsPage() {
           <select
             value={sortValue}
             onChange={(e) => { setSortValue(e.target.value); setPage(1); }}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           >
             {SORT_OPTIONS.map((s) => (
               <option key={s.value} value={s.value}>{s.label}</option>
@@ -485,7 +485,7 @@ export default function LeadsPage() {
                 <div key={lead.id} className="relative">
                   <button
                     onClick={() => router.push(`/dashboard/leads/${lead.id}`)}
-                    className="w-full text-left px-4 py-3.5 hover:bg-[#faf7f2] transition-colors duration-100 pr-10"
+                    className="w-full text-left px-4 py-4 hover:bg-[#faf7f2] transition-colors duration-100 pr-10 min-h-[60px] touch-manipulation"
                   >
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
@@ -518,7 +518,7 @@ export default function LeadsPage() {
                   </button>
                   <button
                     onClick={() => setDeleteTarget(lead)}
-                    className="absolute top-3.5 right-3 text-gray-300 hover:text-red-500 transition-colors duration-150 p-1 rounded-lg hover:bg-red-50"
+                    className="absolute top-3 right-2 text-gray-300 hover:text-red-500 transition-colors duration-150 p-2 rounded-lg hover:bg-red-50 min-w-[44px] min-h-[44px] flex items-center justify-center touch-manipulation"
                     title="Delete lead"
                   >
                     <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
@@ -537,7 +537,7 @@ export default function LeadsPage() {
               <button
                 onClick={() => setPage((p) => Math.max(1, p - 1))}
                 disabled={page <= 1}
-                className="px-4 py-2 rounded-xl text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
+                className="px-4 py-2 rounded-xl text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150 min-h-[44px] touch-manipulation"
               >
                 Previous
               </button>
@@ -547,7 +547,7 @@ export default function LeadsPage() {
               <button
                 onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
                 disabled={page >= totalPages}
-                className="px-4 py-2 rounded-xl text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150"
+                className="px-4 py-2 rounded-xl text-sm font-bold disabled:text-gray-300 disabled:cursor-not-allowed text-[#E8735A] hover:bg-[#E8735A]/10 transition-colors duration-150 min-h-[44px] touch-manipulation"
               >
                 Next
               </button>
@@ -633,7 +633,7 @@ export default function LeadsPage() {
                     value={formData.full_name}
                     onChange={(e) => updateField("full_name", e.target.value)}
                     placeholder="Jane Smith"
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
                     autoFocus
                   />
                 </div>
@@ -646,7 +646,7 @@ export default function LeadsPage() {
                       value={formData.email}
                       onChange={(e) => updateField("email", e.target.value)}
                       placeholder="jane@example.com"
-                      className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                      className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
                     />
                   </div>
                   <div>
@@ -656,7 +656,7 @@ export default function LeadsPage() {
                       value={formData.phone}
                       onChange={(e) => updateField("phone", e.target.value)}
                       placeholder="(555) 123-4567"
-                      className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                      className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
                     />
                   </div>
                 </div>
@@ -668,7 +668,7 @@ export default function LeadsPage() {
                     value={formData.facebook_url}
                     onChange={(e) => updateField("facebook_url", e.target.value)}
                     placeholder="https://facebook.com/janesmith"
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
                   />
                 </div>
 
@@ -678,7 +678,7 @@ export default function LeadsPage() {
                     <select
                       value={formData.source}
                       onChange={(e) => updateField("source", e.target.value)}
-                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
                     >
                       <option value="">Select source...</option>
                       {SOURCE_OPTIONS.map((s) => (
@@ -714,7 +714,7 @@ export default function LeadsPage() {
                     value={formData.groups}
                     onChange={(e) => updateField("groups", e.target.value)}
                     placeholder="e.g. Local running club, Mom's group on FB"
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
                   />
                 </div>
 
@@ -725,7 +725,7 @@ export default function LeadsPage() {
                     onChange={(e) => updateField("notes", e.target.value)}
                     placeholder="Any initial notes about this lead..."
                     rows={3}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 resize-none"
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 resize-none"
                   />
                 </div>
 

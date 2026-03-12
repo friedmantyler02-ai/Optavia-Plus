@@ -374,7 +374,7 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-            className="font-body text-sm font-semibold text-gray-800 hover:text-[#E8735A] transition-colors truncate text-left"
+            className="font-body text-base sm:text-sm font-semibold text-gray-800 hover:text-[#E8735A] transition-colors truncate text-left min-h-[44px] sm:min-h-0 flex items-center touch-manipulation"
           >
             {client.full_name}
           </button>
@@ -440,14 +440,14 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
       <div className="flex items-center gap-1 shrink-0">
         <button
           onClick={() => onAction(client, "checkin")}
-          className="w-9 h-9 rounded-xl text-base hover:bg-green-50 transition flex items-center justify-center"
+          className="w-11 h-11 rounded-xl text-base hover:bg-green-50 transition flex items-center justify-center touch-manipulation"
           title="Check In"
         >
           ✅
         </button>
         <button
           onClick={() => onAction(client, "scale_pic")}
-          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition ${
+          className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-bold transition min-h-[44px] touch-manipulation ${
             weeklyCheckins.has(`${client.id}:scale_photo`)
               ? "bg-green-100 text-green-700"
               : "bg-gray-100 text-gray-400 hover:bg-blue-50 hover:text-blue-500"
@@ -467,7 +467,7 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
         </button>
         <button
           onClick={() => setShowNote(!showNote)}
-          className="w-9 h-9 rounded-xl text-base hover:bg-yellow-50 transition flex items-center justify-center"
+          className="w-11 h-11 rounded-xl text-base hover:bg-yellow-50 transition flex items-center justify-center touch-manipulation"
           title="Add Note"
         >
           📝
@@ -497,7 +497,7 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
             value={noteInput}
             onChange={(e) => setNoteInput(e.target.value)}
             placeholder="Quick note..."
-            className="flex-1 px-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors"
+            className="flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors min-h-[44px]"
             onKeyDown={(e) => {
               if (e.key === "Enter" && noteInput.trim()) {
                 onAction(client, "note", noteInput.trim());
@@ -514,7 +514,7 @@ function ClientRow({ client, onAction, muted, router, weeklyCheckins, dismissedA
                 setShowNote(false);
               }
             }}
-            className="px-4 py-2.5 text-sm font-bold bg-[#E8735A] text-white rounded-xl hover:bg-[#d4634d] transition"
+            className="px-4 py-2.5 text-sm font-bold bg-[#E8735A] text-white rounded-xl hover:bg-[#d4634d] transition min-h-[44px] touch-manipulation"
           >
             Save
           </button>
@@ -535,7 +535,7 @@ function ClientSection({ title, count, borderColor, clients, onAction, router, d
     <div className={`rounded-2xl border-2 border-gray-100 bg-white overflow-hidden mb-4 border-l-4 ${borderColor}`}>
       <button
         onClick={() => setCollapsed(!collapsed)}
-        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition"
+        className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition min-h-[44px] touch-manipulation"
       >
         <h3 className="font-display text-base font-bold text-gray-700">
           {title} <span className="text-gray-400 font-normal">({count})</span>
@@ -757,7 +757,7 @@ export default function ClientsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowImport(true)}
-              className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95"
+              className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/10 transition-all duration-150 active:scale-95 min-h-[44px] touch-manipulation"
             >
               Import CSV
             </button>
@@ -798,13 +798,13 @@ export default function ClientsPage() {
             value={search}
             onChange={(e) => handleSearchChange(e.target.value)}
             placeholder="Search clients..."
-            className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+            className="flex-1 rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-base focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           />
 
           <select
             value={orderTypeFilter}
             onChange={(e) => setOrderTypeFilter(e.target.value)}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           >
             <option value="">All Types</option>
             <option value="premier">Premier+</option>
@@ -814,7 +814,7 @@ export default function ClientsPage() {
           <select
             value={qvFilter}
             onChange={(e) => setQvFilter(e.target.value)}
-            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150"
+            className="rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-base bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px]"
           >
             <option value="">All QV</option>
             <option value="over350">Over 350</option>

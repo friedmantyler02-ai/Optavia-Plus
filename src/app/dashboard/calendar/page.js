@@ -106,7 +106,7 @@ function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
             <h2 className="font-display text-lg font-bold text-gray-900">{label}</h2>
             <p className="text-xs text-gray-400">{events.length} event{events.length !== 1 ? "s" : ""}</p>
           </div>
-          <button onClick={onClose} className="w-10 h-10 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 text-xl transition">&#10005;</button>
+          <button onClick={onClose} className="w-11 h-11 rounded-xl hover:bg-gray-100 flex items-center justify-center text-gray-400 text-xl transition touch-manipulation">&#10005;</button>
         </div>
 
         <div className="p-5 space-y-6">
@@ -132,7 +132,7 @@ function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
                           <button
                             onClick={() => onAction("complete", event)}
                             disabled={actionLoading === event.id}
-                            className="text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 px-2.5 py-1 rounded-lg transition disabled:opacity-50"
+                            className="text-xs font-medium text-green-600 bg-green-50 hover:bg-green-100 px-3 py-2 rounded-lg transition disabled:opacity-50 min-h-[44px] touch-manipulation"
                           >
                             {actionLoading === event.id ? "..." : "Done \u2713"}
                           </button>
@@ -171,7 +171,7 @@ function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
 
           <button
             onClick={() => onAction("addReminder", { date })}
-            className="w-full bg-[#E8735A] hover:bg-[#d4634d] text-white text-sm font-bold py-2.5 rounded-xl transition-all active:scale-[0.98] shadow-sm"
+            className="w-full bg-[#E8735A] hover:bg-[#d4634d] text-white text-sm font-bold py-3 rounded-xl transition-all active:scale-[0.98] shadow-sm min-h-[44px] touch-manipulation"
           >
             + Add Reminder
           </button>
@@ -243,7 +243,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
               value={title}
               onChange={e => setTitle(e.target.value)}
               placeholder="e.g. Call Sarah about plan"
-              className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors"
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors min-h-[44px]"
             />
           </div>
           <div>
@@ -253,7 +253,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
               onChange={e => setNotes(e.target.value)}
               rows={2}
               placeholder="Optional details..."
-              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#E8735A]/30 focus:border-[#E8735A] resize-none"
+              className="w-full border border-gray-200 rounded-xl px-3 py-2 text-base focus:outline-none focus:ring-2 focus:ring-[#E8735A]/30 focus:border-[#E8735A] resize-none"
             />
           </div>
           <div className="flex gap-3">
@@ -263,7 +263,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
                 type="date"
                 value={dueDate}
                 onChange={e => setDueDate(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors min-h-[44px]"
               />
             </div>
             <div className="flex-1">
@@ -272,7 +272,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
                 type="time"
                 value={dueTime}
                 onChange={e => setDueTime(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors min-h-[44px]"
               />
             </div>
           </div>
@@ -283,7 +283,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
                 <button
                   key={t}
                   onClick={() => { setLinkType(t); setLinkId(""); }}
-                  className={`px-4 py-2 rounded-xl text-sm font-bold transition ${linkType === t ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                  className={`px-4 py-2 rounded-xl text-sm font-bold transition min-h-[44px] touch-manipulation ${linkType === t ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
                 >
                   {t === "none" ? "None" : t === "lead" ? "Lead" : "Client"}
                 </button>
@@ -293,7 +293,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
               <select
                 value={linkId}
                 onChange={e => setLinkId(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors min-h-[44px]"
               >
                 <option value="">Select a lead...</option>
                 {leads.filter(l => l.stage !== "client").map(l => (
@@ -305,7 +305,7 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
               <select
                 value={linkId}
                 onChange={e => setLinkId(e.target.value)}
-                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-sm font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors"
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:ring-1 focus:ring-[#E8735A]/30 focus:border-[#E8735A] transition-colors min-h-[44px]"
               >
                 <option value="">Select a client...</option>
                 {clients.map(c => (
@@ -556,7 +556,7 @@ export default function CalendarPage() {
         actions={
           <button
             onClick={() => setReminderModal({ open: true, initial: null })}
-            className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm"
+            className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm min-h-[44px] touch-manipulation"
           >
             + Add Reminder
           </button>
@@ -569,7 +569,7 @@ export default function CalendarPage() {
         <div className="flex items-center gap-2">
           <button
             onClick={view === "month" ? prevMonth : prevWeek}
-            className="w-10 h-10 rounded-xl border-2 border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-500 text-lg transition"
+            className="w-11 h-11 rounded-xl border-2 border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-500 text-lg transition touch-manipulation"
           >
             &#8249;
           </button>
@@ -581,7 +581,7 @@ export default function CalendarPage() {
           </h2>
           <button
             onClick={view === "month" ? nextMonth : nextWeek}
-            className="w-10 h-10 rounded-xl border-2 border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-500 text-lg transition"
+            className="w-11 h-11 rounded-xl border-2 border-gray-200 hover:bg-gray-50 flex items-center justify-center text-gray-500 text-lg transition touch-manipulation"
           >
             &#8250;
           </button>
@@ -596,7 +596,7 @@ export default function CalendarPage() {
                 setView(v);
                 if (v === "week") setSelectedWeekStart(getWeekStart(today));
               }}
-              className={`px-5 py-2 rounded-lg text-sm font-bold capitalize transition ${view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
+              className={`px-5 py-2 rounded-lg text-sm font-bold capitalize transition min-h-[44px] touch-manipulation ${view === v ? "bg-white text-gray-900 shadow-sm" : "text-gray-500 hover:text-gray-700"}`}
             >
               {v}
             </button>
@@ -628,7 +628,7 @@ export default function CalendarPage() {
                 <button
                   key={i}
                   onClick={() => handleDayClick(day.date)}
-                  className={`relative text-left border-b border-r border-gray-50 min-h-[80px] md:min-h-[100px] p-1.5 md:p-2 transition-colors hover:bg-gray-50/50 group ${
+                  className={`relative text-left border-b border-r border-gray-50 min-h-[52px] md:min-h-[100px] p-1.5 md:p-2 transition-colors hover:bg-gray-50/50 group touch-manipulation ${
                     day.isToday ? "bg-[#fef0ed] border-[#E8735A]/20" : ""
                   }`}
                 >

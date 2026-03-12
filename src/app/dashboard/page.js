@@ -6,6 +6,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import SkeletonCard from "./components/SkeletonCard";
 import ErrorBanner from "./components/ErrorBanner";
+import GetTheAppModal from "./components/GetTheAppModal";
 
 function getGreeting() {
   const h = new Date().getHours();
@@ -65,10 +66,22 @@ export default function DashboardHome() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [dismissed, setDismissed] = useState({});
+  const [showGetApp, setShowGetApp] = useState(false);
 
   useEffect(() => {
     loadPriorities();
   }, []);
+
+  useEffect(() => {
+    if (
+      coach &&
+      coach.onboarding_completed &&
+      localStorage.getItem("hideGetTheApp") !== "true"
+    ) {
+      const timer = setTimeout(() => setShowGetApp(true), 2000);
+      return () => clearTimeout(timer);
+    }
+  }, [coach]);
 
   const loadPriorities = async () => {
     setLoading(true);
@@ -126,7 +139,7 @@ export default function DashboardHome() {
           <div className="h-8 w-64 bg-gray-200 rounded-lg animate-pulse mb-2" />
           <div className="h-4 w-40 bg-gray-100 rounded animate-pulse" />
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-6">
           <SkeletonCard />
           <SkeletonCard />
           <SkeletonCard />
@@ -171,7 +184,7 @@ export default function DashboardHome() {
       </div>
 
       {/* Stats Bar */}
-      <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3 md:gap-4 mb-8">
         {[
           { label: "Follow-ups Due", value: followUpsDue, color: "#E8735A" },
           { label: "Leads in Pipeline", value: leadsInPipeline, color: "#3B82F6" },
@@ -248,7 +261,7 @@ export default function DashboardHome() {
                                 : "/dashboard/leads";
                             router.push(`${base}/${item.id}`);
                           }}
-                          className="flex-1 min-w-0 text-left hover:opacity-70 transition-opacity"
+                          className="flex-1 min-w-0 text-left hover:opacity-70 transition-opacity min-h-[44px] touch-manipulation"
                         >
                           <div className="font-bold text-base truncate">
                             {item.full_name}
@@ -264,7 +277,7 @@ export default function DashboardHome() {
                             section.key === "needSupport") && (
                             <button
                               onClick={() => handleDone(section.key, item)}
-                              className="text-sm font-bold px-4 py-2 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors"
+                              className="text-sm font-bold px-4 py-2 rounded-xl bg-green-50 text-green-700 hover:bg-green-100 transition-colors min-h-[44px] touch-manipulation"
                             >
                               Done &#10003;
                             </button>
@@ -272,7 +285,7 @@ export default function DashboardHome() {
                           {section.key === "readyForHA" && (
                             <Link
                               href={`/dashboard/leads/${item.id}`}
-                              className="text-sm font-bold px-4 py-2 rounded-xl text-white hover:opacity-90 transition-opacity"
+                              className="text-sm font-bold px-4 py-2 rounded-xl text-white hover:opacity-90 transition-opacity min-h-[44px] inline-flex items-center touch-manipulation"
                               style={{ backgroundColor: section.color }}
                             >
                               Schedule HA
@@ -286,7 +299,7 @@ export default function DashboardHome() {
                                   ? `/dashboard/leads/${item.id}`
                                   : `/dashboard/clients/${item.id}`
                               }
-                              className="text-sm font-bold px-4 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors"
+                              className="text-sm font-bold px-4 py-2 rounded-xl bg-gray-100 text-gray-600 hover:bg-gray-200 transition-colors min-h-[44px] inline-flex items-center touch-manipulation"
                             >
                               View
                             </Link>
@@ -312,6 +325,9 @@ export default function DashboardHome() {
           );
         })}
       </div>
+      {showGetApp && (
+        <GetTheAppModal onClose={() => setShowGetApp(false)} />
+      )}
     </div>
   );
 }

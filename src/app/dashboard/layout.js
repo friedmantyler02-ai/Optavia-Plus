@@ -183,7 +183,7 @@ export default function DashboardLayout({ children }) {
 
           {/* Admin + Settings + User menu */}
           <div className="flex items-center gap-2">
-            {coach?.is_admin && (
+            {coach?.email && ['friedmantyler02@gmail.com'].includes(coach.email) && (
               <button
                 onClick={() => router.push("/dashboard/admin")}
                 className={`w-10 h-10 rounded-xl flex items-center justify-center text-lg transition ${
@@ -193,7 +193,7 @@ export default function DashboardLayout({ children }) {
                 }`}
                 title="Admin"
               >
-                🔑
+                🔧
               </button>
             )}
           <div className="relative">
@@ -231,12 +231,12 @@ export default function DashboardLayout({ children }) {
                   ))}
                 </div>
 
-                {coach?.is_admin && (
+                {coach?.email && ['friedmantyler02@gmail.com'].includes(coach.email) && (
                   <button
                     onClick={() => { router.push("/dashboard/admin"); setShowMenu(false); }}
                     className="w-full text-left px-4 py-3 text-sm font-semibold text-gray-500 hover:bg-gray-50 flex items-center gap-3"
                   >
-                    <span>🔑</span> Admin
+                    <span>🔧</span> Admin
                   </button>
                 )}
                 <button

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -11,15 +12,14 @@ const BATCH_SIZE = 100;
 
 export async function POST(request) {
   try {
-    const supabase = await createServerClient();
-    const {
-      data: { user },
-      error: authError,
-    } = await supabase.auth.getUser();
-
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const result = await getSubtreeCoachIds();
+    if (result.error) {
+      return NextResponse.json(
+        { error: result.error },
+        { status: result.status }
+      );
     }
+    const { coachIds } = result;
 
     const body = await request.json();
     const { client_ids: rawClientIds, sequence_id } = body;
@@ -70,6 +70,18 @@ export async function POST(request) {
     }
 
     const foundClientIds = new Set(clients?.map((c) => c.id) ?? []);
+
+    // Verify all clients belong to the user's org subtree
+    const coachIdSet = new Set(coachIds);
+    const unauthorizedClients = (clients ?? []).filter(
+      (c) => !coachIdSet.has(c.coach_id)
+    );
+    if (unauthorizedClients.length > 0) {
+      return NextResponse.json(
+        { error: "Some clients are not in your organization" },
+        { status: 403 }
+      );
+    }
 
     // Fetch existing active touchpoints for this sequence to avoid duplicates
     const { data: existingTouchpoints, error: existingError } =

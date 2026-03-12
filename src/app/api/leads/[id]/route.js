@@ -17,6 +17,7 @@ export async function GET(request, { params }) {
       .from("leads")
       .select("*")
       .eq("id", id)
+      .eq("coach_id", user.id)
       .single();
 
     if (leadError || !lead) {
@@ -72,6 +73,7 @@ export async function PATCH(request, { params }) {
         .from("leads")
         .select("stage")
         .eq("id", id)
+        .eq("coach_id", user.id)
         .single();
 
       if (current && current.stage !== body.stage) {
@@ -85,6 +87,7 @@ export async function PATCH(request, { params }) {
       .from("leads")
       .update(body)
       .eq("id", id)
+      .eq("coach_id", user.id)
       .select()
       .single();
 
@@ -132,7 +135,7 @@ export async function DELETE(request, { params }) {
 
     const { id } = await params;
 
-    const { error } = await supabase.from("leads").delete().eq("id", id);
+    const { error } = await supabase.from("leads").delete().eq("id", id).eq("coach_id", user.id);
 
     if (error) {
       console.error("Lead delete error:", error);

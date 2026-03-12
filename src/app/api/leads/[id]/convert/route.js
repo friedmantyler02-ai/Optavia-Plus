@@ -18,6 +18,7 @@ export async function POST(request, { params }) {
       .from("leads")
       .select("*")
       .eq("id", id)
+      .eq("coach_id", user.id)
       .single();
 
     if (leadErr || !lead) {
@@ -69,7 +70,8 @@ export async function POST(request, { params }) {
         converted_client_id: newClient.id,
         updated_at: new Date().toISOString(),
       })
-      .eq("id", id);
+      .eq("id", id)
+      .eq("coach_id", user.id);
 
     // Log activity
     await supabase.from("lead_activities").insert({

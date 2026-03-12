@@ -21,6 +21,18 @@ export async function GET(request, { params }) {
 
     const { id } = await params;
 
+    // Verify the lead belongs to this coach
+    const { data: lead, error: leadError } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("id", id)
+      .eq("coach_id", user.id)
+      .single();
+
+    if (leadError || !lead) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
     const { data: activities, error } = await supabase
       .from("lead_activities")
       .select("*")
@@ -56,6 +68,19 @@ export async function POST(request, { params }) {
     }
 
     const { id } = await params;
+
+    // Verify the lead belongs to this coach
+    const { data: lead, error: leadError } = await supabase
+      .from("leads")
+      .select("id")
+      .eq("id", id)
+      .eq("coach_id", user.id)
+      .single();
+
+    if (leadError || !lead) {
+      return NextResponse.json({ error: "Lead not found" }, { status: 404 });
+    }
+
     const body = await request.json();
     const { action, details } = body;
 
@@ -93,7 +118,8 @@ export async function POST(request, { params }) {
           last_contact_date: new Date().toISOString(),
           updated_at: new Date().toISOString(),
         })
-        .eq("id", id);
+        .eq("id", id)
+        .eq("coach_id", user.id);
     }
 
     return NextResponse.json(activity, { status: 201 });

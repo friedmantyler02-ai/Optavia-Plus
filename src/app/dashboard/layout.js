@@ -251,36 +251,36 @@ export default function DashboardLayout({ children }) {
         </nav>
 
         {/* PAGE CONTENT — extra bottom padding on mobile for tab bar */}
-        <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8 pb-24 md:pb-8">
+        <main className="max-w-6xl mx-auto px-4 md:px-6 py-6 md:py-8 pb-28 md:pb-8">
           {children}
         </main>
 
         {/* MOBILE BOTTOM TAB BAR */}
-        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-[#e5e0d8] flex items-stretch justify-around safe-bottom">
+        <nav className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-white border-t-2 border-[#e5e0d8] flex items-stretch justify-around pt-2 pb-7 safe-bottom">
           {navItems.map((item) => (
             <button
               key={item.href}
               onClick={() => router.push(item.href)}
-              className={`flex-1 flex flex-col items-center justify-center min-h-[56px] py-2 touch-manipulation transition-colors duration-150 ${
+              className={`flex-1 flex flex-col items-center justify-center min-h-[60px] touch-manipulation transition-colors duration-150 ${
                 isActive(item.href)
                   ? "text-[#E8735A]"
                   : "text-gray-400"
               }`}
             >
-              <span className="text-xl leading-none">{item.icon}</span>
-              <span className={`text-[11px] font-bold mt-1 ${isActive(item.href) ? "text-[#E8735A]" : "text-gray-400"}`}>
+              <span className="text-[22px] leading-none">{item.icon}</span>
+              <span className={`text-xs font-bold mt-1 ${isActive(item.href) ? "text-[#E8735A]" : "text-gray-400"}`}>
                 {item.label}
               </span>
             </button>
           ))}
           <button
             onClick={() => setShowMenu(!showMenu)}
-            className={`flex-1 flex flex-col items-center justify-center min-h-[56px] py-2 touch-manipulation transition-colors duration-150 ${
+            className={`flex-1 flex flex-col items-center justify-center min-h-[60px] touch-manipulation transition-colors duration-150 ${
               showMenu ? "text-[#E8735A]" : "text-gray-400"
             }`}
           >
-            <span className="text-xl leading-none">•••</span>
-            <span className={`text-[11px] font-bold mt-1 ${showMenu ? "text-[#E8735A]" : "text-gray-400"}`}>More</span>
+            <span className="text-[22px] leading-none">•••</span>
+            <span className={`text-xs font-bold mt-1 ${showMenu ? "text-[#E8735A]" : "text-gray-400"}`}>More</span>
           </button>
         </nav>
       </div>

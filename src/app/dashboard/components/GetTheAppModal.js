@@ -19,7 +19,7 @@ export default function GetTheAppModal({ onClose }) {
   const [platform, setPlatform] = useState("iphone"); // iphone | android
 
   useEffect(() => {
-    setAppUrl(window.location.origin + "/dashboard");
+    setAppUrl("https://optaviaplus.com");
     if (isAndroid()) setPlatform("android");
     else setPlatform("iphone");
   }, []);
@@ -130,7 +130,7 @@ export default function GetTheAppModal({ onClose }) {
               <p className="text-[11px] font-bold text-gray-400 uppercase tracking-wide mb-1.5">Your app link</p>
               <div className="flex items-center gap-2">
                 <div className="flex-1 bg-white rounded-lg border border-gray-200 px-3 py-2.5 text-sm text-gray-700 font-medium truncate">
-                  {appUrl}
+                  optaviaplus.com
                 </div>
                 <button
                   onClick={handleCopy}

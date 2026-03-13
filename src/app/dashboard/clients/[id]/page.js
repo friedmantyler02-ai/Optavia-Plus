@@ -72,6 +72,11 @@ export default function ClientDetailPage() {
   const [loggingWeight, setLoggingWeight] = useState(false);
   const [noteModal, setNoteModal] = useState(false);
   const [noteText, setNoteText] = useState("");
+  const [meetingModal, setMeetingModal] = useState(false);
+  const [meetingDesc, setMeetingDesc] = useState("");
+  const [meetingDate, setMeetingDate] = useState("");
+  const [meetingTime, setMeetingTime] = useState("");
+  const [loggingMeeting, setLoggingMeeting] = useState(false);
   const showToast = useShowToast();
 
   useEffect(() => { loadClient(); }, [params.id]);
@@ -167,6 +172,9 @@ export default function ClientDetailPage() {
         weight_goal: form.weight_goal ? Number(form.weight_goal) : null,
         program_phase: form.program_phase || null,
         facebook_url: form.facebook_url || null,
+        instagram_url: form.instagram_url || null,
+        is_facebook_friend: form.is_facebook_friend || false,
+        is_instagram_follower: form.is_instagram_follower || false,
         source: form.source || null,
         groups: form.groups || null,
         originally_met_date: form.originally_met_date || null,
@@ -189,13 +197,13 @@ export default function ClientDetailPage() {
 
   const logQuickAction = async (actionType, details) => {
     try {
-      const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : "Logged a note";
+      const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : actionType === "meeting" ? "Logged a meeting" : actionType === "comment" ? "Commented on client's post" : actionType === "shared_post" ? "Shared post with client" : "Logged a note";
       await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: details || client.full_name });
       await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
       setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
       const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
       if (acts) setActivities(acts);
-      const label = actionType === "call" ? "Call logged" : actionType === "text" ? "Text logged" : "Note saved";
+      const label = actionType === "call" ? "Call logged" : actionType === "text" ? "Text logged" : actionType === "meeting" ? "Meeting logged" : actionType === "comment" ? "Comment logged" : actionType === "shared_post" ? "Shared post logged" : "Note saved";
       showToast({ message: label, variant: "success" });
     } catch (err) {
       console.error("Error logging action:", err);
@@ -282,8 +290,23 @@ export default function ClientDetailPage() {
         <button onClick={() => { setNoteText(""); setNoteModal(true); }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📝</span><span className="font-bold text-sm">Log a Note</span>
         </button>
-        <button onClick={() => setShowAssign(true)} disabled={!hasSequences} className={"rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation " + (hasSequences ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed")}>
+        {/* ARCHIVED: Touchpoint sequences hidden until automation is ready */}
+        {/* <button onClick={() => setShowAssign(true)} disabled={!hasSequences} className={"rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation " + (hasSequences ? "bg-blue-600 text-white hover:bg-blue-700 hover:shadow-md" : "bg-gray-200 text-gray-400 cursor-not-allowed")}>
           <span className="text-2xl">▶️</span><span className="font-bold text-sm">{hasSequences ? "Start Sequence" : "No Sequences"}</span>
+        </button> */}
+        <button onClick={() => {
+          const now = new Date();
+          const mins = now.getMinutes();
+          const rounded = mins < 15 ? 0 : mins < 45 ? 30 : 60;
+          const d = new Date(now);
+          d.setMinutes(rounded, 0, 0);
+          if (rounded === 60) d.setHours(d.getHours());
+          setMeetingDate(now.toISOString().slice(0, 10));
+          setMeetingTime(d.toTimeString().slice(0, 5));
+          setMeetingDesc("");
+          setMeetingModal(true);
+        }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
+          <span className="text-2xl">📅</span><span className="font-bold text-sm">Log a Meeting</span>
         </button>
       </div>
       {/* Log Scale Pic & Weight */}
@@ -346,7 +369,8 @@ export default function ClientDetailPage() {
         )}
       </div>
 
-      <div className="mt-8">
+      {/* ARCHIVED: Touchpoint sequences hidden until automation is ready */}
+      {/* <div className="mt-8">
         <h2 className="text-2xl font-bold text-gray-800 mb-4" style={{ fontFamily: 'Playfair Display, serif' }}>
           Active Sequences
         </h2>
@@ -365,7 +389,7 @@ export default function ClientDetailPage() {
           onAssigned={() => { setShowAssign(false); loadClient(); }}
           onClose={() => setShowAssign(false)}
         />
-      )}
+      )} */}
       {/* Profile & Social */}
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
         <h2 className="text-lg font-extrabold mb-4">🔗 Profile & Social</h2>
@@ -378,6 +402,16 @@ export default function ClientDetailPage() {
                 value={form.facebook_url || ""}
                 onChange={(e) => setForm((p) => ({ ...p, facebook_url: e.target.value }))}
                 placeholder="https://facebook.com/..."
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+              />
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Instagram Profile URL</label>
+              <input
+                type="url"
+                value={form.instagram_url || ""}
+                onChange={(e) => setForm((p) => ({ ...p, instagram_url: e.target.value }))}
+                placeholder="https://instagram.com/..."
                 className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
               />
             </div>
@@ -426,6 +460,14 @@ export default function ClientDetailPage() {
                 </a>
               </div>
             )}
+            {client.instagram_url && (
+              <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+                <span className="text-xs font-bold text-gray-400 uppercase">Instagram</span>
+                <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
+                  {client.instagram_url.replace(/^https?:\/\/(www\.)?/, "")}
+                </a>
+              </div>
+            )}
             {client.source && (
               <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
                 <span className="text-xs font-bold text-gray-400 uppercase">Source</span>
@@ -444,11 +486,72 @@ export default function ClientDetailPage() {
                 <span className="text-sm font-semibold">{client.groups}</span>
               </div>
             )}
-            {!client.facebook_url && !client.source && !client.originally_met_date && !client.groups && (
+            {!client.facebook_url && !client.instagram_url && !client.source && !client.originally_met_date && !client.groups && (
               <p className="text-sm text-gray-400 py-2">No profile info yet. Click Edit above to add details.</p>
             )}
           </div>
         )}
+      </div>
+
+      {/* Engagement */}
+      <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
+        <h2 className="text-lg font-extrabold mb-4">💬 Engagement</h2>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+            <span className="text-sm font-semibold text-gray-700">Friends on Facebook</span>
+            <button
+              onClick={async () => {
+                const newVal = !client.is_facebook_friend;
+                try {
+                  await supabase.from("clients").update({ is_facebook_friend: newVal, updated_at: new Date().toISOString() }).eq("id", client.id);
+                  setClient(prev => ({ ...prev, is_facebook_friend: newVal }));
+                  setForm(prev => ({ ...prev, is_facebook_friend: newVal }));
+                  showToast({ message: newVal ? "Marked as Facebook friend" : "Unmarked Facebook friend", variant: "success" });
+                } catch {
+                  showToast({ message: "Something went wrong — please try again", variant: "error" });
+                }
+              }}
+              className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${client.is_facebook_friend ? "bg-green-500" : "bg-gray-300"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${client.is_facebook_friend ? "translate-x-5" : ""}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+            <span className="text-sm font-semibold text-gray-700">Follows on Instagram</span>
+            <button
+              onClick={async () => {
+                const newVal = !client.is_instagram_follower;
+                try {
+                  await supabase.from("clients").update({ is_instagram_follower: newVal, updated_at: new Date().toISOString() }).eq("id", client.id);
+                  setClient(prev => ({ ...prev, is_instagram_follower: newVal }));
+                  setForm(prev => ({ ...prev, is_instagram_follower: newVal }));
+                  showToast({ message: newVal ? "Marked as Instagram follower" : "Unmarked Instagram follower", variant: "success" });
+                } catch {
+                  showToast({ message: "Something went wrong — please try again", variant: "error" });
+                }
+              }}
+              className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${client.is_instagram_follower ? "bg-green-500" : "bg-gray-300"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${client.is_instagram_follower ? "translate-x-5" : ""}`} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button
+              onClick={() => logQuickAction("comment")}
+              className="bg-[#faf7f2] rounded-xl p-3 text-center hover:bg-[#f0ebe3] transition-colors active:scale-95 min-h-[44px] touch-manipulation"
+            >
+              <span className="text-lg">💬</span>
+              <p className="text-xs font-bold text-gray-600 mt-1">Log Comment</p>
+            </button>
+            <button
+              onClick={() => logQuickAction("shared_post")}
+              className="bg-[#faf7f2] rounded-xl p-3 text-center hover:bg-[#f0ebe3] transition-colors active:scale-95 min-h-[44px] touch-manipulation"
+            >
+              <span className="text-lg">🔄</span>
+              <p className="text-xs font-bold text-gray-600 mt-1">Log Shared Post</p>
+            </button>
+          </div>
+        </div>
       </div>
 
       <div className="grid md:grid-cols-2 gap-5">
@@ -572,6 +675,82 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
+      {meetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setMeetingModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-sm p-6">
+            <h2 className="font-display text-lg font-bold text-gray-900 mb-1">📅 Log a Meeting</h2>
+            <p className="text-sm text-gray-500 mb-4">Record a meeting with {client.full_name}</p>
+            <div className="space-y-3 mb-4">
+              <input
+                type="text"
+                value={meetingDesc}
+                onChange={(e) => setMeetingDesc(e.target.value)}
+                placeholder="Meeting description..."
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                autoFocus
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setMeetingModal(false)} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setLoggingMeeting(true);
+                  try {
+                    const desc = meetingDesc.trim() || "Meeting";
+                    await logQuickAction("meeting", desc);
+                    try {
+                      await fetch("/api/calendar/events", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          title: `${desc} — ${client.full_name}`,
+                          date: meetingDate,
+                          time: meetingTime,
+                          client_id: client.id,
+                        }),
+                      });
+                    } catch {
+                      // Calendar event creation is best-effort
+                    }
+                    setMeetingModal(false);
+                  } catch {
+                    showToast({ message: "Something went wrong — please try again", variant: "error" });
+                  } finally {
+                    setLoggingMeeting(false);
+                  }
+                }}
+                disabled={loggingMeeting}
+                className={"flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors " + (loggingMeeting ? "bg-gray-200 text-gray-400" : "bg-[#E8735A] text-white hover:bg-[#d4654e]")}
+              >
+                {loggingMeeting ? "Saving..." : "Log Meeting"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
       {noteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setNoteModal(false)} />

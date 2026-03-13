@@ -440,7 +440,7 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
         </td>
 
         {/* QV */}
-        <td className="py-3 px-2 text-right">
+        <td className="py-3 px-2 text-center">
           <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
             {qv != null ? qv.toLocaleString() : "\u2014"}
           </span>
@@ -605,12 +605,12 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
         <div className="border-t border-gray-100">
           <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '36%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '10%' }} />
+              <col style={{ width: '30%' }} />
+              <col style={{ width: '9%' }} />
+              <col style={{ width: '9%' }} />
               <col style={{ width: '14%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '15%' }} />
+              <col style={{ width: '19%' }} />
+              <col style={{ width: '19%' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
@@ -623,8 +623,8 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
                 <th className="text-center py-2.5 px-1">
                   <span className="text-xs font-semibold text-gray-500">Scale Pic</span>
                 </th>
-                <th className="text-right py-2.5 px-2">
-                  <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+                <th className="text-center py-2.5 px-2">
+                  <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
                 </th>
                 <th className="text-right py-2.5 px-2">
                   <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />

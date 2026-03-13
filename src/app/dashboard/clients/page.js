@@ -410,26 +410,26 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
         </td>
 
         {/* QV */}
-        <td className="py-3 px-2 text-center">
+        <td className="text-center py-3 px-1">
           <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
             {qv != null ? qv.toLocaleString() : "\u2014"}
           </span>
         </td>
 
         {/* Last order */}
-        <td className="py-3 px-2 text-center">
-          {client.last_order_date ? (
-            <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
-              {getMonthsAgo(client.last_order_date) >= 3 && <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 mr-1">90+</span>}
-              {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
-            </span>
-          ) : (
-            <span className="text-sm text-gray-300">{"\u2014"}</span>
-          )}
+        <td className="text-center py-3 px-1">
+          <span className={`text-sm ${client.last_order_date ? (getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500") : "text-gray-300"}`}>
+            {client.last_order_date ? (
+              <>
+                {getMonthsAgo(client.last_order_date) >= 3 && <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 mr-1">90+</span>}
+                {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+              </>
+            ) : "\u2014"}
+          </span>
         </td>
 
         {/* Last Contact */}
-        <td className="py-3 px-2 text-center">
+        <td className="text-center py-3 px-1">
           <span className={`text-sm ${contactDate ? "text-gray-500" : "text-gray-300"}`}>
             {contactDate ? timeAgo(contactDate) : "\u2014"}
           </span>
@@ -605,25 +605,25 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
         <div className="border-t border-gray-100">
           <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '30%' }} />
-              <col style={{ width: '12%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '16%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '13%' }} />
+              <col style={{ width: '34%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '14%' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
                 <th className="text-left py-2.5 px-2">
                   <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
                 </th>
-                <th className="text-center py-2.5 px-2">
+                <th className="text-center py-2.5 px-1">
                   <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
                 </th>
-                <th className="text-center py-2.5 px-2">
+                <th className="text-center py-2.5 px-1">
                   <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
                 </th>
-                <th className="text-center py-2.5 px-2">
+                <th className="text-center py-2.5 px-1">
                   <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
                 </th>
                 <th className="text-center py-2.5 px-1">

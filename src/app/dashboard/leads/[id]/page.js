@@ -143,6 +143,13 @@ export default function LeadDetailPage() {
   const [followupDate, setFollowupDate] = useState("");
   const [followupSaving, setFollowupSaving] = useState(false);
 
+  // Meeting modal
+  const [meetingModal, setMeetingModal] = useState(false);
+  const [meetingDesc, setMeetingDesc] = useState("");
+  const [meetingDate, setMeetingDate] = useState("");
+  const [meetingTime, setMeetingTime] = useState("");
+  const [loggingMeeting, setLoggingMeeting] = useState(false);
+
   // Convert
   const [showConvertConfirm, setShowConvertConfirm] = useState(false);
   const [converting, setConverting] = useState(false);
@@ -199,6 +206,7 @@ export default function LeadDetailPage() {
       email: lead.email || "",
       phone: lead.phone || "",
       facebook_url: lead.facebook_url || "",
+      instagram_url: lead.instagram_url || "",
       source: lead.source || "",
       stage: lead.stage || "prospect",
       groups: lead.groups || "",
@@ -431,7 +439,13 @@ export default function LeadDetailPage() {
               {lead.facebook_url && (
                 <a href={lead.facebook_url} target="_blank" rel="noopener noreferrer" className="text-[#E8735A] underline hover:text-[#d4634d] flex items-center gap-1 truncate max-w-[300px]">
                   <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  {lead.facebook_url}
+                  Facebook
+                </a>
+              )}
+              {lead.instagram_url && (
+                <a href={lead.instagram_url} target="_blank" rel="noopener noreferrer" className="text-[#E8735A] underline hover:text-[#d4634d] flex items-center gap-1 truncate max-w-[300px]">
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
+                  Instagram
                 </a>
               )}
             </div>
@@ -606,7 +620,6 @@ export default function LeadDetailPage() {
             { action: "text", label: "Log Text", icon: "\uD83D\uDCAC" },
             { action: "email", label: "Log Email", icon: "\uD83D\uDCE7" },
             { action: "facebook_message", label: "Log Message", icon: "\uD83D\uDCAC" },
-            { action: "meeting", label: "Log Meeting", icon: "\uD83E\uDD1D" },
             { action: "note", label: "Add Note", icon: "\uD83D\uDCDD" },
           ].map((a) => (
             <button
@@ -617,6 +630,23 @@ export default function LeadDetailPage() {
               <span className="mr-1">{a.icon}</span> {a.label}
             </button>
           ))}
+          <button
+            onClick={() => {
+              const now = new Date();
+              const mins = now.getMinutes();
+              const rounded = mins < 15 ? 0 : mins < 45 ? 30 : 60;
+              const d = new Date(now);
+              d.setMinutes(rounded, 0, 0);
+              if (rounded === 60) d.setHours(d.getHours());
+              setMeetingDate(now.toISOString().slice(0, 10));
+              setMeetingTime(d.toTimeString().slice(0, 5));
+              setMeetingDesc("");
+              setMeetingModal(true);
+            }}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-100 hover:border-[#E8735A]/30 hover:bg-[#E8735A]/5 text-gray-600 hover:text-[#E8735A] transition-all duration-150"
+          >
+            <span className="mr-1">{"\uD83D\uDCC5"}</span> Log Meeting
+          </button>
         </div>
       </div>
 
@@ -669,6 +699,81 @@ export default function LeadDetailPage() {
           >
             {"\uD83D\uDCAC"} FB Message
           </button>
+        </div>
+      </div>
+
+      {/* Engagement */}
+      <div className="bg-white rounded-2xl border-2 border-gray-100 p-5 mb-4">
+        <h3 className="font-display text-base font-bold text-gray-900 mb-3">{"\uD83D\uDCAC"} Engagement</h3>
+        <div className="space-y-3">
+          <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+            <span className="text-sm font-semibold text-gray-700">Friends on Facebook</span>
+            <button
+              onClick={async () => {
+                const newVal = !lead.is_facebook_friend;
+                try {
+                  await patchLead({ is_facebook_friend: newVal });
+                  setLead(prev => ({ ...prev, is_facebook_friend: newVal }));
+                  showToast({ message: newVal ? "Marked as Facebook friend" : "Unmarked Facebook friend" });
+                } catch {
+                  showToast({ message: "Something went wrong — please try again", variant: "error" });
+                }
+              }}
+              className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${lead.is_facebook_friend ? "bg-green-500" : "bg-gray-300"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${lead.is_facebook_friend ? "translate-x-5" : ""}`} />
+            </button>
+          </div>
+          <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+            <span className="text-sm font-semibold text-gray-700">Follows on Instagram</span>
+            <button
+              onClick={async () => {
+                const newVal = !lead.is_instagram_follower;
+                try {
+                  await patchLead({ is_instagram_follower: newVal });
+                  setLead(prev => ({ ...prev, is_instagram_follower: newVal }));
+                  showToast({ message: newVal ? "Marked as Instagram follower" : "Unmarked Instagram follower" });
+                } catch {
+                  showToast({ message: "Something went wrong — please try again", variant: "error" });
+                }
+              }}
+              className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${lead.is_instagram_follower ? "bg-green-500" : "bg-gray-300"}`}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${lead.is_instagram_follower ? "translate-x-5" : ""}`} />
+            </button>
+          </div>
+          <div className="grid grid-cols-2 gap-3 pt-1">
+            <button
+              onClick={async () => {
+                try {
+                  await postActivity("facebook_comment", "Commented on lead's post");
+                  showToast({ message: "Comment logged" });
+                  fetchLead();
+                } catch (err) {
+                  showToast({ message: err.message, variant: "error" });
+                }
+              }}
+              className="bg-[#faf7f2] rounded-xl p-3 text-center hover:bg-[#f0ebe3] transition-colors active:scale-95 min-h-[44px] touch-manipulation"
+            >
+              <span className="text-lg">{"\uD83D\uDCAC"}</span>
+              <p className="text-xs font-bold text-gray-600 mt-1">Log Comment</p>
+            </button>
+            <button
+              onClick={async () => {
+                try {
+                  await postActivity("other", "Shared post with lead");
+                  showToast({ message: "Shared post logged" });
+                  fetchLead();
+                } catch (err) {
+                  showToast({ message: err.message, variant: "error" });
+                }
+              }}
+              className="bg-[#faf7f2] rounded-xl p-3 text-center hover:bg-[#f0ebe3] transition-colors active:scale-95 min-h-[44px] touch-manipulation"
+            >
+              <span className="text-lg">{"\uD83D\uDD04"}</span>
+              <p className="text-xs font-bold text-gray-600 mt-1">Log Shared Post</p>
+            </button>
+          </div>
         </div>
       </div>
 
@@ -939,6 +1044,86 @@ export default function LeadDetailPage() {
         </div>
       )}
 
+      {/* Meeting Modal */}
+      {meetingModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMeetingModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+            <h2 className="font-display text-lg font-bold text-gray-900 mb-1">{"\uD83D\uDCC5"} Log a Meeting</h2>
+            <p className="text-sm text-gray-500 mb-4">Record a meeting with {lead.full_name}</p>
+            <div className="space-y-3 mb-4">
+              <input
+                type="text"
+                value={meetingDesc}
+                onChange={(e) => setMeetingDesc(e.target.value)}
+                placeholder="Meeting description..."
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                autoFocus
+              />
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={meetingDate}
+                    onChange={(e) => setMeetingDate(e.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Time</label>
+                  <input
+                    type="time"
+                    value={meetingTime}
+                    onChange={(e) => setMeetingTime(e.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <button onClick={() => setMeetingModal(false)} className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors">
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setLoggingMeeting(true);
+                  try {
+                    const desc = meetingDesc.trim() || "Meeting";
+                    await postActivity("meeting", desc);
+                    try {
+                      await fetch("/api/calendar/events", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          title: `${desc} — ${lead.full_name}`,
+                          date: meetingDate,
+                          time: meetingTime,
+                          lead_id: lead.id,
+                        }),
+                      });
+                    } catch {
+                      // Calendar event creation is best-effort
+                    }
+                    setMeetingModal(false);
+                    showToast({ message: "Meeting logged" });
+                    fetchLead();
+                  } catch {
+                    showToast({ message: "Something went wrong — please try again", variant: "error" });
+                  } finally {
+                    setLoggingMeeting(false);
+                  }
+                }}
+                disabled={loggingMeeting}
+                className={"flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors " + (loggingMeeting ? "bg-gray-200 text-gray-400" : "bg-[#E8735A] text-white hover:bg-[#d4654e]")}
+              >
+                {loggingMeeting ? "Saving..." : "Log Meeting"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Edit Lead Modal */}
       {showEdit && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
@@ -992,6 +1177,17 @@ export default function LeadDetailPage() {
                     type="url"
                     value={editData.facebook_url}
                     onChange={(e) => setEditData((d) => ({ ...d, facebook_url: e.target.value }))}
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
+                  />
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Instagram Profile URL</label>
+                  <input
+                    type="url"
+                    value={editData.instagram_url}
+                    onChange={(e) => setEditData((d) => ({ ...d, instagram_url: e.target.value }))}
+                    placeholder="https://instagram.com/..."
                     className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
                   />
                 </div>

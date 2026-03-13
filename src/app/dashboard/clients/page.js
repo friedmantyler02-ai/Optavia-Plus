@@ -412,7 +412,7 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
           </div>
         </div>
 
-        {/* Checked In */}
+        {/* Check In */}
         <div className="flex justify-center">
           <button
             onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }}
@@ -420,9 +420,9 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
             title="Checked in this week"
           >
             {checkedIn ? (
-              <svg className="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#22c55e"/><path d="M6 10.5l2.5 2.5 5.5-5.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             ) : (
-              <svg className="w-6 h-6 text-gray-300 hover:text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#d1d5db" strokeWidth="2"/></svg>
             )}
           </button>
         </div>
@@ -435,38 +435,34 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
             title="Scale pic this week"
           >
             {scalePic ? (
-              <svg className="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="10" fill="#3b82f6"/><path d="M6 10.5l2.5 2.5 5.5-5.5" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"/></svg>
             ) : (
-              <svg className="w-6 h-6 text-gray-300 hover:text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+              <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#d1d5db" strokeWidth="2"/></svg>
             )}
           </button>
         </div>
 
         {/* QV */}
-        <div className="text-right">
+        <div className="text-right pr-2">
           <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
             {qv != null ? qv.toLocaleString() : "\u2014"}
           </span>
         </div>
 
         {/* Last order */}
-        <div className="text-right">
+        <div className="text-right pr-2">
           {client.last_order_date ? (
-            <div className="flex items-center justify-end gap-1.5">
-              {getMonthsAgo(client.last_order_date) >= 3 && (
-                <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+</span>
-              )}
-              <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
-                {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
-              </span>
-            </div>
+            <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
+              {getMonthsAgo(client.last_order_date) >= 3 && <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 mr-1">90+</span>}
+              {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+            </span>
           ) : (
             <span className="text-sm text-gray-300">{"\u2014"}</span>
           )}
         </div>
 
         {/* Last Contact */}
-        <div className="text-right">
+        <div className="text-right pr-2">
           <span className={`text-sm ${contactDate ? "text-gray-500" : "text-gray-300"}`}>
             {contactDate ? timeAgo(contactDate) : "\u2014"}
           </span>
@@ -615,18 +611,18 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
               <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
             </div>
             <div className="text-xs font-semibold text-gray-500 text-center">
-              ✓ In
+              Check In
             </div>
             <div className="text-xs font-semibold text-gray-500 text-center">
-              📷 Pic
+              Scale Pic
             </div>
-            <div className="text-right">
+            <div className="text-right pr-2">
               <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="text-right">
+            <div className="text-right pr-2">
               <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="text-right">
+            <div className="text-right pr-2">
               <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
           </div>

@@ -392,7 +392,7 @@ export default function ClientDetailPage() {
       )} */}
       {/* Profile & Social */}
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
-        <h2 className="text-lg font-extrabold mb-4">🔗 Profile & Social</h2>
+        <h2 className="text-lg font-extrabold mb-4">🔗 Socials</h2>
         {editing ? (
           <div className="space-y-3">
             <div>
@@ -439,16 +439,6 @@ export default function ClientDetailPage() {
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Groups</label>
-              <input
-                type="text"
-                value={form.groups || ""}
-                onChange={(e) => setForm((p) => ({ ...p, groups: e.target.value }))}
-                placeholder="e.g. Local running club, Mom's group on FB"
-                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
-              />
-            </div>
           </div>
         ) : (
           <div className="space-y-2">
@@ -480,13 +470,7 @@ export default function ClientDetailPage() {
                 <span className="text-sm font-semibold">{new Date(client.originally_met_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
               </div>
             )}
-            {client.groups && (
-              <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
-                <span className="text-xs font-bold text-gray-400 uppercase">Groups</span>
-                <span className="text-sm font-semibold">{client.groups}</span>
-              </div>
-            )}
-            {!client.facebook_url && !client.instagram_url && !client.source && !client.originally_met_date && !client.groups && (
+            {!client.facebook_url && !client.instagram_url && !client.source && !client.originally_met_date && (
               <p className="text-sm text-gray-400 py-2">No profile info yet. Click Edit above to add details.</p>
             )}
           </div>
@@ -677,8 +661,8 @@ export default function ClientDetailPage() {
       </div>
       {meetingModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setMeetingModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-sm p-6">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setMeetingModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h2 className="font-display text-lg font-bold text-gray-900 mb-1">📅 Log a Meeting</h2>
             <p className="text-sm text-gray-500 mb-4">Record a meeting with {client.full_name}</p>
             <div className="space-y-3 mb-4">
@@ -753,8 +737,8 @@ export default function ClientDetailPage() {
       )}
       {noteModal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setNoteModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-sm p-6">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setNoteModal(false)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
             <h2 className="font-display text-lg font-bold text-gray-900 mb-1">📝 Log a Note</h2>
             <p className="text-sm text-gray-500 mb-4">Add a note about {client.full_name}</p>
             <textarea

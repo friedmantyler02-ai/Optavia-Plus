@@ -599,12 +599,12 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
         <div className="border-t border-gray-100">
           <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '28%' }} />
-              <col style={{ width: '11%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '15%' }} />
-              <col style={{ width: '16%' }} />
+              <col style={{ width: '40%' }} />
+              <col style={{ width: '8%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '13%' }} />
+              <col style={{ width: '13%' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">

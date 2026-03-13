@@ -2,19 +2,20 @@ import { createClient } from "@supabase/supabase-js";
 
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
-const REDIRECT_URI =
-  (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000") +
-  "/api/auth/google/callback";
+
+function getRedirectUri(origin) {
+  return origin + "/api/auth/google/callback";
+}
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
-export function getAuthUrl(state) {
+export function getAuthUrl(state, origin) {
   const params = new URLSearchParams({
     client_id: GOOGLE_CLIENT_ID,
-    redirect_uri: REDIRECT_URI,
+    redirect_uri: getRedirectUri(origin),
     response_type: "code",
     scope: "https://www.googleapis.com/auth/calendar.events",
     access_type: "offline",
@@ -24,7 +25,7 @@ export function getAuthUrl(state) {
   return `https://accounts.google.com/o/oauth2/v2/auth?${params.toString()}`;
 }
 
-export async function exchangeCodeForTokens(code) {
+export async function exchangeCodeForTokens(code, origin) {
   const res = await fetch("https://oauth2.googleapis.com/token", {
     method: "POST",
     headers: { "Content-Type": "application/x-www-form-urlencoded" },
@@ -32,7 +33,7 @@ export async function exchangeCodeForTokens(code) {
       code,
       client_id: GOOGLE_CLIENT_ID,
       client_secret: GOOGLE_CLIENT_SECRET,
-      redirect_uri: REDIRECT_URI,
+      redirect_uri: getRedirectUri(origin),
       grant_type: "authorization_code",
     }),
   });

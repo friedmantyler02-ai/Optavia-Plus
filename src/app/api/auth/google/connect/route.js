@@ -3,7 +3,7 @@ import { createServerClient } from "@supabase/ssr";
 import { cookies } from "next/headers";
 import { getAuthUrl } from "@/lib/google-calendar";
 
-export async function GET() {
+export async function GET(request) {
   const cookieStore = await cookies();
 
   const supabase = createServerClient(
@@ -32,9 +32,11 @@ export async function GET() {
   } = await supabase.auth.getUser();
 
   if (!user) {
-    return NextResponse.redirect(new URL("/login", process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000"));
+    const origin = new URL(request.url).origin;
+    return NextResponse.redirect(new URL("/login", origin));
   }
 
-  const authUrl = getAuthUrl(user.id);
+  const origin = new URL(request.url).origin;
+  const authUrl = getAuthUrl(user.id, origin);
   return NextResponse.redirect(authUrl);
 }

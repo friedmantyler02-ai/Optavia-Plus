@@ -10,14 +10,14 @@ const supabaseAdmin = createClient(
 );
 
 export async function GET(request) {
-  const { searchParams } = new URL(request.url);
-  const code = searchParams.get("code");
-  const state = searchParams.get("state");
-  const siteUrl = process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000";
+  const requestUrl = new URL(request.url);
+  const code = requestUrl.searchParams.get("code");
+  const state = requestUrl.searchParams.get("state");
+  const origin = requestUrl.origin;
 
   if (!code || !state) {
     return NextResponse.redirect(
-      new URL("/dashboard/calendar?error=missing_params", siteUrl)
+      new URL("/dashboard/calendar?error=missing_params", origin)
     );
   }
 
@@ -50,12 +50,12 @@ export async function GET(request) {
 
   if (!user || user.id !== state) {
     return NextResponse.redirect(
-      new URL("/dashboard/calendar?error=unauthorized", siteUrl)
+      new URL("/dashboard/calendar?error=unauthorized", origin)
     );
   }
 
   try {
-    const tokens = await exchangeCodeForTokens(code);
+    const tokens = await exchangeCodeForTokens(code, origin);
     const expiresAt = new Date(
       Date.now() + tokens.expires_in * 1000
     ).toISOString();
@@ -76,17 +76,17 @@ export async function GET(request) {
     if (error) {
       console.error("Failed to store Google Calendar tokens:", error);
       return NextResponse.redirect(
-        new URL("/dashboard/calendar?error=storage_failed", siteUrl)
+        new URL("/dashboard/calendar?error=storage_failed", origin)
       );
     }
 
     return NextResponse.redirect(
-      new URL("/dashboard/calendar?connected=true", siteUrl)
+      new URL("/dashboard/calendar?connected=true", origin)
     );
   } catch (err) {
     console.error("Google OAuth callback error:", err);
     return NextResponse.redirect(
-      new URL("/dashboard/calendar?error=token_exchange_failed", siteUrl)
+      new URL("/dashboard/calendar?error=token_exchange_failed", origin)
     );
   }
 }

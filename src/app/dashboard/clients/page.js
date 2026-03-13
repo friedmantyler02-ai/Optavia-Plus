@@ -603,25 +603,33 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
       </button>
       {!collapsed && (
         <div className="border-t border-gray-100">
-          <table className="w-full">
+          <table className="w-full" style={{ tableLayout: 'fixed' }}>
+            <colgroup>
+              <col style={{ width: '36%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '10%' }} />
+              <col style={{ width: '14%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '15%' }} />
+            </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
-                <th className="text-left py-2.5 px-2 w-[40%]">
+                <th className="text-left py-2.5 px-2">
                   <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
                 </th>
-                <th className="text-center py-2.5 px-1 w-[10%]">
+                <th className="text-center py-2.5 px-1">
                   <span className="text-xs font-semibold text-gray-500">Check In</span>
                 </th>
-                <th className="text-center py-2.5 px-1 w-[10%]">
+                <th className="text-center py-2.5 px-1">
                   <span className="text-xs font-semibold text-gray-500">Scale Pic</span>
                 </th>
-                <th className="text-right py-2.5 px-2 w-[12%]">
+                <th className="text-right py-2.5 px-2">
                   <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
                 </th>
-                <th className="text-right py-2.5 px-2 w-[14%]">
+                <th className="text-right py-2.5 px-2">
                   <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
                 </th>
-                <th className="text-right py-2.5 px-2 w-[14%]">
+                <th className="text-right py-2.5 px-2">
                   <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
                 </th>
               </tr>

@@ -376,37 +376,33 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
         className={`hidden md:table-row border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors cursor-pointer ${muted ? "opacity-70" : ""}`}
       >
         {/* Name + badges */}
-        <td className="py-3 px-2 text-left">
-          <div className="flex items-center gap-2 flex-wrap min-w-0">
-            <span className="font-body text-base font-semibold text-gray-800 truncate">
-              {client.full_name}
+        <td className="text-left py-3 px-1">
+          <span className="font-body text-base font-semibold text-gray-800">{client.full_name}</span>
+          {showLastOrderSubtitle && client.last_order_date && (
+            <span className={`ml-2 text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
+              Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
             </span>
-            {showLastOrderSubtitle && client.last_order_date && (
-              <span className={`text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
-                Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
-              </span>
-            )}
-            {isPremier ? (
-              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
-            ) : client.order_type ? (
-              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">On Demand</span>
-            ) : null}
-            {client.account_type?.toLowerCase()?.includes("health coach") && (
-              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600">Coach</span>
-            )}
-            {alerts.map((a, i) => (
-              <span key={i} className={`inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-bold ${a.cls}`}>
-                {a.emoji} {a.label}
-                <button
-                  onClick={(e) => { e.stopPropagation(); onDismissAlert(client.id, a.label); }}
-                  className="ml-0.5 w-3.5 h-3.5 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition"
-                  title="Dismiss"
-                >
-                  &times;
-                </button>
-              </span>
-            ))}
-          </div>
+          )}
+          {isPremier ? (
+            <span className="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
+          ) : client.order_type ? (
+            <span className="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">On Demand</span>
+          ) : null}
+          {client.account_type?.toLowerCase()?.includes("health coach") && (
+            <span className="ml-2 inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600">Coach</span>
+          )}
+          {alerts.map((a, i) => (
+            <span key={i} className={`ml-2 inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-bold ${a.cls}`}>
+              {a.emoji} {a.label}
+              <button
+                onClick={(e) => { e.stopPropagation(); onDismissAlert(client.id, a.label); }}
+                className="ml-0.5 w-3.5 h-3.5 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition"
+                title="Dismiss"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
         </td>
 
         {/* QV */}
@@ -416,16 +412,14 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
           </span>
         </td>
 
-        {/* Last order */}
+        {/* Last Order */}
         <td className="text-center py-3 px-1">
           <span className={`text-sm ${client.last_order_date ? (getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500") : "text-gray-300"}`}>
-            {client.last_order_date ? (
-              <>
-                {getMonthsAgo(client.last_order_date) >= 3 && <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 mr-1">90+</span>}
-                {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
-              </>
-            ) : "\u2014"}
+            {client.last_order_date ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00") : "\u2014"}
           </span>
+          {client.last_order_date && getMonthsAgo(client.last_order_date) >= 3 && (
+            <span className="ml-1 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+</span>
+          )}
         </td>
 
         {/* Last Contact */}
@@ -436,7 +430,7 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
         </td>
 
         {/* Check In */}
-        <td className="py-3 px-1 text-center">
+        <td className="text-center py-3 px-1">
           <button
             onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }}
             className="w-7 h-7 rounded-full inline-flex items-center justify-center transition-all duration-150 active:scale-90"
@@ -451,7 +445,7 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
         </td>
 
         {/* Scale Pic */}
-        <td className="py-3 px-1 text-center">
+        <td className="text-center py-3 px-1">
           <button
             onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "scale_pic"); }}
             className="w-7 h-7 rounded-full inline-flex items-center justify-center transition-all duration-150 active:scale-90"
@@ -605,32 +599,40 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
         <div className="border-t border-gray-100">
           <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '34%' }} />
-              <col style={{ width: '10%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
-              <col style={{ width: '14%' }} />
+              <col style={{ width: '28%' }} />
+              <col style={{ width: '11%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '15%' }} />
+              <col style={{ width: '16%' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
-                <th className="text-left py-2.5 px-2">
-                  <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
+                <th className="text-left py-3 px-1 cursor-pointer select-none" onClick={() => onSort("name")}>
+                  <span className={`text-sm font-semibold ${sortKey === "name" ? "text-[#E8735A]" : "text-gray-500"}`}>
+                    Client Name {sortKey === "name" && (sortDir === "asc" ? "▲" : "▼")}
+                  </span>
                 </th>
-                <th className="text-center py-2.5 px-1">
-                  <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
+                <th className="text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("qv")}>
+                  <span className={`text-sm font-semibold ${sortKey === "qv" ? "text-[#E8735A]" : "text-gray-500"}`}>
+                    QV {sortKey === "qv" && (sortDir === "asc" ? "▲" : "▼")}
+                  </span>
                 </th>
-                <th className="text-center py-2.5 px-1">
-                  <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
+                <th className="text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("last_order")}>
+                  <span className={`text-sm font-semibold ${sortKey === "last_order" ? "text-[#E8735A]" : "text-gray-500"}`}>
+                    Last Order {sortKey === "last_order" && (sortDir === "asc" ? "▲" : "▼")}
+                  </span>
                 </th>
-                <th className="text-center py-2.5 px-1">
-                  <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-center" />
+                <th className="text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("checkin")}>
+                  <span className={`text-sm font-semibold ${sortKey === "checkin" ? "text-[#E8735A]" : "text-gray-500"}`}>
+                    Last Contact {sortKey === "checkin" && (sortDir === "asc" ? "▲" : "▼")}
+                  </span>
                 </th>
-                <th className="text-center py-2.5 px-1">
-                  <span className="text-xs font-semibold text-gray-500">Check In</span>
+                <th className="text-center py-3 px-1">
+                  <span className="text-sm font-semibold text-gray-500">Check In</span>
                 </th>
-                <th className="text-center py-2.5 px-1">
-                  <span className="text-xs font-semibold text-gray-500">Scale Pic</span>
+                <th className="text-center py-3 px-1">
+                  <span className="text-sm font-semibold text-gray-500">Scale Pic</span>
                 </th>
               </tr>
             </thead>

@@ -1105,6 +1105,22 @@ export default function LeadDetailPage() {
                     } catch {
                       // Calendar event creation is best-effort
                     }
+                    // Sync to Google Calendar (best-effort)
+                    try {
+                      await fetch("/api/calendar/sync", {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({
+                          summary: `Meeting with ${lead.full_name}`,
+                          description: desc,
+                          date: meetingDate,
+                          time: meetingTime,
+                          durationMinutes: 30,
+                        }),
+                      });
+                    } catch {
+                      // Google Calendar sync is best-effort
+                    }
                     setMeetingModal(false);
                     showToast({ message: "Meeting logged" });
                     fetchLead();

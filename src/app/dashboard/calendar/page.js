@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useMemo, useCallback } from "react";
 import { useCoach } from "../layout";
+import { useSearchParams } from "next/navigation";
 import useShowToast from "@/hooks/useShowToast";
 import PageHeader from "../components/PageHeader";
 import ErrorBanner from "../components/ErrorBanner";
@@ -334,8 +335,47 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
 
 // === MAIN PAGE ===
 export default function CalendarPage() {
-  const { coach } = useCoach();
+  const { coach, supabase } = useCoach();
   const showToast = useShowToast();
+  const searchParams = useSearchParams();
+
+  // Google Calendar connection state
+  const [gcalConnected, setGcalConnected] = useState(null); // null = loading, true/false
+  const [disconnecting, setDisconnecting] = useState(false);
+
+  useEffect(() => {
+    if (!coach?.id) return;
+    supabase
+      .from("google_calendar_connections")
+      .select("id")
+      .eq("coach_id", coach.id)
+      .maybeSingle()
+      .then(({ data }) => setGcalConnected(!!data));
+  }, [coach?.id]);
+
+  useEffect(() => {
+    if (searchParams.get("connected") === "true") {
+      showToast({ message: "Google Calendar connected!", variant: "success" });
+      setGcalConnected(true);
+    }
+  }, []);
+
+  const handleDisconnect = async () => {
+    setDisconnecting(true);
+    try {
+      const res = await fetch("/api/auth/google/disconnect", { method: "POST" });
+      if (res.ok) {
+        setGcalConnected(false);
+        showToast({ message: "Google Calendar disconnected", variant: "success" });
+      } else {
+        showToast({ message: "Failed to disconnect", variant: "error" });
+      }
+    } catch {
+      showToast({ message: "Failed to disconnect", variant: "error" });
+    } finally {
+      setDisconnecting(false);
+    }
+  };
 
   const today = new Date();
   const [currentMonth, setCurrentMonth] = useState(new Date(today.getFullYear(), today.getMonth(), 1));
@@ -562,6 +602,38 @@ export default function CalendarPage() {
           </button>
         }
       />
+
+      {/* Google Calendar Connection Banner */}
+      {gcalConnected !== null && (
+        gcalConnected ? (
+          <div className="flex items-center justify-between bg-green-50 border border-green-200 rounded-xl px-4 py-3 mb-4">
+            <span className="text-sm font-semibold text-green-700">&#10003; Google Calendar connected</span>
+            <button
+              onClick={handleDisconnect}
+              disabled={disconnecting}
+              className="text-xs font-bold text-gray-400 hover:text-red-500 transition-colors disabled:opacity-50"
+            >
+              {disconnecting ? "Disconnecting..." : "Disconnect"}
+            </button>
+          </div>
+        ) : (
+          <div className="bg-white border-2 border-gray-100 rounded-2xl p-5 mb-4 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+            <div className="flex items-center gap-3">
+              <span className="text-3xl">&#128197;</span>
+              <div>
+                <h3 className="font-display text-base font-bold text-gray-900">Connect Google Calendar</h3>
+                <p className="text-sm text-gray-400">Sync your meetings and reminders to your phone&#39;s calendar</p>
+              </div>
+            </div>
+            <a
+              href="/api/auth/google/connect"
+              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm min-h-[44px] touch-manipulation whitespace-nowrap"
+            >
+              Connect
+            </a>
+          </div>
+        )
+      )}
 
       {/* Controls */}
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 mb-4">

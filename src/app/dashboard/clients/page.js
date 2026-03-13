@@ -369,18 +369,15 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
   const scalePic = weeklyCheckins[`${client.id}_scale_pic`];
 
   return (
-    <div
-      onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-      className={`border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors cursor-pointer ${muted ? "opacity-70" : ""}`}
-    >
-      {/* Desktop grid row */}
-      <div
-        className="hidden sm:grid items-center px-4 py-3 gap-2"
-        style={{ gridTemplateColumns: "1fr 70px 70px 100px 100px 100px" }}
+    <>
+      {/* Desktop table row */}
+      <tr
+        onClick={() => router.push(`/dashboard/clients/${client.id}`)}
+        className={`hidden md:table-row border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors cursor-pointer ${muted ? "opacity-70" : ""}`}
       >
         {/* Name + badges */}
-        <div className="min-w-0 pr-2">
-          <div className="flex items-center gap-2 flex-wrap">
+        <td className="py-3 px-2 text-left">
+          <div className="flex items-center gap-2 flex-wrap min-w-0">
             <span className="font-body text-base font-semibold text-gray-800 truncate">
               {client.full_name}
             </span>
@@ -410,13 +407,13 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
               </span>
             ))}
           </div>
-        </div>
+        </td>
 
         {/* Check In */}
-        <div className="flex justify-center">
+        <td className="py-3 px-1 text-center">
           <button
             onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }}
-            className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 active:scale-90"
+            className="w-7 h-7 rounded-full inline-flex items-center justify-center transition-all duration-150 active:scale-90"
             title="Checked in this week"
           >
             {checkedIn ? (
@@ -425,13 +422,13 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
               <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#d1d5db" strokeWidth="2"/></svg>
             )}
           </button>
-        </div>
+        </td>
 
         {/* Scale Pic */}
-        <div className="flex justify-center">
+        <td className="py-3 px-1 text-center">
           <button
             onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "scale_pic"); }}
-            className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 active:scale-90"
+            className="w-7 h-7 rounded-full inline-flex items-center justify-center transition-all duration-150 active:scale-90"
             title="Scale pic this week"
           >
             {scalePic ? (
@@ -440,17 +437,17 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
               <svg className="w-5 h-5" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="9" stroke="#d1d5db" strokeWidth="2"/></svg>
             )}
           </button>
-        </div>
+        </td>
 
         {/* QV */}
-        <div className="text-right pr-2">
+        <td className="py-3 px-2 text-right">
           <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
             {qv != null ? qv.toLocaleString() : "\u2014"}
           </span>
-        </div>
+        </td>
 
         {/* Last order */}
-        <div className="text-right pr-2">
+        <td className="py-3 px-2 text-right">
           {client.last_order_date ? (
             <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
               {getMonthsAgo(client.last_order_date) >= 3 && <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600 mr-1">90+</span>}
@@ -459,79 +456,83 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
           ) : (
             <span className="text-sm text-gray-300">{"\u2014"}</span>
           )}
-        </div>
+        </td>
 
         {/* Last Contact */}
-        <div className="text-right pr-2">
+        <td className="py-3 px-2 text-right">
           <span className={`text-sm ${contactDate ? "text-gray-500" : "text-gray-300"}`}>
             {contactDate ? timeAgo(contactDate) : "\u2014"}
           </span>
-        </div>
-      </div>
+        </td>
+      </tr>
 
       {/* Mobile stacked row */}
-      <div className="flex sm:hidden flex-col gap-2 px-4 py-3">
-        <div className="flex items-center gap-2 flex-wrap">
-          <span className="font-body text-base font-semibold text-gray-800 truncate">
-            {client.full_name}
-          </span>
-          {showLastOrderSubtitle && client.last_order_date && (
-            <span className={`text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
-              Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
-            </span>
-          )}
-          {isPremier ? (
-            <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
-          ) : client.order_type ? (
-            <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">On Demand</span>
-          ) : null}
-          {client.account_type?.toLowerCase()?.includes("health coach") && (
-            <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600">Coach</span>
-          )}
-          {alerts.map((a, i) => (
-            <span key={i} className={`inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-bold ${a.cls}`}>
-              {a.emoji} {a.label}
-              <button
-                onClick={(e) => { e.stopPropagation(); onDismissAlert(client.id, a.label); }}
-                className="ml-0.5 w-3.5 h-3.5 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition"
-                title="Dismiss"
-              >
-                &times;
+      <tr className="md:hidden" onClick={() => router.push(`/dashboard/clients/${client.id}`)}>
+        <td colSpan={6} className={`p-0 border-b border-gray-50 ${muted ? "opacity-70" : ""}`}>
+          <div className="flex flex-col gap-2 px-4 py-3 cursor-pointer">
+            <div className="flex items-center gap-2 flex-wrap">
+              <span className="font-body text-base font-semibold text-gray-800 truncate">
+                {client.full_name}
+              </span>
+              {showLastOrderSubtitle && client.last_order_date && (
+                <span className={`text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
+                  Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+                </span>
+              )}
+              {isPremier ? (
+                <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
+              ) : client.order_type ? (
+                <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">On Demand</span>
+              ) : null}
+              {client.account_type?.toLowerCase()?.includes("health coach") && (
+                <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600">Coach</span>
+              )}
+              {alerts.map((a, i) => (
+                <span key={i} className={`inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-bold ${a.cls}`}>
+                  {a.emoji} {a.label}
+                  <button
+                    onClick={(e) => { e.stopPropagation(); onDismissAlert(client.id, a.label); }}
+                    className="ml-0.5 w-3.5 h-3.5 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition"
+                    title="Dismiss"
+                  >
+                    &times;
+                  </button>
+                </span>
+              ))}
+            </div>
+            <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+              <button onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }} className="flex items-center gap-1">
+                {checkedIn ? (
+                  <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                )}
+                <span>In</span>
               </button>
-            </span>
-          ))}
-        </div>
-        <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
-          <button onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }} className="flex items-center gap-1">
-            {checkedIn ? (
-              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            ) : (
-              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-            )}
-            <span>In</span>
-          </button>
-          <button onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "scale_pic"); }} className="flex items-center gap-1">
-            {scalePic ? (
-              <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
-            ) : (
-              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
-            )}
-            <span>Pic</span>
-          </button>
-          <span className={qv != null ? (qv >= 350 ? "text-green-600 font-bold" : "text-orange-500 font-bold") : ""}>
-            QV: {qv != null ? qv : "\u2014"}
-          </span>
-          <span className={client.last_order_date && getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : ""}>
-            {client.last_order_date
-              ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")
-              : "No orders"}
-          </span>
-          <span>
-            {contactDate ? timeAgo(contactDate) : "\u2014"}
-          </span>
-        </div>
-      </div>
-    </div>
+              <button onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "scale_pic"); }} className="flex items-center gap-1">
+                {scalePic ? (
+                  <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+                ) : (
+                  <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+                )}
+                <span>Pic</span>
+              </button>
+              <span className={qv != null ? (qv >= 350 ? "text-green-600 font-bold" : "text-orange-500 font-bold") : ""}>
+                QV: {qv != null ? qv : "\u2014"}
+              </span>
+              <span className={client.last_order_date && getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : ""}>
+                {client.last_order_date
+                  ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")
+                  : "No orders"}
+              </span>
+              <span>
+                {contactDate ? timeAgo(contactDate) : "\u2014"}
+              </span>
+            </div>
+          </div>
+        </td>
+      </tr>
+    </>
   );
 }
 
@@ -602,33 +603,35 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
       </button>
       {!collapsed && (
         <div className="border-t border-gray-100">
-          {/* Column headers - desktop */}
-          <div
-            className="hidden sm:grid items-center px-4 py-2.5 border-b border-gray-100 bg-gray-50/50 gap-2"
-            style={{ gridTemplateColumns: "1fr 70px 70px 100px 100px 100px" }}
-          >
-            <div>
-              <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
-            </div>
-            <div className="text-xs font-semibold text-gray-500 text-center">
-              Check In
-            </div>
-            <div className="text-xs font-semibold text-gray-500 text-center">
-              Scale Pic
-            </div>
-            <div className="text-right pr-2">
-              <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
-            </div>
-            <div className="text-right pr-2">
-              <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
-            </div>
-            <div className="text-right pr-2">
-              <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
-            </div>
-          </div>
-          {sorted.map((c) => (
-            <ClientRow key={c.id} client={c} muted={muted} router={router} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} weeklyCheckins={weeklyCheckins} toggleWeeklyCheckin={toggleWeeklyCheckin} />
-          ))}
+          <table className="w-full">
+            <thead>
+              <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
+                <th className="text-left py-2.5 px-2 w-[40%]">
+                  <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
+                </th>
+                <th className="text-center py-2.5 px-1 w-[10%]">
+                  <span className="text-xs font-semibold text-gray-500">Check In</span>
+                </th>
+                <th className="text-center py-2.5 px-1 w-[10%]">
+                  <span className="text-xs font-semibold text-gray-500">Scale Pic</span>
+                </th>
+                <th className="text-right py-2.5 px-2 w-[12%]">
+                  <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+                </th>
+                <th className="text-right py-2.5 px-2 w-[14%]">
+                  <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+                </th>
+                <th className="text-right py-2.5 px-2 w-[14%]">
+                  <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
+                </th>
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((c) => (
+                <ClientRow key={c.id} client={c} muted={muted} router={router} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} weeklyCheckins={weeklyCheckins} toggleWeeklyCheckin={toggleWeeklyCheckin} />
+              ))}
+            </tbody>
+          </table>
         </div>
       )}
     </div>

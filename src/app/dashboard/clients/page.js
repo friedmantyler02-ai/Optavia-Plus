@@ -358,21 +358,123 @@ function ImportModal({ onClose, onComplete }) {
 
 // ── Client Row (List View) ───────────────────────────────
 
-function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, showLastOrderSubtitle }) {
+function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, showLastOrderSubtitle, weeklyCheckins, toggleWeeklyCheckin }) {
   const clientDismissed = dismissedAlerts[String(client.id)] || [];
   const alerts = getAlertBadges(client.order_alerts).filter((a) => !clientDismissed.includes(a.label));
   const qv = client.pqv;
   const isPremier = client.order_type?.toLowerCase()?.includes("premier");
 
   const contactDate = client.last_checkin_date || client.last_contact_date;
+  const checkedIn = weeklyCheckins[`${client.id}_checkin`];
+  const scalePic = weeklyCheckins[`${client.id}_scale_pic`];
 
   return (
     <div
       onClick={() => router.push(`/dashboard/clients/${client.id}`)}
-      className={`flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-0 px-4 py-3 border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors cursor-pointer ${muted ? "opacity-70" : ""}`}
+      className={`border-b border-gray-50 hover:bg-[#faf7f2]/60 transition-colors cursor-pointer ${muted ? "opacity-70" : ""}`}
     >
-      {/* Name + badges */}
-      <div className="flex-1 min-w-0 sm:pr-4">
+      {/* Desktop grid row */}
+      <div
+        className="hidden sm:grid items-center px-4 py-3 gap-2"
+        style={{ gridTemplateColumns: "1fr 70px 70px 100px 100px 100px" }}
+      >
+        {/* Name + badges */}
+        <div className="min-w-0 pr-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-body text-base font-semibold text-gray-800 truncate">
+              {client.full_name}
+            </span>
+            {showLastOrderSubtitle && client.last_order_date && (
+              <span className={`text-xs font-semibold ${getMonthsAgo(client.last_order_date) >= 6 ? "text-red-400" : "text-amber-500"}`}>
+                Last ordered: {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+              </span>
+            )}
+            {isPremier ? (
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
+            ) : client.order_type ? (
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-gray-100 text-gray-500">On Demand</span>
+            ) : null}
+            {client.account_type?.toLowerCase()?.includes("health coach") && (
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-purple-100 text-purple-600">Coach</span>
+            )}
+            {alerts.map((a, i) => (
+              <span key={i} className={`inline-flex items-center gap-1 rounded-full pl-2 pr-1 py-0.5 text-[10px] font-bold ${a.cls}`}>
+                {a.emoji} {a.label}
+                <button
+                  onClick={(e) => { e.stopPropagation(); onDismissAlert(client.id, a.label); }}
+                  className="ml-0.5 w-3.5 h-3.5 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition"
+                  title="Dismiss"
+                >
+                  &times;
+                </button>
+              </span>
+            ))}
+          </div>
+        </div>
+
+        {/* Checked In */}
+        <div className="flex justify-center">
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }}
+            className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 active:scale-90"
+            title="Checked in this week"
+          >
+            {checkedIn ? (
+              <svg className="w-6 h-6 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            ) : (
+              <svg className="w-6 h-6 text-gray-300 hover:text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+            )}
+          </button>
+        </div>
+
+        {/* Scale Pic */}
+        <div className="flex justify-center">
+          <button
+            onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "scale_pic"); }}
+            className="w-7 h-7 rounded-full flex items-center justify-center transition-all duration-150 active:scale-90"
+            title="Scale pic this week"
+          >
+            {scalePic ? (
+              <svg className="w-6 h-6 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            ) : (
+              <svg className="w-6 h-6 text-gray-300 hover:text-gray-400" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+            )}
+          </button>
+        </div>
+
+        {/* QV */}
+        <div className="text-right">
+          <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
+            {qv != null ? qv.toLocaleString() : "\u2014"}
+          </span>
+        </div>
+
+        {/* Last order */}
+        <div className="text-right">
+          {client.last_order_date ? (
+            <div className="flex items-center justify-end gap-1.5">
+              {getMonthsAgo(client.last_order_date) >= 3 && (
+                <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+</span>
+              )}
+              <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
+                {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
+              </span>
+            </div>
+          ) : (
+            <span className="text-sm text-gray-300">{"\u2014"}</span>
+          )}
+        </div>
+
+        {/* Last Contact */}
+        <div className="text-right">
+          <span className={`text-sm ${contactDate ? "text-gray-500" : "text-gray-300"}`}>
+            {contactDate ? timeAgo(contactDate) : "\u2014"}
+          </span>
+        </div>
+      </div>
+
+      {/* Mobile stacked row */}
+      <div className="flex sm:hidden flex-col gap-2 px-4 py-3">
         <div className="flex items-center gap-2 flex-wrap">
           <span className="font-body text-base font-semibold text-gray-800 truncate">
             {client.full_name}
@@ -403,51 +505,35 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
             </span>
           ))}
         </div>
-      </div>
-
-      {/* QV */}
-      <div className="hidden sm:block w-20 text-right shrink-0">
-        <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
-          {qv != null ? qv.toLocaleString() : "\u2014"}
-        </span>
-      </div>
-
-      {/* Last order */}
-      <div className="hidden sm:block w-28 text-right shrink-0">
-        {client.last_order_date ? (
-          <div className="flex items-center justify-end gap-1.5">
-            {getMonthsAgo(client.last_order_date) >= 3 && (
-              <span className="inline-block rounded-full px-1.5 py-0.5 text-[10px] font-bold bg-amber-50 text-amber-600">90+</span>
+        <div className="flex items-center gap-3 text-xs text-gray-400 flex-wrap">
+          <button onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "checkin"); }} className="flex items-center gap-1">
+            {checkedIn ? (
+              <svg className="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            ) : (
+              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
             )}
-            <span className={`text-sm ${getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : "text-gray-500"}`}>
-              {timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")}
-            </span>
-          </div>
-        ) : (
-          <span className="text-sm text-gray-300">{"\u2014"}</span>
-        )}
-      </div>
-
-      {/* Last Contact */}
-      <div className="hidden md:block w-28 text-right shrink-0">
-        <span className={`text-sm ${contactDate ? "text-gray-500" : "text-gray-300"}`}>
-          {contactDate ? timeAgo(contactDate) : "\u2014"}
-        </span>
-      </div>
-
-      {/* Mobile info row */}
-      <div className="flex sm:hidden items-center gap-3 text-xs text-gray-400 flex-wrap">
-        <span className={qv != null ? (qv >= 350 ? "text-green-600 font-bold" : "text-orange-500 font-bold") : ""}>
-          QV: {qv != null ? qv : "\u2014"}
-        </span>
-        <span className={client.last_order_date && getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : ""}>
-          {client.last_order_date
-            ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")
-            : "No orders"}
-        </span>
-        <span>
-          {contactDate ? timeAgo(contactDate) : "\u2014"}
-        </span>
+            <span>In</span>
+          </button>
+          <button onClick={(e) => { e.stopPropagation(); toggleWeeklyCheckin(client.id, "scale_pic"); }} className="flex items-center gap-1">
+            {scalePic ? (
+              <svg className="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-2 15l-5-5 1.41-1.41L10 14.17l7.59-7.59L19 8l-9 9z"/></svg>
+            ) : (
+              <svg className="w-4 h-4 text-gray-300" fill="none" stroke="currentColor" strokeWidth="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/></svg>
+            )}
+            <span>Pic</span>
+          </button>
+          <span className={qv != null ? (qv >= 350 ? "text-green-600 font-bold" : "text-orange-500 font-bold") : ""}>
+            QV: {qv != null ? qv : "\u2014"}
+          </span>
+          <span className={client.last_order_date && getMonthsAgo(client.last_order_date) >= 3 ? "text-amber-500 font-semibold" : ""}>
+            {client.last_order_date
+              ? timeAgo(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00")
+              : "No orders"}
+          </span>
+          <span>
+            {contactDate ? timeAgo(contactDate) : "\u2014"}
+          </span>
+        </div>
       </div>
     </div>
   );
@@ -500,7 +586,7 @@ function SortableHeader({ label, sortKey, currentSort, currentDir, onSort, class
 
 // ── Section Wrapper ──────────────────────────────────────
 
-function ClientSection({ title, count, borderColor, clients, router, defaultCollapsed = false, muted = false, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false, sortKey, sortDir, onSort }) {
+function ClientSection({ title, count, borderColor, clients, router, defaultCollapsed = false, muted = false, dismissedAlerts, onDismissAlert, showLastOrderSubtitle = false, sortKey, sortDir, onSort, weeklyCheckins, toggleWeeklyCheckin }) {
   const [collapsed, setCollapsed] = useState(defaultCollapsed);
 
   if (count === 0) return null;
@@ -521,22 +607,31 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
       {!collapsed && (
         <div className="border-t border-gray-100">
           {/* Column headers - desktop */}
-          <div className="hidden sm:flex items-center px-4 py-2.5 border-b border-gray-100 bg-gray-50/50">
-            <div className="flex-1 pr-4">
+          <div
+            className="hidden sm:grid items-center px-4 py-2.5 border-b border-gray-100 bg-gray-50/50 gap-2"
+            style={{ gridTemplateColumns: "1fr 70px 70px 100px 100px 100px" }}
+          >
+            <div>
               <SortableHeader label="Client Name" sortKey="name" currentSort={sortKey} currentDir={sortDir} onSort={onSort} />
             </div>
-            <div className="w-20 text-right shrink-0">
+            <div className="text-xs font-semibold text-gray-500 text-center">
+              ✓ In
+            </div>
+            <div className="text-xs font-semibold text-gray-500 text-center">
+              📷 Pic
+            </div>
+            <div className="text-right">
               <SortableHeader label="QV" sortKey="qv" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="w-28 text-right shrink-0">
+            <div className="text-right">
               <SortableHeader label="Last Order" sortKey="last_order" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
-            <div className="hidden md:block w-28 text-right shrink-0">
+            <div className="text-right">
               <SortableHeader label="Last Contact" sortKey="checkin" currentSort={sortKey} currentDir={sortDir} onSort={onSort} className="justify-end" />
             </div>
           </div>
           {sorted.map((c) => (
-            <ClientRow key={c.id} client={c} muted={muted} router={router} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} />
+            <ClientRow key={c.id} client={c} muted={muted} router={router} dismissedAlerts={dismissedAlerts} onDismissAlert={onDismissAlert} showLastOrderSubtitle={showLastOrderSubtitle} weeklyCheckins={weeklyCheckins} toggleWeeklyCheckin={toggleWeeklyCheckin} />
           ))}
         </div>
       )}
@@ -553,6 +648,7 @@ export default function ClientsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
   const [showImport, setShowImport] = useState(false);
+  const [weeklyCheckins, setWeeklyCheckins] = useState({});
   const [dismissedAlerts, setDismissedAlerts] = useState(() => {
     if (typeof window === "undefined") return {};
     try { return JSON.parse(localStorage.getItem("optavia_dismissed_alerts") || "{}"); } catch { return {}; }
@@ -600,6 +696,7 @@ export default function ClientsPage() {
   useEffect(() => {
     if (!coach) return;
     fetchClients();
+    fetchWeeklyCheckins();
   }, [coach]);
 
   const fetchClients = async () => {
@@ -620,6 +717,45 @@ export default function ClientsPage() {
       setAllClients(data || []);
     }
     setLoading(false);
+  };
+
+  const fetchWeeklyCheckins = async () => {
+    const checkinRes = await fetch("/api/clients/checkin-weekly");
+    if (checkinRes.ok) {
+      const checkinData = await checkinRes.json();
+      const checkinMap = {};
+      (checkinData.checkins || []).forEach((c) => {
+        checkinMap[`${c.client_id}_${c.check_type}`] = true;
+      });
+      setWeeklyCheckins(checkinMap);
+    }
+  };
+
+  const toggleWeeklyCheckin = async (clientId, checkType) => {
+    const key = `${clientId}_${checkType}`;
+    // Optimistic update
+    setWeeklyCheckins((prev) => {
+      const next = { ...prev };
+      if (next[key]) delete next[key];
+      else next[key] = true;
+      return next;
+    });
+    // API call
+    try {
+      await fetch("/api/clients/checkin-weekly", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ client_id: clientId, check_type: checkType }),
+      });
+    } catch (err) {
+      // Revert on error
+      setWeeklyCheckins((prev) => {
+        const next = { ...prev };
+        if (next[key]) delete next[key];
+        else next[key] = true;
+        return next;
+      });
+    }
   };
 
   // Filter clients
@@ -762,6 +898,8 @@ export default function ClientsPage() {
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
+            weeklyCheckins={weeklyCheckins}
+            toggleWeeklyCheckin={toggleWeeklyCheckin}
           />
           <ClientSection
             title="At Risk"
@@ -774,6 +912,8 @@ export default function ClientsPage() {
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
+            weeklyCheckins={weeklyCheckins}
+            toggleWeeklyCheckin={toggleWeeklyCheckin}
           />
           <ClientSection
             title="Past Clients"
@@ -789,6 +929,8 @@ export default function ClientsPage() {
             sortKey={sortKey}
             sortDir={sortDir}
             onSort={handleSort}
+            weeklyCheckins={weeklyCheckins}
+            toggleWeeklyCheckin={toggleWeeklyCheckin}
           />
 
           {filtered.length === 0 && (

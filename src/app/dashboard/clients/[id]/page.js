@@ -8,6 +8,7 @@ import TouchpointTimeline from './TouchpointTimeline';
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useShowToast from "@/hooks/useShowToast";
 import { formatPhoneDisplay } from "@/lib/phone";
+import { CHECKIN_MESSAGES, REENGAGEMENT_MESSAGES, personalizeMessage } from "@/lib/suggested-messages";
 
 const statusOptions = ["new", "active", "plateau", "milestone", "lapsed", "archived"];
 const statusEmojis = { active: "✅", new: "🌱", plateau: "🏔️", milestone: "🎉", lapsed: "💛", archived: "📦" };
@@ -51,6 +52,104 @@ function getRelationshipScore(client) {
 }
 
 function getScoreColor(s) { return s >= 70 ? "#4a7c59" : s >= 40 ? "#c4855c" : "#c25b50"; }
+
+function QuickMessageCard({ client }) {
+  const isCheckin = ["active", "new", "milestone"].includes(client.status);
+  const category = isCheckin ? "checkin" : "reengagement";
+  const categoryLabel = isCheckin ? "Check-in" : "Re-engagement";
+  const prewritten = isCheckin ? CHECKIN_MESSAGES : REENGAGEMENT_MESSAGES;
+  const firstName = (client.full_name || "").split(" ")[0] || "there";
+
+  const [customMessages, setCustomMessages] = useState([]);
+  const [msgIndex, setMsgIndex] = useState(0);
+  const [copied, setCopied] = useState(false);
+
+  useEffect(() => {
+    fetch("/api/coach-messages")
+      .then((r) => (r.ok ? r.json() : { data: [] }))
+      .then(({ data }) => {
+        setCustomMessages(
+          (data || [])
+            .filter((m) => m.category === category)
+            .map((m) => m.message_text)
+        );
+      })
+      .catch(() => {});
+  }, [category]);
+
+  const allMessages = [...customMessages, ...prewritten];
+  const currentMessage = personalizeMessage(
+    allMessages[msgIndex % allMessages.length] || "",
+    firstName
+  );
+  const isCustom = msgIndex < customMessages.length;
+
+  const handleCopy = async () => {
+    try {
+      await navigator.clipboard.writeText(currentMessage);
+    } catch {
+      const ta = document.createElement("textarea");
+      ta.value = currentMessage;
+      document.body.appendChild(ta);
+      ta.select();
+      document.execCommand("copy");
+      document.body.removeChild(ta);
+    }
+    setCopied(true);
+    setTimeout(() => setCopied(false), 1500);
+  };
+
+  const handleNext = () => {
+    setMsgIndex((prev) => (prev + 1) % allMessages.length);
+    setCopied(false);
+  };
+
+  if (allMessages.length === 0) return null;
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm mb-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-extrabold">💬 Quick Message</h2>
+        <div className="flex items-center gap-2">
+          <span className={`px-2.5 py-1 rounded-lg text-xs font-bold ${isCheckin ? "bg-green-50 text-green-600" : "bg-amber-50 text-amber-600"}`}>
+            {categoryLabel}
+          </span>
+          {isCustom && (
+            <span className="px-2.5 py-1 rounded-lg bg-brand-50 text-brand-500 text-xs font-bold">
+              Custom
+            </span>
+          )}
+        </div>
+      </div>
+      <p className="font-body text-gray-700 text-base leading-relaxed mb-4 whitespace-pre-wrap bg-[#faf7f2] rounded-xl p-4">
+        {currentMessage}
+      </p>
+      <div className="flex gap-2">
+        <button
+          onClick={handleCopy}
+          className={`px-4 py-2.5 rounded-xl text-sm font-bold transition-colors duration-150 min-h-[44px] touch-manipulation ${
+            copied
+              ? "bg-green-100 text-green-700"
+              : "bg-brand-500 text-white hover:bg-brand-600"
+          }`}
+        >
+          {copied ? "Copied!" : "Copy"}
+        </button>
+        {allMessages.length > 1 && (
+          <button
+            onClick={handleNext}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-500 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation"
+          >
+            Next Message
+          </button>
+        )}
+        <span className="self-center text-xs text-gray-400 ml-auto">
+          {msgIndex % allMessages.length + 1} of {allMessages.length}
+        </span>
+      </div>
+    </div>
+  );
+}
 
 export default function ClientDetailPage() {
   const { coach, supabase } = useCoach();
@@ -368,6 +467,9 @@ export default function ClientDetailPage() {
           </div>
         )}
       </div>
+
+      {/* Quick Message */}
+      <QuickMessageCard client={client} />
 
       {/* ARCHIVED: Touchpoint sequences hidden until automation is ready */}
       {/* <div className="mt-8">

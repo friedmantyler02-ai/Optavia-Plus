@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { exchangeCodeForTokens } from "@/lib/google-calendar";
+import { exchangeCodeForTokens, bulkSyncReminders } from "@/lib/google-calendar";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -78,6 +78,14 @@ export async function GET(request) {
       return NextResponse.redirect(
         new URL("/dashboard/calendar?error=storage_failed", origin)
       );
+    }
+
+    // Bulk sync all existing reminders to Google Calendar
+    try {
+      const syncResult = await bulkSyncReminders(user.id);
+      console.log(`[gcal] Initial sync on connect: ${syncResult.synced} synced, ${syncResult.failed} failed`);
+    } catch (err) {
+      console.error("[gcal] Bulk sync on connect failed:", err.message);
     }
 
     return NextResponse.redirect(

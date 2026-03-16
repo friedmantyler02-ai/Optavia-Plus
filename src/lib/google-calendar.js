@@ -113,6 +113,25 @@ export async function createCalendarEvent(accessToken, event) {
   return res.json();
 }
 
+export async function updateCalendarEvent(accessToken, eventId, event) {
+  const res = await fetch(
+    `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
+    {
+      method: "PATCH",
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(event),
+    }
+  );
+  if (!res.ok) {
+    const error = await res.text();
+    throw new Error(`Failed to update calendar event: ${error}`);
+  }
+  return res.json();
+}
+
 export async function deleteCalendarEvent(accessToken, eventId) {
   const res = await fetch(
     `https://www.googleapis.com/calendar/v3/calendars/primary/events/${encodeURIComponent(eventId)}`,
@@ -125,4 +144,125 @@ export async function deleteCalendarEvent(accessToken, eventId) {
     const error = await res.text();
     throw new Error(`Failed to delete calendar event: ${error}`);
   }
+}
+
+// ---------------------------------------------------------------------------
+// Reminder ↔ Google Calendar event conversion
+// ---------------------------------------------------------------------------
+export function buildGoogleEvent(reminder) {
+  const time = reminder.due_time || "09:00";
+  const startDateTime = `${reminder.due_date}T${time}:00`;
+  const startDate = new Date(startDateTime);
+  const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // 30 min default
+  const endDateTime = endDate.toISOString().replace("Z", "").split(".")[0];
+
+  return {
+    summary: reminder.title,
+    description: reminder.notes || "",
+    start: { dateTime: startDateTime, timeZone: "America/New_York" },
+    end: { dateTime: endDateTime, timeZone: "America/New_York" },
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk sync: create Google Calendar events for all unsynced reminders
+// ---------------------------------------------------------------------------
+export async function bulkSyncReminders(coachId) {
+  let accessToken;
+  try {
+    accessToken = await getValidToken(coachId);
+  } catch {
+    console.log("[gcal] No valid token for bulk sync, skipping");
+    return { synced: 0, failed: 0, errors: [] };
+  }
+
+  const { data: reminders, error } = await supabaseAdmin
+    .from("reminders")
+    .select("id, title, notes, due_date, due_time")
+    .eq("coach_id", coachId)
+    .is("google_calendar_event_id", null)
+    .eq("is_completed", false);
+
+  if (error || !reminders || reminders.length === 0) {
+    if (error) console.error("[gcal] Failed to fetch reminders for bulk sync:", error);
+    return { synced: 0, failed: 0, errors: [] };
+  }
+
+  let synced = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const reminder of reminders) {
+    try {
+      const event = buildGoogleEvent(reminder);
+      const result = await createCalendarEvent(accessToken, event);
+      await supabaseAdmin
+        .from("reminders")
+        .update({ google_calendar_event_id: result.id })
+        .eq("id", reminder.id);
+      synced++;
+    } catch (err) {
+      console.error(`[gcal] Failed to sync reminder ${reminder.id}:`, err.message);
+      errors.push({ reminderId: reminder.id, error: err.message });
+      failed++;
+    }
+  }
+
+  console.log(`[gcal] Bulk sync complete: ${synced} synced, ${failed} failed`);
+  return { synced, failed, errors };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk delete: remove all Google Calendar events for a coach's reminders
+// ---------------------------------------------------------------------------
+export async function bulkDeleteReminders(coachId) {
+  let accessToken;
+  try {
+    accessToken = await getValidToken(coachId);
+  } catch {
+    console.log("[gcal] No valid token for bulk delete, skipping event cleanup");
+    // Still clear the IDs even if we can't delete from Google
+    await supabaseAdmin
+      .from("reminders")
+      .update({ google_calendar_event_id: null })
+      .eq("coach_id", coachId)
+      .not("google_calendar_event_id", "is", null);
+    return { deleted: 0, failed: 0, errors: [] };
+  }
+
+  const { data: reminders, error } = await supabaseAdmin
+    .from("reminders")
+    .select("id, google_calendar_event_id")
+    .eq("coach_id", coachId)
+    .not("google_calendar_event_id", "is", null);
+
+  if (error || !reminders || reminders.length === 0) {
+    if (error) console.error("[gcal] Failed to fetch reminders for bulk delete:", error);
+    return { deleted: 0, failed: 0, errors: [] };
+  }
+
+  let deleted = 0;
+  let failed = 0;
+  const errors = [];
+
+  for (const reminder of reminders) {
+    try {
+      await deleteCalendarEvent(accessToken, reminder.google_calendar_event_id);
+      deleted++;
+    } catch (err) {
+      console.error(`[gcal] Failed to delete event for reminder ${reminder.id}:`, err.message);
+      errors.push({ reminderId: reminder.id, error: err.message });
+      failed++;
+    }
+  }
+
+  // Clear all event IDs regardless of delete success
+  await supabaseAdmin
+    .from("reminders")
+    .update({ google_calendar_event_id: null })
+    .eq("coach_id", coachId)
+    .not("google_calendar_event_id", "is", null);
+
+  console.log(`[gcal] Bulk delete complete: ${deleted} deleted, ${failed} failed`);
+  return { deleted, failed, errors };
 }

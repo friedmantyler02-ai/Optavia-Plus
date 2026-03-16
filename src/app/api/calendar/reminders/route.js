@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  getValidToken,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  buildGoogleEvent,
+} from "@/lib/google-calendar";
+
+const supabaseAdmin = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function POST(request) {
   try {
@@ -36,6 +49,23 @@ export async function POST(request) {
     if (error) {
       console.error("Reminder insert error:", error);
       return NextResponse.json({ error: "Failed to create reminder" }, { status: 500 });
+    }
+
+    // Auto-sync to Google Calendar if connected
+    try {
+      const accessToken = await getValidToken(user.id);
+      const event = buildGoogleEvent(reminder);
+      const result = await createCalendarEvent(accessToken, event);
+      await supabaseAdmin
+        .from("reminders")
+        .update({ google_calendar_event_id: result.id })
+        .eq("id", reminder.id);
+      reminder.google_calendar_event_id = result.id;
+    } catch (err) {
+      // Not connected or sync failed — don't fail the reminder creation
+      if (!err.message?.includes("No Google Calendar connection")) {
+        console.error("[gcal] Failed to sync new reminder:", err.message);
+      }
     }
 
     return NextResponse.json(reminder, { status: 201 });
@@ -88,6 +118,17 @@ export async function PATCH(request) {
       return NextResponse.json({ error: "Failed to update reminder" }, { status: 500 });
     }
 
+    // Auto-sync update to Google Calendar if the reminder has a linked event
+    if (reminder.google_calendar_event_id) {
+      try {
+        const accessToken = await getValidToken(user.id);
+        const event = buildGoogleEvent(reminder);
+        await updateCalendarEvent(accessToken, reminder.google_calendar_event_id, event);
+      } catch (err) {
+        console.error("[gcal] Failed to update calendar event:", err.message);
+      }
+    }
+
     return NextResponse.json(reminder);
   } catch (err) {
     console.error("Reminders PATCH error:", err);
@@ -108,6 +149,24 @@ export async function DELETE(request) {
 
     if (!id) {
       return NextResponse.json({ error: "id is required" }, { status: 400 });
+    }
+
+    // Fetch reminder first to get google_calendar_event_id before deleting
+    const { data: reminder } = await supabaseAdmin
+      .from("reminders")
+      .select("google_calendar_event_id")
+      .eq("id", id)
+      .eq("coach_id", user.id)
+      .single();
+
+    // Delete from Google Calendar if linked
+    if (reminder?.google_calendar_event_id) {
+      try {
+        const accessToken = await getValidToken(user.id);
+        await deleteCalendarEvent(accessToken, reminder.google_calendar_event_id);
+      } catch (err) {
+        console.error("[gcal] Failed to delete calendar event:", err.message);
+      }
     }
 
     const { error } = await supabase

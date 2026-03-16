@@ -26,20 +26,6 @@ function getWeekStart(date) {
   return d;
 }
 
-function googleCalUrl(event) {
-  const d = event.date.replace(/-/g, "");
-  const nextDay = new Date(parseDate(event.date));
-  nextDay.setDate(nextDay.getDate() + 1);
-  const d2 = fmt(nextDay).replace(/-/g, "");
-  const params = new URLSearchParams({
-    action: "TEMPLATE",
-    text: event.title + (event.subtitle ? ` - ${event.subtitle}` : ""),
-    dates: `${d}/${d2}`,
-    details: event.subtitle || "",
-  });
-  return `https://calendar.google.com/calendar/render?${params}`;
-}
-
 const EVENT_COLORS = {
   lead_followup: { bg: "bg-[#E8735A]", text: "text-[#E8735A]", light: "bg-[#fef0ed]", border: "border-[#E8735A]" },
   client_checkin: { bg: "bg-[#3B82F6]", text: "text-[#3B82F6]", light: "bg-blue-50", border: "border-[#3B82F6]" },
@@ -150,14 +136,6 @@ function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
                             <button onClick={() => onAction("delete", event)} className="text-xs font-medium text-red-500 hover:text-red-600 px-2.5 py-1 rounded-lg hover:bg-red-50 transition">Delete</button>
                           </>
                         )}
-                        <a
-                          href={googleCalUrl(event)}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-xs text-gray-400 hover:text-gray-600 px-2 py-1 rounded-lg hover:bg-gray-50 transition"
-                        >
-                          &#128197; Add to Google Cal
-                        </a>
                       </div>
                     </div>
                   ))}

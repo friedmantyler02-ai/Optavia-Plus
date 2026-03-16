@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect } from "react";
 import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
@@ -153,113 +153,6 @@ function QuickMessageCard({ client }) {
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
-function WeeklyReminderCard({ client, supabase, onUpdate }) {
-  const [enabled, setEnabled] = useState(!!client.weekly_reminder);
-  const [selectedDay, setSelectedDay] = useState(client.contact_day || null);
-  const [saving, setSaving] = useState(false);
-  const [confirmation, setConfirmation] = useState(null);
-
-  useEffect(() => {
-    setEnabled(!!client.weekly_reminder);
-    setSelectedDay(client.contact_day || null);
-  }, [client.weekly_reminder, client.contact_day]);
-
-  const showConfirmation = useCallback((msg) => {
-    setConfirmation(msg);
-    const t = setTimeout(() => setConfirmation(null), 2000);
-    return () => clearTimeout(t);
-  }, []);
-
-  const saveReminder = async (on, day) => {
-    setSaving(true);
-    try {
-      const updates = {
-        weekly_reminder: on,
-        contact_day: on ? day : null,
-        updated_at: new Date().toISOString(),
-      };
-      const { data } = await supabase
-        .from("clients")
-        .update(updates)
-        .eq("id", client.id)
-        .select()
-        .single();
-      if (data) onUpdate(data);
-      if (on && day) {
-        showConfirmation(`Reminder set for ${day}s`);
-      } else {
-        showConfirmation("Reminder removed");
-      }
-    } catch {
-      // revert on error
-      setEnabled(!!client.weekly_reminder);
-      setSelectedDay(client.contact_day || null);
-    } finally {
-      setSaving(false);
-    }
-  };
-
-  const handleToggle = () => {
-    const newEnabled = !enabled;
-    setEnabled(newEnabled);
-    if (!newEnabled) {
-      setSelectedDay(null);
-      saveReminder(false, null);
-    }
-    // If toggling on, wait for day selection before saving
-  };
-
-  const handleDayPick = (day) => {
-    setSelectedDay(day);
-    saveReminder(true, day);
-  };
-
-  return (
-    <div className="bg-white rounded-2xl p-5 shadow-sm mb-5">
-      <div className="flex items-center justify-between mb-3">
-        <h2 className="text-lg font-extrabold">🔔 Weekly Reminder</h2>
-        <button
-          onClick={handleToggle}
-          disabled={saving}
-          className={`w-12 h-7 rounded-full transition-colors duration-200 relative ${enabled ? "bg-[#E8735A]" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
-          aria-label={enabled ? "Disable weekly reminder" : "Enable weekly reminder"}
-        >
-          <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${enabled ? "translate-x-5" : ""}`} />
-        </button>
-      </div>
-      {enabled && (
-        <>
-          <p className="text-sm text-gray-500 mb-3">Which day should you check in with {(client.full_name || "").split(" ")[0] || "this client"}?</p>
-          <div className="flex flex-wrap gap-2">
-            {WEEKDAYS.map((day) => (
-              <button
-                key={day}
-                onClick={() => handleDayPick(day)}
-                disabled={saving}
-                className={`px-4 py-3 rounded-xl text-sm font-bold transition-all duration-150 min-h-[44px] min-w-[44px] touch-manipulation ${
-                  selectedDay === day
-                    ? "bg-[#E8735A] text-white shadow-sm"
-                    : "bg-[#faf7f2] text-gray-600 hover:bg-[#f0ebe3] active:scale-95"
-                } ${saving ? "opacity-50" : ""}`}
-              >
-                {day.slice(0, 3)}
-              </button>
-            ))}
-          </div>
-        </>
-      )}
-      {!enabled && (
-        <p className="text-sm text-gray-400">Turn on to get a weekly calendar reminder to check in with this client.</p>
-      )}
-      {confirmation && (
-        <div className="mt-3 text-sm font-semibold text-green-600 animate-fade-up">
-          {confirmation} ✓
-        </div>
-      )}
-    </div>
-  );
-}
-
 export default function ClientDetailPage() {
   const { coach, supabase } = useCoach();
   const router = useRouter();
@@ -285,7 +178,14 @@ export default function ClientDetailPage() {
   const [meetingDate, setMeetingDate] = useState("");
   const [meetingTime, setMeetingTime] = useState("");
   const [loggingMeeting, setLoggingMeeting] = useState(false);
+  const [reminderConfirm, setReminderConfirm] = useState(null);
   const showToast = useShowToast();
+
+  useEffect(() => {
+    if (!reminderConfirm) return;
+    const t = setTimeout(() => setReminderConfirm(null), 2000);
+    return () => clearTimeout(t);
+  }, [reminderConfirm]);
 
   useEffect(() => { loadClient(); }, [params.id]);
 
@@ -458,35 +358,75 @@ export default function ClientDetailPage() {
       <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation">
         ← Back to All Clients
       </button>
-      <div className="bg-white rounded-2xl p-6 shadow-sm mb-5 flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-center gap-4">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl" style={{ background: "linear-gradient(135deg, #e8f0ea, #eaf2f6)" }}>
+      <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
+        <div className="flex items-center gap-4 mb-4">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style={{ background: "linear-gradient(135deg, #e8f0ea, #eaf2f6)" }}>
             {statusEmojis[client.status]}
           </div>
-          <div>
+          <div className="min-w-0">
             <h1 className="font-display text-2xl font-bold">{client.full_name}</h1>
             <p className="text-sm text-gray-400">{client.email || "No email"} · {formatPhoneDisplay(client.phone) || "No phone"}</p>
-            <div className="flex gap-2 mt-2 flex-wrap">
-              {statusOptions.map(s => (
-                <button key={s} onClick={async () => {
-                  try {
-                    await supabase.from("clients").update({ status: s }).eq("id", client.id);
-                    setClient(prev => ({ ...prev, status: s }));
-                    setForm(prev => ({ ...prev, status: s }));
-                    await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Changed status to " + statusLabels[s], details: client.full_name });
-                    showToast({ message: "Status updated", variant: "success" });
-                  } catch (err) {
-                    showToast({ message: "Something went wrong — please try again", variant: "error" });
-                  }
-                }}
-                  className={"px-3 py-2 rounded-lg text-xs font-bold transition min-h-[44px] touch-manipulation " + (client.status === s ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-400 hover:bg-gray-200")}>
-                  {statusEmojis[s]} {statusLabels[s]}
-                </button>
-              ))}
-            </div>
+            <span className="inline-block mt-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-[#faf7f2] text-gray-500">
+              {statusEmojis[client.status]} {statusLabels[client.status]}
+            </span>
           </div>
         </div>
-        {/* Relationship Score hidden — revisit later */}
+        {/* Inline Weekly Reminder */}
+        <div className="border-t border-gray-100 pt-4">
+          <div className="flex items-center gap-3 flex-wrap">
+            <button
+              onClick={() => {
+                const newEnabled = !client.weekly_reminder;
+                if (!newEnabled) {
+                  // Toggle off — save immediately
+                  setSaving(true);
+                  supabase.from("clients").update({ weekly_reminder: false, contact_day: null, updated_at: new Date().toISOString() }).eq("id", client.id).select().single()
+                    .then(({ data }) => { if (data) { setClient(data); setForm(data); } setReminderConfirm("Reminder removed"); setSaving(false); })
+                    .catch(() => setSaving(false));
+                } else {
+                  // Toggle on — optimistic UI, wait for day pick to save
+                  setClient(prev => ({ ...prev, weekly_reminder: true }));
+                  setForm(prev => ({ ...prev, weekly_reminder: true }));
+                }
+              }}
+              disabled={saving}
+              className={`w-12 h-7 rounded-full transition-colors duration-200 relative flex-shrink-0 ${client.weekly_reminder ? "bg-[#E8735A]" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
+              aria-label={client.weekly_reminder ? "Disable weekly reminder" : "Enable weekly reminder"}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${client.weekly_reminder ? "translate-x-5" : ""}`} />
+            </button>
+            <span className="text-sm font-semibold text-gray-600">Weekly Reminder</span>
+            {client.weekly_reminder && (
+              <div className="flex gap-1.5 flex-wrap">
+                {WEEKDAYS.map((day) => (
+                  <button
+                    key={day}
+                    onClick={() => {
+                      setSaving(true);
+                      supabase.from("clients").update({ weekly_reminder: true, contact_day: day, updated_at: new Date().toISOString() }).eq("id", client.id).select().single()
+                        .then(({ data }) => { if (data) { setClient(data); setForm(data); } setReminderConfirm(`Reminder set for ${day}s`); setSaving(false); })
+                        .catch(() => setSaving(false));
+                    }}
+                    disabled={saving}
+                    className={`px-3.5 py-2 rounded-xl text-xs font-bold transition-all duration-150 min-h-[44px] min-w-[44px] touch-manipulation ${
+                      client.contact_day === day
+                        ? "bg-[#E8735A] text-white shadow-sm"
+                        : "bg-[#faf7f2] text-gray-600 hover:bg-[#f0ebe3] active:scale-95"
+                    } ${saving ? "opacity-50" : ""}`}
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            )}
+            {!client.weekly_reminder && (
+              <span className="text-xs text-gray-400">Get a calendar reminder to check in</span>
+            )}
+          </div>
+          {reminderConfirm && (
+            <p className="mt-2 text-sm font-semibold text-green-600 animate-fade-up">{reminderConfirm} ✓</p>
+          )}
+        </div>
       </div>
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
@@ -579,13 +519,6 @@ export default function ClientDetailPage() {
 
       {/* Quick Message */}
       <QuickMessageCard client={client} />
-
-      {/* Weekly Reminder */}
-      <WeeklyReminderCard
-        client={client}
-        supabase={supabase}
-        onUpdate={(data) => { setClient(data); setForm(data); }}
-      />
 
       {/* ARCHIVED: Touchpoint sequences hidden until automation is ready */}
       {/* <div className="mt-8">
@@ -784,6 +717,18 @@ export default function ClientDetailPage() {
                 )}
               </div>
             ))}
+            {/* Status */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
+              {editing ? (
+                <select value={form.status || "active"} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
+                  className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]">
+                  {statusOptions.map(s => <option key={s} value={s}>{statusEmojis[s]} {statusLabels[s]}</option>)}
+                </select>
+              ) : (
+                <span className="text-sm font-semibold">{statusEmojis[client.status]} {statusLabels[client.status]}</span>
+              )}
+            </div>
             {/* Program Phase */}
             <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
               <span className="text-xs font-bold text-gray-400 uppercase">Program Phase</span>

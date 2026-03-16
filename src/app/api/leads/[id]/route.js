@@ -1,5 +1,18 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  getValidToken,
+  createCalendarEvent,
+  updateCalendarEvent,
+  deleteCalendarEvent,
+  buildGoogleEventForFollowup,
+} from "@/lib/google-calendar";
+
+const supabaseAdmin = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function GET(request, { params }) {
   try {
@@ -113,6 +126,39 @@ export async function PATCH(request, { params }) {
       });
     }
 
+    // Auto-sync follow-up date to Google Calendar
+    if (body.next_followup_date !== undefined) {
+      try {
+        const accessToken = await getValidToken(user.id);
+        if (lead.next_followup_date && lead.google_calendar_event_id) {
+          // Update existing event
+          const event = buildGoogleEventForFollowup(lead);
+          await updateCalendarEvent(accessToken, lead.google_calendar_event_id, event);
+        } else if (lead.next_followup_date && !lead.google_calendar_event_id) {
+          // Create new event
+          const event = buildGoogleEventForFollowup(lead);
+          const result = await createCalendarEvent(accessToken, event);
+          await supabaseAdmin
+            .from("leads")
+            .update({ google_calendar_event_id: result.id })
+            .eq("id", lead.id);
+          lead.google_calendar_event_id = result.id;
+        } else if (!lead.next_followup_date && lead.google_calendar_event_id) {
+          // Followup date cleared — delete event
+          await deleteCalendarEvent(accessToken, lead.google_calendar_event_id);
+          await supabaseAdmin
+            .from("leads")
+            .update({ google_calendar_event_id: null })
+            .eq("id", lead.id);
+          lead.google_calendar_event_id = null;
+        }
+      } catch (err) {
+        if (!err.message?.includes("No Google Calendar connection")) {
+          console.error("[gcal] Failed to sync lead update:", err.message);
+        }
+      }
+    }
+
     return NextResponse.json(lead);
   } catch (err) {
     console.error("Lead PATCH error:", err);
@@ -134,6 +180,23 @@ export async function DELETE(request, { params }) {
     }
 
     const { id } = await params;
+
+    // Fetch lead to get google_calendar_event_id before deleting
+    const { data: lead } = await supabaseAdmin
+      .from("leads")
+      .select("google_calendar_event_id")
+      .eq("id", id)
+      .eq("coach_id", user.id)
+      .single();
+
+    if (lead?.google_calendar_event_id) {
+      try {
+        const accessToken = await getValidToken(user.id);
+        await deleteCalendarEvent(accessToken, lead.google_calendar_event_id);
+      } catch (err) {
+        console.error("[gcal] Failed to delete lead calendar event:", err.message);
+      }
+    }
 
     const { error } = await supabase.from("leads").delete().eq("id", id).eq("coach_id", user.id);
 

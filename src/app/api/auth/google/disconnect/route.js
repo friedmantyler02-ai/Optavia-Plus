@@ -2,7 +2,7 @@ import { NextResponse } from "next/server";
 import { createServerClient } from "@supabase/ssr";
 import { createClient } from "@supabase/supabase-js";
 import { cookies } from "next/headers";
-import { bulkDeleteReminders } from "@/lib/google-calendar";
+import { bulkDeleteAll } from "@/lib/google-calendar";
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -43,8 +43,8 @@ export async function POST() {
 
   // Delete all Google Calendar events we created before disconnecting
   try {
-    const result = await bulkDeleteReminders(user.id);
-    console.log(`[gcal] Cleanup on disconnect: ${result.deleted} deleted, ${result.failed} failed`);
+    const result = await bulkDeleteAll(user.id);
+    console.log(`[gcal] Cleanup on disconnect complete`, JSON.stringify(result));
   } catch (err) {
     console.error("[gcal] Bulk delete on disconnect failed:", err.message);
   }

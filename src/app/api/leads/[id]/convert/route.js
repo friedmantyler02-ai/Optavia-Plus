@@ -1,5 +1,12 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { getValidToken, deleteCalendarEvent } from "@/lib/google-calendar";
+
+const supabaseAdmin = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function POST(request, { params }) {
   try {
@@ -72,6 +79,20 @@ export async function POST(request, { params }) {
       })
       .eq("id", id)
       .eq("coach_id", user.id);
+
+    // Delete follow-up calendar event since lead is now a client
+    if (lead.google_calendar_event_id) {
+      try {
+        const accessToken = await getValidToken(user.id);
+        await deleteCalendarEvent(accessToken, lead.google_calendar_event_id);
+        await supabaseAdmin
+          .from("leads")
+          .update({ google_calendar_event_id: null })
+          .eq("id", id);
+      } catch (err) {
+        console.error("[gcal] Failed to delete lead event on convert:", err.message);
+      }
+    }
 
     // Log activity
     await supabase.from("lead_activities").insert({

@@ -147,13 +147,13 @@ export async function deleteCalendarEvent(accessToken, eventId) {
 }
 
 // ---------------------------------------------------------------------------
-// Reminder ↔ Google Calendar event conversion
+// Event builders: Reminder, Lead Follow-up, Client Check-in
 // ---------------------------------------------------------------------------
 export function buildGoogleEvent(reminder) {
   const time = reminder.due_time || "09:00";
   const startDateTime = `${reminder.due_date}T${time}:00`;
   const startDate = new Date(startDateTime);
-  const endDate = new Date(startDate.getTime() + 30 * 60 * 1000); // 30 min default
+  const endDate = new Date(startDate.getTime() + 30 * 60 * 1000);
   const endDateTime = endDate.toISOString().replace("Z", "").split(".")[0];
 
   return {
@@ -164,42 +164,38 @@ export function buildGoogleEvent(reminder) {
   };
 }
 
+export function buildGoogleEventForFollowup(lead) {
+  const dateStr = lead.next_followup_date.split("T")[0];
+  const startDateTime = `${dateStr}T09:00:00`;
+  return {
+    summary: `Follow-up: ${lead.full_name}`,
+    description: "Lead follow-up",
+    start: { dateTime: startDateTime, timeZone: "America/New_York" },
+    end: { dateTime: `${dateStr}T09:30:00`, timeZone: "America/New_York" },
+  };
+}
+
+export function buildGoogleEventForCheckin(client) {
+  const now = new Date();
+  const dayOfWeek = now.getDay();
+  const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
+  const nextMonday = new Date(now);
+  nextMonday.setDate(now.getDate() + daysUntilMonday);
+  const dateStr = nextMonday.toISOString().split("T")[0];
+
+  return {
+    summary: `Check-in: ${client.full_name}`,
+    description: "Weekly client check-in",
+    start: { dateTime: `${dateStr}T09:00:00`, timeZone: "America/New_York" },
+    end: { dateTime: `${dateStr}T09:30:00`, timeZone: "America/New_York" },
+    recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+  };
+}
+
 // ---------------------------------------------------------------------------
-// Bulk sync: create Google Calendar events for all unsynced reminders
+// Bulk sync: reminders
 // ---------------------------------------------------------------------------
-export async function bulkSyncReminders(coachId, accessTokenOverride) {
-  console.log(`[gcal] bulkSyncReminders called for coach ${coachId}, tokenOverride: ${!!accessTokenOverride}`);
-  let accessToken = accessTokenOverride || null;
-
-  if (!accessToken) {
-    try {
-      accessToken = await getValidToken(coachId);
-      console.log("[gcal] Got valid token from DB for bulk sync");
-    } catch (err) {
-      console.error("[gcal] No valid token for bulk sync, skipping:", err.message);
-      return { synced: 0, failed: 0, errors: [] };
-    }
-  }
-
-  // Diagnostic: count ALL reminders for this coach first
-  const { data: allReminders, error: countErr } = await supabaseAdmin
-    .from("reminders")
-    .select("id, is_completed, google_calendar_event_id")
-    .eq("coach_id", coachId);
-
-  if (countErr) {
-    console.error("[gcal] Diagnostic query failed:", countErr);
-  } else {
-    const total = allReminders?.length || 0;
-    const incomplete = allReminders?.filter(r => !r.is_completed).length || 0;
-    const withoutGcalId = allReminders?.filter(r => r.google_calendar_event_id == null).length || 0;
-    const incompleteWithoutGcalId = allReminders?.filter(r => !r.is_completed && r.google_calendar_event_id == null).length || 0;
-    console.log(`[gcal] Diagnostic for coach ${coachId}: ${total} total reminders, ${incomplete} not completed, ${withoutGcalId} without gcal ID, ${incompleteWithoutGcalId} eligible for sync`);
-    if (total > 0 && allReminders[0]) {
-      console.log(`[gcal] Sample reminder:`, JSON.stringify(allReminders[0]));
-    }
-  }
-
+export async function bulkSyncReminders(coachId, accessToken) {
   const { data: reminders, error } = await supabaseAdmin
     .from("reminders")
     .select("id, title, notes, due_date, due_time")
@@ -209,95 +205,182 @@ export async function bulkSyncReminders(coachId, accessTokenOverride) {
 
   if (error) {
     console.error("[gcal] Failed to fetch reminders for bulk sync:", error);
-    return { synced: 0, failed: 0, errors: [] };
+    return { synced: 0, failed: 0 };
   }
+  if (!reminders || reminders.length === 0) return { synced: 0, failed: 0 };
 
-  console.log(`[gcal] Found ${reminders?.length || 0} unsynced reminders for coach ${coachId}`);
-
-  if (!reminders || reminders.length === 0) {
-    return { synced: 0, failed: 0, errors: [] };
-  }
-
-  let synced = 0;
-  let failed = 0;
-  const errors = [];
-
+  let synced = 0, failed = 0;
   for (const reminder of reminders) {
     try {
       const event = buildGoogleEvent(reminder);
-      console.log(`[gcal] Creating event for reminder ${reminder.id}: "${reminder.title}" on ${reminder.due_date}`);
       const result = await createCalendarEvent(accessToken, event);
-      console.log(`[gcal] Created Google event ${result.id} for reminder ${reminder.id}`);
-      const { error: updateErr } = await supabaseAdmin
+      await supabaseAdmin
         .from("reminders")
         .update({ google_calendar_event_id: result.id })
         .eq("id", reminder.id);
-      if (updateErr) {
-        console.error(`[gcal] Failed to store event ID for reminder ${reminder.id}:`, updateErr);
-      }
       synced++;
     } catch (err) {
       console.error(`[gcal] Failed to sync reminder ${reminder.id}:`, err.message);
-      errors.push({ reminderId: reminder.id, error: err.message });
       failed++;
     }
   }
-
-  console.log(`[gcal] Bulk sync complete: ${synced} synced, ${failed} failed`);
-  return { synced, failed, errors };
+  return { synced, failed };
 }
 
 // ---------------------------------------------------------------------------
-// Bulk delete: remove all Google Calendar events for a coach's reminders
+// Bulk sync: lead follow-ups
 // ---------------------------------------------------------------------------
-export async function bulkDeleteReminders(coachId) {
-  let accessToken;
-  try {
-    accessToken = await getValidToken(coachId);
-  } catch {
-    console.log("[gcal] No valid token for bulk delete, skipping event cleanup");
-    // Still clear the IDs even if we can't delete from Google
-    await supabaseAdmin
-      .from("reminders")
-      .update({ google_calendar_event_id: null })
-      .eq("coach_id", coachId)
-      .not("google_calendar_event_id", "is", null);
-    return { deleted: 0, failed: 0, errors: [] };
+export async function bulkSyncLeadFollowups(coachId, accessToken) {
+  const { data: leads, error } = await supabaseAdmin
+    .from("leads")
+    .select("id, full_name, next_followup_date")
+    .eq("coach_id", coachId)
+    .neq("stage", "client")
+    .not("next_followup_date", "is", null)
+    .is("google_calendar_event_id", null);
+
+  if (error) {
+    console.error("[gcal] Failed to fetch leads for bulk sync:", error);
+    return { synced: 0, failed: 0 };
+  }
+  if (!leads || leads.length === 0) return { synced: 0, failed: 0 };
+
+  let synced = 0, failed = 0;
+  for (const lead of leads) {
+    try {
+      const event = buildGoogleEventForFollowup(lead);
+      const result = await createCalendarEvent(accessToken, event);
+      await supabaseAdmin
+        .from("leads")
+        .update({ google_calendar_event_id: result.id })
+        .eq("id", lead.id);
+      synced++;
+    } catch (err) {
+      console.error(`[gcal] Failed to sync lead ${lead.id}:`, err.message);
+      failed++;
+    }
+  }
+  return { synced, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk sync: client weekly check-ins
+// ---------------------------------------------------------------------------
+export async function bulkSyncClientCheckins(coachId, accessToken) {
+  const ninetyDaysAgo = new Date();
+  ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+
+  const { data: clients, error } = await supabaseAdmin
+    .from("clients")
+    .select("id, full_name")
+    .eq("coach_id", coachId)
+    .eq("wants_weekly_checkin", true)
+    .gte("last_order_date", ninetyDaysAgo.toISOString())
+    .is("google_calendar_event_id", null);
+
+  if (error) {
+    console.error("[gcal] Failed to fetch clients for bulk sync:", error);
+    return { synced: 0, failed: 0 };
+  }
+  if (!clients || clients.length === 0) return { synced: 0, failed: 0 };
+
+  let synced = 0, failed = 0;
+  for (const client of clients) {
+    try {
+      const event = buildGoogleEventForCheckin(client);
+      const result = await createCalendarEvent(accessToken, event);
+      await supabaseAdmin
+        .from("clients")
+        .update({ google_calendar_event_id: result.id })
+        .eq("id", client.id);
+      synced++;
+    } catch (err) {
+      console.error(`[gcal] Failed to sync client checkin ${client.id}:`, err.message);
+      failed++;
+    }
+  }
+  return { synced, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk sync all: reminders + lead follow-ups + client check-ins
+// ---------------------------------------------------------------------------
+export async function bulkSyncAll(coachId, accessTokenOverride) {
+  let accessToken = accessTokenOverride || null;
+  if (!accessToken) {
+    try {
+      accessToken = await getValidToken(coachId);
+    } catch (err) {
+      console.error("[gcal] No valid token for bulk sync, skipping:", err.message);
+      return { reminders: { synced: 0, failed: 0 }, leads: { synced: 0, failed: 0 }, clients: { synced: 0, failed: 0 } };
+    }
   }
 
-  const { data: reminders, error } = await supabaseAdmin
-    .from("reminders")
+  const [reminders, leads, clients] = await Promise.all([
+    bulkSyncReminders(coachId, accessToken),
+    bulkSyncLeadFollowups(coachId, accessToken),
+    bulkSyncClientCheckins(coachId, accessToken),
+  ]);
+
+  const totalSynced = reminders.synced + leads.synced + clients.synced;
+  const totalFailed = reminders.failed + leads.failed + clients.failed;
+  console.log(`[gcal] Bulk sync all: ${totalSynced} synced, ${totalFailed} failed (reminders: ${reminders.synced}, leads: ${leads.synced}, clients: ${clients.synced})`);
+
+  return { reminders, leads, clients };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk delete helpers (per table)
+// ---------------------------------------------------------------------------
+async function bulkDeleteFromTable(tableName, coachId, accessToken) {
+  const { data: rows, error } = await supabaseAdmin
+    .from(tableName)
     .select("id, google_calendar_event_id")
     .eq("coach_id", coachId)
     .not("google_calendar_event_id", "is", null);
 
-  if (error || !reminders || reminders.length === 0) {
-    if (error) console.error("[gcal] Failed to fetch reminders for bulk delete:", error);
-    return { deleted: 0, failed: 0, errors: [] };
-  }
-
-  let deleted = 0;
-  let failed = 0;
-  const errors = [];
-
-  for (const reminder of reminders) {
-    try {
-      await deleteCalendarEvent(accessToken, reminder.google_calendar_event_id);
-      deleted++;
-    } catch (err) {
-      console.error(`[gcal] Failed to delete event for reminder ${reminder.id}:`, err.message);
-      errors.push({ reminderId: reminder.id, error: err.message });
-      failed++;
+  let deleted = 0, failed = 0;
+  if (!error && rows && rows.length > 0 && accessToken) {
+    for (const row of rows) {
+      try {
+        await deleteCalendarEvent(accessToken, row.google_calendar_event_id);
+        deleted++;
+      } catch (err) {
+        console.error(`[gcal] Failed to delete event for ${tableName} ${row.id}:`, err.message);
+        failed++;
+      }
     }
   }
 
-  // Clear all event IDs regardless of delete success
   await supabaseAdmin
-    .from("reminders")
+    .from(tableName)
     .update({ google_calendar_event_id: null })
     .eq("coach_id", coachId)
     .not("google_calendar_event_id", "is", null);
 
-  console.log(`[gcal] Bulk delete complete: ${deleted} deleted, ${failed} failed`);
-  return { deleted, failed, errors };
+  return { deleted, failed };
+}
+
+// ---------------------------------------------------------------------------
+// Bulk delete all: reminders + lead follow-ups + client check-ins
+// ---------------------------------------------------------------------------
+export async function bulkDeleteAll(coachId) {
+  let accessToken = null;
+  try {
+    accessToken = await getValidToken(coachId);
+  } catch {
+    console.log("[gcal] No valid token for bulk delete, clearing IDs only");
+  }
+
+  const [reminders, leads, clients] = await Promise.all([
+    bulkDeleteFromTable("reminders", coachId, accessToken),
+    bulkDeleteFromTable("leads", coachId, accessToken),
+    bulkDeleteFromTable("clients", coachId, accessToken),
+  ]);
+
+  const totalDeleted = reminders.deleted + leads.deleted + clients.deleted;
+  const totalFailed = reminders.failed + leads.failed + clients.failed;
+  console.log(`[gcal] Bulk delete all: ${totalDeleted} deleted, ${totalFailed} failed`);
+
+  return { reminders, leads, clients };
 }

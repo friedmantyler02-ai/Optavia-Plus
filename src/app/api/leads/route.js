@@ -1,5 +1,16 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import {
+  getValidToken,
+  createCalendarEvent,
+  buildGoogleEventForFollowup,
+} from "@/lib/google-calendar";
+
+const supabaseAdmin = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 export async function GET(request) {
   try {
@@ -132,6 +143,24 @@ export async function POST(request) {
         { error: "Failed to create lead" },
         { status: 500 }
       );
+    }
+
+    // Auto-sync to Google Calendar if connected and has followup date
+    if (lead.next_followup_date) {
+      try {
+        const accessToken = await getValidToken(user.id);
+        const event = buildGoogleEventForFollowup(lead);
+        const result = await createCalendarEvent(accessToken, event);
+        await supabaseAdmin
+          .from("leads")
+          .update({ google_calendar_event_id: result.id })
+          .eq("id", lead.id);
+        lead.google_calendar_event_id = result.id;
+      } catch (err) {
+        if (!err.message?.includes("No Google Calendar connection")) {
+          console.error("[gcal] Failed to sync new lead:", err.message);
+        }
+      }
     }
 
     return NextResponse.json(lead, { status: 201 });

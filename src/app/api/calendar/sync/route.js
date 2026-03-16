@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
-import { bulkSyncReminders } from "@/lib/google-calendar";
+import { bulkSyncAll } from "@/lib/google-calendar";
 
 export async function POST() {
   const supabase = await createClient();
@@ -14,7 +14,7 @@ export async function POST() {
   }
 
   try {
-    const result = await bulkSyncReminders(user.id);
+    const result = await bulkSyncAll(user.id);
     return NextResponse.json(result);
   } catch (err) {
     console.error("Calendar bulk sync error:", err);

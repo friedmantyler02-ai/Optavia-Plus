@@ -81,11 +81,13 @@ export async function GET(request) {
     }
 
     // Bulk sync all existing reminders to Google Calendar
+    // Pass the fresh access token directly to avoid DB re-read race condition
     try {
-      const syncResult = await bulkSyncReminders(user.id);
+      console.log(`[gcal] Starting bulk sync on connect for coach ${user.id}`);
+      const syncResult = await bulkSyncReminders(user.id, tokens.access_token);
       console.log(`[gcal] Initial sync on connect: ${syncResult.synced} synced, ${syncResult.failed} failed`);
     } catch (err) {
-      console.error("[gcal] Bulk sync on connect failed:", err.message);
+      console.error("[gcal] Bulk sync on connect failed:", err.message, err.stack);
     }
 
     return NextResponse.redirect(

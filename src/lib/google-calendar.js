@@ -167,13 +167,18 @@ export function buildGoogleEvent(reminder) {
 // ---------------------------------------------------------------------------
 // Bulk sync: create Google Calendar events for all unsynced reminders
 // ---------------------------------------------------------------------------
-export async function bulkSyncReminders(coachId) {
-  let accessToken;
-  try {
-    accessToken = await getValidToken(coachId);
-  } catch {
-    console.log("[gcal] No valid token for bulk sync, skipping");
-    return { synced: 0, failed: 0, errors: [] };
+export async function bulkSyncReminders(coachId, accessTokenOverride) {
+  console.log(`[gcal] bulkSyncReminders called for coach ${coachId}, tokenOverride: ${!!accessTokenOverride}`);
+  let accessToken = accessTokenOverride || null;
+
+  if (!accessToken) {
+    try {
+      accessToken = await getValidToken(coachId);
+      console.log("[gcal] Got valid token from DB for bulk sync");
+    } catch (err) {
+      console.error("[gcal] No valid token for bulk sync, skipping:", err.message);
+      return { synced: 0, failed: 0, errors: [] };
+    }
   }
 
   const { data: reminders, error } = await supabaseAdmin
@@ -183,8 +188,14 @@ export async function bulkSyncReminders(coachId) {
     .is("google_calendar_event_id", null)
     .eq("is_completed", false);
 
-  if (error || !reminders || reminders.length === 0) {
-    if (error) console.error("[gcal] Failed to fetch reminders for bulk sync:", error);
+  if (error) {
+    console.error("[gcal] Failed to fetch reminders for bulk sync:", error);
+    return { synced: 0, failed: 0, errors: [] };
+  }
+
+  console.log(`[gcal] Found ${reminders?.length || 0} unsynced reminders for coach ${coachId}`);
+
+  if (!reminders || reminders.length === 0) {
     return { synced: 0, failed: 0, errors: [] };
   }
 
@@ -195,11 +206,16 @@ export async function bulkSyncReminders(coachId) {
   for (const reminder of reminders) {
     try {
       const event = buildGoogleEvent(reminder);
+      console.log(`[gcal] Creating event for reminder ${reminder.id}: "${reminder.title}" on ${reminder.due_date}`);
       const result = await createCalendarEvent(accessToken, event);
-      await supabaseAdmin
+      console.log(`[gcal] Created Google event ${result.id} for reminder ${reminder.id}`);
+      const { error: updateErr } = await supabaseAdmin
         .from("reminders")
         .update({ google_calendar_event_id: result.id })
         .eq("id", reminder.id);
+      if (updateErr) {
+        console.error(`[gcal] Failed to store event ID for reminder ${reminder.id}:`, updateErr);
+      }
       synced++;
     } catch (err) {
       console.error(`[gcal] Failed to sync reminder ${reminder.id}:`, err.message);

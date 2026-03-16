@@ -181,6 +181,25 @@ export async function bulkSyncReminders(coachId, accessTokenOverride) {
     }
   }
 
+  // Diagnostic: count ALL reminders for this coach first
+  const { data: allReminders, error: countErr } = await supabaseAdmin
+    .from("reminders")
+    .select("id, is_completed, google_calendar_event_id")
+    .eq("coach_id", coachId);
+
+  if (countErr) {
+    console.error("[gcal] Diagnostic query failed:", countErr);
+  } else {
+    const total = allReminders?.length || 0;
+    const incomplete = allReminders?.filter(r => !r.is_completed).length || 0;
+    const withoutGcalId = allReminders?.filter(r => r.google_calendar_event_id == null).length || 0;
+    const incompleteWithoutGcalId = allReminders?.filter(r => !r.is_completed && r.google_calendar_event_id == null).length || 0;
+    console.log(`[gcal] Diagnostic for coach ${coachId}: ${total} total reminders, ${incomplete} not completed, ${withoutGcalId} without gcal ID, ${incompleteWithoutGcalId} eligible for sync`);
+    if (total > 0 && allReminders[0]) {
+      console.log(`[gcal] Sample reminder:`, JSON.stringify(allReminders[0]));
+    }
+  }
+
   const { data: reminders, error } = await supabaseAdmin
     .from("reminders")
     .select("id, title, notes, due_date, due_time")

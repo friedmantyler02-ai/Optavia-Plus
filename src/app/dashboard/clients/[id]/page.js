@@ -193,6 +193,8 @@ export default function ClientDetailPage() {
   const [meetingTime, setMeetingTime] = useState("");
   const [loggingMeeting, setLoggingMeeting] = useState(false);
   const [reminderConfirm, setReminderConfirm] = useState(null);
+  const [editingSocials, setEditingSocials] = useState(false);
+  const [socialsForm, setSocialsForm] = useState({ facebook_url: "", instagram_url: "" });
   const showToast = useShowToast();
 
   useEffect(() => {
@@ -570,59 +572,78 @@ export default function ClientDetailPage() {
       )} */}
       {/* Profile & Social */}
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
-        <h2 className="text-lg font-extrabold mb-4">🔗 Socials</h2>
-        {editing ? (
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-extrabold">🔗 Socials</h2>
+          {!editingSocials && (client.facebook_url || client.instagram_url) && (
+            <button
+              onClick={() => { setSocialsForm({ facebook_url: client.facebook_url || "", instagram_url: client.instagram_url || "" }); setEditingSocials(true); }}
+              className="px-3 py-1.5 rounded-xl text-xs font-bold text-gray-500 bg-gray-100 hover:bg-gray-200 transition-colors min-h-[44px] min-w-[44px] touch-manipulation flex items-center gap-1"
+            >
+              ✏️ Edit
+            </button>
+          )}
+        </div>
+        {editingSocials ? (
           <div className="space-y-3">
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook</label>
               <input
                 type="text"
-                value={form.facebook_url || ""}
-                onChange={(e) => setForm((p) => ({ ...p, facebook_url: e.target.value }))}
+                value={socialsForm.facebook_url}
+                onChange={(e) => setSocialsForm((p) => ({ ...p, facebook_url: e.target.value }))}
                 placeholder="Username or profile URL"
                 className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
+                autoFocus
               />
             </div>
             <div>
               <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Instagram</label>
               <input
                 type="text"
-                value={form.instagram_url || ""}
-                onChange={(e) => setForm((p) => ({ ...p, instagram_url: e.target.value }))}
+                value={socialsForm.instagram_url}
+                onChange={(e) => setSocialsForm((p) => ({ ...p, instagram_url: e.target.value }))}
                 placeholder="Username or profile URL"
                 className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
               />
             </div>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
-                <select
-                  value={form.source || ""}
-                  onChange={(e) => setForm((p) => ({ ...p, source: e.target.value }))}
-                  className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
-                >
-                  <option value="">Select source...</option>
-                  {sourceOptions.map((s) => (
-                    <option key={s.value} value={s.value}>{s.label}</option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Originally Met</label>
-                <input
-                  type="date"
-                  value={form.originally_met_date ? form.originally_met_date.slice(0, 10) : ""}
-                  onChange={(e) => setForm((p) => ({ ...p, originally_met_date: e.target.value }))}
-                  className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
-                />
-              </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setEditingSocials(false)}
+                className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors min-h-[44px] touch-manipulation"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={async () => {
+                  setSaving(true);
+                  try {
+                    const updates = {
+                      facebook_url: socialsForm.facebook_url.trim() || null,
+                      instagram_url: socialsForm.instagram_url.trim() || null,
+                      updated_at: new Date().toISOString(),
+                    };
+                    const { data } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
+                    if (data) { setClient(data); setForm(data); }
+                    setEditingSocials(false);
+                    showToast({ message: "Socials updated", variant: "success" });
+                  } catch {
+                    showToast({ message: "Something went wrong — please try again", variant: "error" });
+                  } finally {
+                    setSaving(false);
+                  }
+                }}
+                disabled={saving}
+                className={"flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors min-h-[44px] touch-manipulation " + (saving ? "bg-gray-200 text-gray-400" : "bg-[#E8735A] text-white hover:bg-[#d4654e]")}
+              >
+                {saving ? "Saving..." : "Save"}
+              </button>
             </div>
           </div>
         ) : (
           <div className="space-y-2">
             {client.facebook_url && (
               <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
-                <span className="text-xs font-bold text-gray-400 uppercase">Facebook</span>
+                <span className="text-xs font-bold text-gray-400 uppercase">📘 Facebook</span>
                 <a href={normalizeSocialUrl(client.facebook_url, "https://facebook.com/")} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
                   {client.facebook_url.replace(/^@/, "")}
                 </a>
@@ -630,7 +651,7 @@ export default function ClientDetailPage() {
             )}
             {client.instagram_url && (
               <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
-                <span className="text-xs font-bold text-gray-400 uppercase">Instagram</span>
+                <span className="text-xs font-bold text-gray-400 uppercase">📷 Instagram</span>
                 <a href={normalizeSocialUrl(client.instagram_url, "https://instagram.com/")} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
                   {client.instagram_url.replace(/^@/, "")}
                 </a>
@@ -648,8 +669,13 @@ export default function ClientDetailPage() {
                 <span className="text-sm font-semibold">{new Date(client.originally_met_date).toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" })}</span>
               </div>
             )}
-            {!client.facebook_url && !client.instagram_url && !client.source && !client.originally_met_date && (
-              <p className="text-sm text-gray-400 py-2">No profile info yet. Click Edit above to add details.</p>
+            {!client.facebook_url && !client.instagram_url && (
+              <button
+                onClick={() => { setSocialsForm({ facebook_url: "", instagram_url: "" }); setEditingSocials(true); }}
+                className="w-full py-4 rounded-xl border-2 border-dashed border-gray-300 text-gray-400 hover:border-[#E8735A] hover:text-[#E8735A] transition-colors font-bold text-sm flex items-center justify-center gap-2 min-h-[56px] touch-manipulation"
+              >
+                <span className="text-xl">+</span> Add Socials
+              </button>
             )}
           </div>
         )}
@@ -740,7 +766,11 @@ export default function ClientDetailPage() {
                   <input value={form[f.key] || ""} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
                     className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 w-40 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]" />
                 ) : (
-                  <span className="text-sm font-semibold">{client[f.key] || "—"}{(f.key.includes("weight") && client[f.key]) ? " lbs" : ""}</span>
+                  f.key === "phone" && client.phone ? (
+                    <a href={`tel:${phoneDigits(client.phone)}`} className="text-sm font-semibold text-[#E8735A] hover:underline">{formatPhoneDisplay(client.phone)}</a>
+                  ) : (
+                    <span className="text-sm font-semibold">{f.key === "phone" ? (client.phone ? formatPhoneDisplay(client.phone) : "—") : (client[f.key] || "—")}{(f.key.includes("weight") && client[f.key]) ? " lbs" : ""}</span>
+                  )
                 )}
               </div>
             ))}

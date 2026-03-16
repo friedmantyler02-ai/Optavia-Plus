@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
@@ -147,6 +147,115 @@ function QuickMessageCard({ client }) {
           {msgIndex % allMessages.length + 1} of {allMessages.length}
         </span>
       </div>
+    </div>
+  );
+}
+
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+
+function WeeklyReminderCard({ client, supabase, onUpdate }) {
+  const [enabled, setEnabled] = useState(!!client.weekly_reminder);
+  const [selectedDay, setSelectedDay] = useState(client.contact_day || null);
+  const [saving, setSaving] = useState(false);
+  const [confirmation, setConfirmation] = useState(null);
+
+  useEffect(() => {
+    setEnabled(!!client.weekly_reminder);
+    setSelectedDay(client.contact_day || null);
+  }, [client.weekly_reminder, client.contact_day]);
+
+  const showConfirmation = useCallback((msg) => {
+    setConfirmation(msg);
+    const t = setTimeout(() => setConfirmation(null), 2000);
+    return () => clearTimeout(t);
+  }, []);
+
+  const saveReminder = async (on, day) => {
+    setSaving(true);
+    try {
+      const updates = {
+        weekly_reminder: on,
+        contact_day: on ? day : null,
+        updated_at: new Date().toISOString(),
+      };
+      const { data } = await supabase
+        .from("clients")
+        .update(updates)
+        .eq("id", client.id)
+        .select()
+        .single();
+      if (data) onUpdate(data);
+      if (on && day) {
+        showConfirmation(`Reminder set for ${day}s`);
+      } else {
+        showConfirmation("Reminder removed");
+      }
+    } catch {
+      // revert on error
+      setEnabled(!!client.weekly_reminder);
+      setSelectedDay(client.contact_day || null);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleToggle = () => {
+    const newEnabled = !enabled;
+    setEnabled(newEnabled);
+    if (!newEnabled) {
+      setSelectedDay(null);
+      saveReminder(false, null);
+    }
+    // If toggling on, wait for day selection before saving
+  };
+
+  const handleDayPick = (day) => {
+    setSelectedDay(day);
+    saveReminder(true, day);
+  };
+
+  return (
+    <div className="bg-white rounded-2xl p-5 shadow-sm mb-5">
+      <div className="flex items-center justify-between mb-3">
+        <h2 className="text-lg font-extrabold">🔔 Weekly Reminder</h2>
+        <button
+          onClick={handleToggle}
+          disabled={saving}
+          className={`w-12 h-7 rounded-full transition-colors duration-200 relative ${enabled ? "bg-[#E8735A]" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
+          aria-label={enabled ? "Disable weekly reminder" : "Enable weekly reminder"}
+        >
+          <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${enabled ? "translate-x-5" : ""}`} />
+        </button>
+      </div>
+      {enabled && (
+        <>
+          <p className="text-sm text-gray-500 mb-3">Which day should you check in with {(client.full_name || "").split(" ")[0] || "this client"}?</p>
+          <div className="flex flex-wrap gap-2">
+            {WEEKDAYS.map((day) => (
+              <button
+                key={day}
+                onClick={() => handleDayPick(day)}
+                disabled={saving}
+                className={`px-4 py-3 rounded-xl text-sm font-bold transition-all duration-150 min-h-[44px] min-w-[44px] touch-manipulation ${
+                  selectedDay === day
+                    ? "bg-[#E8735A] text-white shadow-sm"
+                    : "bg-[#faf7f2] text-gray-600 hover:bg-[#f0ebe3] active:scale-95"
+                } ${saving ? "opacity-50" : ""}`}
+              >
+                {day.slice(0, 3)}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
+      {!enabled && (
+        <p className="text-sm text-gray-400">Turn on to get a weekly calendar reminder to check in with this client.</p>
+      )}
+      {confirmation && (
+        <div className="mt-3 text-sm font-semibold text-green-600 animate-fade-up">
+          {confirmation} ✓
+        </div>
+      )}
     </div>
   );
 }
@@ -470,6 +579,13 @@ export default function ClientDetailPage() {
 
       {/* Quick Message */}
       <QuickMessageCard client={client} />
+
+      {/* Weekly Reminder */}
+      <WeeklyReminderCard
+        client={client}
+        supabase={supabase}
+        onUpdate={(data) => { setClient(data); setForm(data); }}
+      />
 
       {/* ARCHIVED: Touchpoint sequences hidden until automation is ready */}
       {/* <div className="mt-8">

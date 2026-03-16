@@ -47,45 +47,42 @@ export async function GET(request) {
       });
     });
 
-    // 2. Client check-ins (wants_weekly_checkin = true, active within 90 days)
-    const ninetyDaysAgo = new Date();
-    ninetyDaysAgo.setDate(ninetyDaysAgo.getDate() - 90);
+    // 2. Client check-ins (weekly_reminder = true)
+    const DAY_MAP = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5 };
 
     const { data: clients, error: clientsErr } = await supabase
       .from("clients")
-      .select("id, full_name, last_checkin_date, last_order_date, wants_weekly_checkin")
+      .select("id, full_name, last_checkin_date, contact_day, weekly_reminder")
       .eq("coach_id", user.id)
-      .eq("wants_weekly_checkin", true)
-      .gte("last_order_date", ninetyDaysAgo.toISOString());
+      .eq("weekly_reminder", true);
 
     if (clientsErr) console.error("Calendar clients error:", clientsErr);
 
     (clients ?? []).forEach((client) => {
-      // Generate weekly dates within the requested month
       const monthStart = new Date(year, mon - 1, 1);
       const monthEnd = new Date(year, mon, 0);
 
-      // Start from the beginning of the month, find each Monday (or start of week)
-      // Use simple approach: generate one event per 7-day interval from month start
+      // Use the client's chosen contact_day, default to Monday
+      const targetDow = DAY_MAP[client.contact_day] ?? 1; // 1=Monday default
+
+      // Find the first occurrence of the target day in this month
       let current = new Date(monthStart);
-      // Advance to the first Monday of the month (or use Sunday as start)
-      const dayOfWeek = current.getDay(); // 0=Sun
-      if (dayOfWeek !== 1) {
-        // advance to next Monday
-        const daysUntilMonday = dayOfWeek === 0 ? 1 : 8 - dayOfWeek;
-        current.setDate(current.getDate() + daysUntilMonday);
-      }
+      const startDow = current.getDay(); // 0=Sun
+      let daysUntil = targetDow - startDow;
+      if (daysUntil < 0) daysUntil += 7;
+      current.setDate(current.getDate() + daysUntil);
 
       while (current <= monthEnd) {
         const dateStr = current.toISOString().split("T")[0];
 
-        // Check if completed: last_checkin_date falls in the same ISO week
+        // Check if completed: last_checkin_date falls in the same week (±3 days of contact day)
         let isCompleted = false;
         if (client.last_checkin_date) {
           const checkinDate = new Date(client.last_checkin_date);
           const weekStart = new Date(current);
+          weekStart.setDate(weekStart.getDate() - 3);
           const weekEnd = new Date(current);
-          weekEnd.setDate(weekEnd.getDate() + 6);
+          weekEnd.setDate(weekEnd.getDate() + 3);
           isCompleted = checkinDate >= weekStart && checkinDate <= weekEnd;
         }
 
@@ -94,7 +91,7 @@ export async function GET(request) {
           type: "client_checkin",
           date: dateStr,
           title: client.full_name,
-          subtitle: "Weekly check-in",
+          subtitle: `Weekly check-in · ${client.contact_day || "Monday"}`,
           clientId: client.id,
           isCompleted,
         });

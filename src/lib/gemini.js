@@ -1,8 +1,8 @@
 const GEMINI_URL =
-  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.0-flash:generateContent";
+  "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent";
 
 /**
- * Call Gemini 2.0 Flash with a plain text prompt.
+ * Call Gemini 2.5 Flash with a plain text prompt.
  * Returns { text } on success or { error } on failure.
  */
 export async function askGemini(prompt, options = {}) {

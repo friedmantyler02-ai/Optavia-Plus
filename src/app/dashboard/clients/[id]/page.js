@@ -32,6 +32,20 @@ const sourceOptions = [
 ];
 const sourceMap = Object.fromEntries(sourceOptions.map((s) => [s.value, s.label]));
 
+function phoneDigits(raw) {
+  if (!raw) return "";
+  return String(raw).replace(/\D/g, "");
+}
+
+function normalizeSocialUrl(value, base) {
+  if (!value) return "";
+  const trimmed = value.trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  // Strip leading @ if present
+  const username = trimmed.replace(/^@/, "");
+  return `${base}${username}`;
+}
+
 function getRelationshipScore(client) {
   const daysSinceContact = client.last_contact_date
     ? Math.floor((Date.now() - new Date(client.last_contact_date)) / 86400000)
@@ -365,10 +379,23 @@ export default function ClientDetailPage() {
           </div>
           <div className="min-w-0">
             <h1 className="font-display text-2xl font-bold">{client.full_name}</h1>
-            <p className="text-sm text-gray-400">{client.email || "No email"} · {formatPhoneDisplay(client.phone) || "No phone"}</p>
-            <span className="inline-block mt-1 px-2.5 py-1 rounded-lg text-xs font-bold bg-[#faf7f2] text-gray-500">
-              {statusEmojis[client.status]} {statusLabels[client.status]}
-            </span>
+            <p className="text-sm text-gray-400">
+              {client.email || "No email"} ·{" "}
+              {client.phone ? (
+                <a href={`tel:${phoneDigits(client.phone)}`} className="text-[#E8735A] hover:underline">{formatPhoneDisplay(client.phone)}</a>
+              ) : "No phone"}
+            </p>
+            <div className="flex items-center gap-2 mt-1">
+              <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold bg-[#faf7f2] text-gray-500">
+                {statusEmojis[client.status]} {statusLabels[client.status]}
+              </span>
+              {client.facebook_url && (
+                <a href={normalizeSocialUrl(client.facebook_url, "https://facebook.com/")} target="_blank" rel="noopener noreferrer" className="text-lg hover:opacity-70 transition-opacity" title="Facebook">📘</a>
+              )}
+              {client.instagram_url && (
+                <a href={normalizeSocialUrl(client.instagram_url, "https://instagram.com/")} target="_blank" rel="noopener noreferrer" className="text-lg hover:opacity-70 transition-opacity" title="Instagram">📷</a>
+              )}
+            </div>
           </div>
         </div>
         {/* Inline Weekly Reminder */}
@@ -547,22 +574,22 @@ export default function ClientDetailPage() {
         {editing ? (
           <div className="space-y-3">
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook</label>
               <input
-                type="url"
+                type="text"
                 value={form.facebook_url || ""}
                 onChange={(e) => setForm((p) => ({ ...p, facebook_url: e.target.value }))}
-                placeholder="https://facebook.com/..."
+                placeholder="Username or profile URL"
                 className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
               />
             </div>
             <div>
-              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Instagram Profile URL</label>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Instagram</label>
               <input
-                type="url"
+                type="text"
                 value={form.instagram_url || ""}
                 onChange={(e) => setForm((p) => ({ ...p, instagram_url: e.target.value }))}
-                placeholder="https://instagram.com/..."
+                placeholder="Username or profile URL"
                 className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors min-h-[44px]"
               />
             </div>
@@ -596,16 +623,16 @@ export default function ClientDetailPage() {
             {client.facebook_url && (
               <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
                 <span className="text-xs font-bold text-gray-400 uppercase">Facebook</span>
-                <a href={client.facebook_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
-                  {client.facebook_url.replace(/^https?:\/\/(www\.)?/, "")}
+                <a href={normalizeSocialUrl(client.facebook_url, "https://facebook.com/")} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
+                  {client.facebook_url.replace(/^@/, "")}
                 </a>
               </div>
             )}
             {client.instagram_url && (
               <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
                 <span className="text-xs font-bold text-gray-400 uppercase">Instagram</span>
-                <a href={client.instagram_url} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
-                  {client.instagram_url.replace(/^https?:\/\/(www\.)?/, "")}
+                <a href={normalizeSocialUrl(client.instagram_url, "https://instagram.com/")} target="_blank" rel="noopener noreferrer" className="text-sm font-semibold text-[#E8735A] underline hover:text-[#d4634d] truncate max-w-[250px]">
+                  {client.instagram_url.replace(/^@/, "")}
                 </a>
               </div>
             )}

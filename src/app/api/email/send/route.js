@@ -1,6 +1,5 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase-server";
 import { sendEmail } from "@/lib/resend";
 
 const supabaseAdmin = createClient(
@@ -210,21 +209,11 @@ export async function GET(request) {
 }
 
 // ---------------------------------------------------------------------------
-// POST /api/email/send
+// POST /api/email/send  (Cron secret required — same as GET)
 // ---------------------------------------------------------------------------
 export async function POST(request) {
   try {
-    let authorized = isCronAuthorized(request);
-
-    if (!authorized) {
-      const supabase = await createServerClient();
-      const { data: { user }, error: authError } = await supabase.auth.getUser();
-      if (!authError && user) {
-        authorized = true;
-      }
-    }
-
-    if (!authorized) {
+    if (!isCronAuthorized(request)) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 

@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
+import { createClient as createServerClient } from "@/lib/supabase-server";
 
 const supabaseAdmin = createSupabaseClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -8,12 +9,27 @@ const supabaseAdmin = createSupabaseClient(
 
 export async function POST(request) {
   try {
+    // Auth check: require a valid session
+    const supabase = await createServerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    }
+
     const { user_id, email, full_name, optavia_id } = await request.json();
 
     if (!user_id || !email) {
       return NextResponse.json(
         { error: "user_id and email are required" },
         { status: 400 }
+      );
+    }
+
+    // Verify the caller is creating a coach record for themselves
+    if (user_id !== user.id) {
+      return NextResponse.json(
+        { error: "user_id must match authenticated user" },
+        { status: 403 }
       );
     }
 

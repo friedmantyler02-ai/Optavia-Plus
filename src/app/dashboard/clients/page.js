@@ -406,7 +406,7 @@ function ClientRow({ client, muted, router, dismissedAlerts, onDismissAlert, sho
         </td>
 
         {/* QV */}
-        <td className="text-center py-3 px-1">
+        <td className="text-center py-3 pl-3 pr-1">
           <span className={`text-sm font-bold ${qv != null ? (qv >= 350 ? "text-green-600" : "text-orange-500") : "text-gray-300"}`}>
             {qv != null ? qv.toLocaleString() : "\u2014"}
           </span>
@@ -599,12 +599,12 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
         <div className="border-t border-gray-100">
           <table className="w-full" style={{ tableLayout: 'fixed' }}>
             <colgroup>
-              <col style={{ width: '40%' }} />
-              <col style={{ width: '8%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '13%' }} />
-              <col style={{ width: '13%' }} />
+              <col style={{ width: '46%' }} />
+              <col style={{ width: '7%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '12%' }} />
+              <col style={{ width: '11.5%' }} />
+              <col style={{ width: '11.5%' }} />
             </colgroup>
             <thead>
               <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
@@ -613,7 +613,7 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
                     Client Name {sortKey === "name" && (sortDir === "asc" ? "▲" : "▼")}
                   </span>
                 </th>
-                <th className="text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("qv")}>
+                <th className="text-center py-3 pl-3 pr-1 cursor-pointer select-none" onClick={() => onSort("qv")}>
                   <span className={`text-sm font-semibold ${sortKey === "qv" ? "text-[#E8735A]" : "text-gray-500"}`}>
                     QV {sortKey === "qv" && (sortDir === "asc" ? "▲" : "▼")}
                   </span>

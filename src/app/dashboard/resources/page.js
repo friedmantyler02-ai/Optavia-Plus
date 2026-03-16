@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useCoach } from "../layout";
 import { ALL_MESSAGES } from "@/lib/suggested-messages";
 
@@ -509,104 +509,25 @@ function TrainingLibraryTab({ supabase }) {
   const [error, setError] = useState(null);
   const [search, setSearch] = useState("");
 
-  // Upload state
-  const [selectedFiles, setSelectedFiles] = useState([]);
-  const [uploading, setUploading] = useState(false);
-  const [uploadProgress, setUploadProgress] = useState("");
-  const [uploadResult, setUploadResult] = useState(null);
-  const [dragOver, setDragOver] = useState(false);
-  const fileInputRef = useRef(null);
-
-  // Delete state
-  const [deletingId, setDeletingId] = useState(null);
-
-  const fetchDocs = useCallback(async () => {
-    try {
-      const { data, error: fetchErr } = await supabase
-        .from("knowledge_documents")
-        .select("*")
-        .order("created_at", { ascending: false });
-
-      if (fetchErr) throw fetchErr;
-      setDocs(data || []);
-    } catch (err) {
-      console.error("Failed to fetch knowledge docs:", err);
-      setError("Failed to load training documents.");
-    } finally {
-      setLoading(false);
-    }
-  }, [supabase]);
-
   useEffect(() => {
+    const fetchDocs = async () => {
+      try {
+        const { data, error: fetchErr } = await supabase
+          .from("knowledge_documents")
+          .select("*")
+          .order("created_at", { ascending: false });
+
+        if (fetchErr) throw fetchErr;
+        setDocs(data || []);
+      } catch (err) {
+        console.error("Failed to fetch knowledge docs:", err);
+        setError("Failed to load training documents.");
+      } finally {
+        setLoading(false);
+      }
+    };
     fetchDocs();
-  }, [fetchDocs]);
-
-  const handleFilesSelected = (files) => {
-    const pdfs = Array.from(files).filter((f) =>
-      f.name.toLowerCase().endsWith(".pdf")
-    );
-    if (pdfs.length === 0) return;
-    setSelectedFiles(pdfs);
-    setUploadResult(null);
-  };
-
-  const handleUpload = async () => {
-    if (selectedFiles.length === 0) return;
-    setUploading(true);
-    setUploadResult(null);
-
-    const formData = new FormData();
-    selectedFiles.forEach((f) => formData.append("files", f));
-
-    setUploadProgress(`Uploading ${selectedFiles.length} file${selectedFiles.length > 1 ? "s" : ""}...`);
-
-    try {
-      const res = await fetch("/api/knowledge/upload", {
-        method: "POST",
-        body: formData,
-      });
-      const data = await res.json();
-
-      if (res.ok) {
-        setUploadResult({
-          success: true,
-          message: `${data.uploaded} uploaded${data.skipped ? `, ${data.skipped} skipped (already exist)` : ""}${data.errors?.length ? `, ${data.errors.length} failed` : ""}`,
-          errors: data.errors,
-        });
-        setSelectedFiles([]);
-        fetchDocs();
-      } else {
-        setUploadResult({ success: false, message: data.error || "Upload failed" });
-      }
-    } catch {
-      setUploadResult({ success: false, message: "Something went wrong. Please try again." });
-    } finally {
-      setUploading(false);
-      setUploadProgress("");
-    }
-  };
-
-  const handleDelete = async (id) => {
-    try {
-      const res = await fetch("/api/knowledge/upload", {
-        method: "DELETE",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ id }),
-      });
-      if (res.ok) {
-        setDocs((prev) => prev.filter((d) => d.id !== id));
-        setDeletingId(null);
-      }
-    } catch (err) {
-      console.error("Failed to delete document:", err);
-    }
-  };
-
-  const handleDrop = (e) => {
-    e.preventDefault();
-    setDragOver(false);
-    handleFilesSelected(e.dataTransfer.files);
-  };
+  }, [supabase]);
 
   const filtered = docs.filter((doc) =>
     (doc.title || "").toLowerCase().includes(search.toLowerCase())
@@ -630,101 +551,6 @@ function TrainingLibraryTab({ supabase }) {
 
   return (
     <div>
-      {/* Upload area */}
-      <div
-        onDragOver={(e) => { e.preventDefault(); setDragOver(true); }}
-        onDragLeave={() => setDragOver(false)}
-        onDrop={handleDrop}
-        onClick={() => !uploading && fileInputRef.current?.click()}
-        className={`mb-6 rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors duration-150 ${
-          dragOver
-            ? "border-brand-400 bg-brand-50"
-            : "border-gray-200 bg-gray-50 hover:border-brand-300 hover:bg-brand-50/50"
-        }`}
-      >
-        <input
-          ref={fileInputRef}
-          type="file"
-          accept=".pdf"
-          multiple
-          className="hidden"
-          onChange={(e) => handleFilesSelected(e.target.files)}
-        />
-        <p className="text-2xl mb-2">📄</p>
-        <p className="font-display text-sm font-bold text-gray-600">
-          Drop PDFs here or click to browse
-        </p>
-        <p className="font-body text-xs text-gray-400 mt-1">
-          PDF files only, up to 10MB each
-        </p>
-      </div>
-
-      {/* Selected files list */}
-      {selectedFiles.length > 0 && (
-        <div className="mb-6 bg-white rounded-2xl border-2 border-brand-100 p-4">
-          <p className="font-display text-sm font-bold text-gray-700 mb-3">
-            {selectedFiles.length} file{selectedFiles.length > 1 ? "s" : ""} selected
-          </p>
-          <div className="space-y-1.5 mb-4">
-            {selectedFiles.map((f, i) => (
-              <div key={i} className="flex items-center gap-2 font-body text-sm text-gray-600">
-                <span className="text-brand-400">PDF</span>
-                <span className="truncate">{f.name}</span>
-                <span className="text-gray-400 text-xs ml-auto flex-shrink-0">
-                  {(f.size / 1024 / 1024).toFixed(1)}MB
-                </span>
-              </div>
-            ))}
-          </div>
-          <div className="flex gap-2">
-            <button
-              onClick={handleUpload}
-              disabled={uploading}
-              className="px-4 py-2.5 rounded-xl text-sm font-bold bg-brand-500 text-white hover:bg-brand-600 transition-colors duration-150 min-h-[44px] touch-manipulation disabled:opacity-50"
-            >
-              {uploading ? "Uploading..." : "Upload"}
-            </button>
-            <button
-              onClick={() => { setSelectedFiles([]); setUploadResult(null); }}
-              disabled={uploading}
-              className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation disabled:opacity-50"
-            >
-              Cancel
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* Upload progress */}
-      {uploading && uploadProgress && (
-        <div className="mb-4 flex items-center gap-3">
-          <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin flex-shrink-0" />
-          <p className="font-body text-sm text-gray-500">{uploadProgress}</p>
-        </div>
-      )}
-
-      {/* Upload result */}
-      {uploadResult && (
-        <div
-          className={`mb-6 rounded-2xl border-2 p-4 ${
-            uploadResult.success
-              ? "bg-green-50 border-green-100"
-              : "bg-red-50 border-red-100"
-          }`}
-        >
-          <p className={`font-body text-sm ${uploadResult.success ? "text-green-700" : "text-red-500"}`}>
-            {uploadResult.message}
-          </p>
-          {uploadResult.errors?.length > 0 && (
-            <ul className="mt-2 space-y-1">
-              {uploadResult.errors.map((e, i) => (
-                <li key={i} className="font-body text-xs text-red-400">{e}</li>
-              ))}
-            </ul>
-          )}
-        </div>
-      )}
-
       {/* Search bar */}
       <div className="mb-6">
         <input
@@ -738,98 +564,53 @@ function TrainingLibraryTab({ supabase }) {
 
       {filtered.length === 0 ? (
         <div className="bg-white rounded-2xl border-2 border-gray-100 p-8 text-center">
-          <p className="text-4xl mb-3">📄</p>
+          <p className="text-4xl mb-3">📚</p>
           <p className="font-display text-lg font-bold text-gray-600 mb-1">
-            {docs.length === 0 ? "No documents yet" : "No results found"}
-          </p>
-          <p className="font-body text-sm text-gray-400">
             {docs.length === 0
-              ? "Upload PDFs above to add training documents."
-              : "Try a different search term."}
+              ? "Training materials will be available here soon."
+              : "No results found"}
           </p>
+          {docs.length > 0 && (
+            <p className="font-body text-sm text-gray-400">
+              Try a different search term.
+            </p>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
-          {filtered.map((doc) => {
-            const isDeleting = deletingId === doc.id;
-            return (
-              <div
-                key={doc.id}
-                className="bg-white rounded-2xl border-2 border-gray-100 p-5"
-              >
-                <div className="flex items-start justify-between gap-2">
-                  <div className="flex-1 min-w-0">
-                    <h3 className="font-display text-base font-bold text-gray-800 mb-1">
-                      {doc.title || "Untitled Document"}
-                    </h3>
-                    {doc.description && (
-                      <p className="font-body text-sm text-gray-500 mb-2">
-                        {doc.description}
-                      </p>
-                    )}
-                    <p className="font-body text-xs text-gray-400">
-                      Added{" "}
-                      {new Date(doc.created_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                      {doc.filename && (
-                        <span className="ml-2 text-gray-300">
-                          {doc.filename}
-                        </span>
-                      )}
-                    </p>
-                  </div>
-                  {!isDeleting && (
-                    <button
-                      onClick={() => setDeletingId(doc.id)}
-                      className="w-9 h-9 rounded-lg flex items-center justify-center text-gray-300 hover:bg-red-50 hover:text-red-400 transition min-w-[44px] min-h-[44px] touch-manipulation flex-shrink-0"
-                      title="Delete"
-                    >
-                      <svg xmlns="http://www.w3.org/2000/svg" className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                      </svg>
-                    </button>
-                  )}
-                </div>
-
-                {/* Delete confirmation */}
-                {isDeleting && (
-                  <div className="bg-red-50 rounded-xl p-4 mt-3">
-                    <p className="font-body text-sm text-red-600 font-semibold mb-3">
-                      Delete this document?
-                    </p>
-                    <div className="flex gap-2">
-                      <button
-                        onClick={() => handleDelete(doc.id)}
-                        className="px-4 py-2.5 rounded-xl text-sm font-bold bg-red-500 text-white hover:bg-red-600 transition-colors duration-150 min-h-[44px] touch-manipulation"
-                      >
-                        Delete
-                      </button>
-                      <button
-                        onClick={() => setDeletingId(null)}
-                        className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation"
-                      >
-                        Cancel
-                      </button>
-                    </div>
-                  </div>
-                )}
-
-                {doc.file_url && (
-                  <a
-                    href={doc.file_url}
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className="inline-block mt-3 px-4 py-2.5 rounded-xl bg-brand-50 text-brand-600 text-sm font-bold hover:bg-brand-100 transition min-h-[44px] touch-manipulation leading-[44px]"
-                  >
-                    View Document
-                  </a>
-                )}
-              </div>
-            );
-          })}
+          {filtered.map((doc) => (
+            <div
+              key={doc.id}
+              className="bg-white rounded-2xl border-2 border-gray-100 p-5"
+            >
+              <h3 className="font-display text-base font-bold text-gray-800 mb-1">
+                {doc.title || "Untitled Document"}
+              </h3>
+              {doc.description && (
+                <p className="font-body text-sm text-gray-500 mb-2">
+                  {doc.description}
+                </p>
+              )}
+              <p className="font-body text-xs text-gray-400">
+                Added{" "}
+                {new Date(doc.created_at).toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })}
+              </p>
+              {doc.file_url && (
+                <a
+                  href={doc.file_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-block mt-3 px-4 py-2.5 rounded-xl bg-brand-50 text-brand-600 text-sm font-bold hover:bg-brand-100 transition min-h-[44px] touch-manipulation leading-[44px]"
+                >
+                  View Document
+                </a>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

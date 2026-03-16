@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useCoach } from "../layout";
 import { formatPhoneDisplay } from "@/lib/phone";
 
@@ -57,7 +57,31 @@ export default function AdminPage() {
   const [debouncedClientSearch, setDebouncedClientSearch] = useState("");
   const [clientsLoading, setClientsLoading] = useState(false);
 
+  // Knowledge base state
+  const [kbDocs, setKbDocs] = useState([]);
+  const [kbLoading, setKbLoading] = useState(true);
+  const [kbSelectedFiles, setKbSelectedFiles] = useState([]);
+  const [kbUploading, setKbUploading] = useState(false);
+  const [kbUploadResult, setKbUploadResult] = useState(null);
+  const [kbDragOver, setKbDragOver] = useState(false);
+  const [kbDeletingId, setKbDeletingId] = useState(null);
+  const kbFileInputRef = useRef(null);
+
   const isAdmin = coach && ADMIN_EMAILS.includes(coach.email);
+
+  const fetchKbDocs = useCallback(async () => {
+    try {
+      const { data, error } = await supabase
+        .from("knowledge_documents")
+        .select("id, title, filename, created_at")
+        .order("created_at", { ascending: false });
+      if (!error) setKbDocs(data || []);
+    } catch (err) {
+      console.error("Failed to fetch knowledge docs:", err);
+    } finally {
+      setKbLoading(false);
+    }
+  }, [supabase]);
 
   const getToken = useCallback(async () => {
     const { data } = await supabase.auth.getSession();
@@ -142,6 +166,73 @@ export default function AdminPage() {
       setClientsLoading(false);
     })();
   }, [selectedCoach, clientsPage, debouncedClientSearch]);
+
+  // Fetch knowledge base docs
+  useEffect(() => {
+    if (!isAdmin) return;
+    fetchKbDocs();
+  }, [isAdmin, fetchKbDocs]);
+
+  const handleKbFilesSelected = (files) => {
+    const pdfs = Array.from(files).filter((f) =>
+      f.name.toLowerCase().endsWith(".pdf")
+    );
+    if (pdfs.length === 0) return;
+    setKbSelectedFiles(pdfs);
+    setKbUploadResult(null);
+  };
+
+  const handleKbUpload = async () => {
+    if (kbSelectedFiles.length === 0) return;
+    setKbUploading(true);
+    setKbUploadResult(null);
+    const formData = new FormData();
+    kbSelectedFiles.forEach((f) => formData.append("files", f));
+    try {
+      const res = await fetch("/api/knowledge/upload", {
+        method: "POST",
+        body: formData,
+      });
+      const data = await res.json();
+      if (res.ok) {
+        setKbUploadResult({
+          success: true,
+          message: `${data.uploaded} uploaded${data.skipped ? `, ${data.skipped} skipped (already exist)` : ""}${data.errors?.length ? `, ${data.errors.length} failed` : ""}`,
+          errors: data.errors,
+        });
+        setKbSelectedFiles([]);
+        fetchKbDocs();
+      } else {
+        setKbUploadResult({ success: false, message: data.error || "Upload failed" });
+      }
+    } catch {
+      setKbUploadResult({ success: false, message: "Something went wrong." });
+    } finally {
+      setKbUploading(false);
+    }
+  };
+
+  const handleKbDelete = async (id) => {
+    try {
+      const res = await fetch("/api/knowledge/upload", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id }),
+      });
+      if (res.ok) {
+        setKbDocs((prev) => prev.filter((d) => d.id !== id));
+        setKbDeletingId(null);
+      }
+    } catch (err) {
+      console.error("Failed to delete document:", err);
+    }
+  };
+
+  const handleKbDrop = (e) => {
+    e.preventDefault();
+    setKbDragOver(false);
+    handleKbFilesSelected(e.dataTransfer.files);
+  };
 
   if (!isAdmin) {
     return (
@@ -529,6 +620,208 @@ export default function AdminPage() {
           </div>
         </section>
       )}
+
+      {/* ── Section 4: Knowledge Base Management ── */}
+      <section>
+        <h2 className="font-display text-2xl font-bold text-gray-900 mb-4">
+          Knowledge Base Management
+        </h2>
+
+        {/* Doc count */}
+        <div className="rounded-2xl border-2 border-gray-100 bg-white p-5 mb-6">
+          <p className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">
+            Total Documents
+          </p>
+          <p className="text-3xl font-bold text-gray-900">
+            {kbLoading ? "..." : kbDocs.length}
+          </p>
+        </div>
+
+        {/* Upload zone */}
+        <div
+          onDragOver={(e) => { e.preventDefault(); setKbDragOver(true); }}
+          onDragLeave={() => setKbDragOver(false)}
+          onDrop={handleKbDrop}
+          onClick={() => !kbUploading && kbFileInputRef.current?.click()}
+          className={`mb-6 rounded-2xl border-2 border-dashed p-6 text-center cursor-pointer transition-colors duration-150 ${
+            kbDragOver
+              ? "border-brand-400 bg-brand-50"
+              : "border-gray-200 bg-gray-50 hover:border-brand-300 hover:bg-brand-50/50"
+          }`}
+        >
+          <input
+            ref={kbFileInputRef}
+            type="file"
+            accept=".pdf"
+            multiple
+            className="hidden"
+            onChange={(e) => handleKbFilesSelected(e.target.files)}
+          />
+          <p className="text-2xl mb-2">📄</p>
+          <p className="font-display text-sm font-bold text-gray-600">
+            Drop PDFs here or click to browse
+          </p>
+          <p className="font-body text-xs text-gray-400 mt-1">
+            PDF files only, up to 10MB each. Text will be extracted automatically.
+          </p>
+        </div>
+
+        {/* Selected files */}
+        {kbSelectedFiles.length > 0 && (
+          <div className="mb-6 rounded-2xl border-2 border-brand-100 bg-white p-4">
+            <p className="font-display text-sm font-bold text-gray-700 mb-3">
+              {kbSelectedFiles.length} file{kbSelectedFiles.length > 1 ? "s" : ""} selected
+            </p>
+            <div className="space-y-1.5 mb-4">
+              {kbSelectedFiles.map((f, i) => (
+                <div key={i} className="flex items-center gap-2 text-sm text-gray-600">
+                  <span className="text-brand-400 font-semibold">PDF</span>
+                  <span className="truncate">{f.name}</span>
+                  <span className="text-gray-400 text-xs ml-auto flex-shrink-0">
+                    {(f.size / 1024 / 1024).toFixed(1)}MB
+                  </span>
+                </div>
+              ))}
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleKbUpload}
+                disabled={kbUploading}
+                className="px-4 py-2.5 rounded-xl text-sm font-bold bg-brand-500 text-white hover:bg-brand-600 transition-colors duration-150 min-h-[44px] touch-manipulation disabled:opacity-50"
+              >
+                {kbUploading ? "Uploading..." : "Upload"}
+              </button>
+              <button
+                onClick={() => { setKbSelectedFiles([]); setKbUploadResult(null); }}
+                disabled={kbUploading}
+                className="px-4 py-2.5 rounded-xl text-sm font-bold text-gray-400 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation disabled:opacity-50"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Upload progress */}
+        {kbUploading && (
+          <div className="mb-4 flex items-center gap-3">
+            <div className="w-5 h-5 border-2 border-brand-200 border-t-brand-500 rounded-full animate-spin flex-shrink-0" />
+            <p className="text-sm text-gray-500">
+              Uploading {kbSelectedFiles.length} file{kbSelectedFiles.length > 1 ? "s" : ""}...
+            </p>
+          </div>
+        )}
+
+        {/* Upload result */}
+        {kbUploadResult && (
+          <div
+            className={`mb-6 rounded-2xl border-2 p-4 ${
+              kbUploadResult.success
+                ? "bg-green-50 border-green-100"
+                : "bg-red-50 border-red-100"
+            }`}
+          >
+            <p className={`text-sm font-semibold ${kbUploadResult.success ? "text-green-700" : "text-red-500"}`}>
+              {kbUploadResult.message}
+            </p>
+            {kbUploadResult.errors?.length > 0 && (
+              <ul className="mt-2 space-y-1">
+                {kbUploadResult.errors.map((e, i) => (
+                  <li key={i} className="text-xs text-red-400">{e}</li>
+                ))}
+              </ul>
+            )}
+          </div>
+        )}
+
+        {/* Document list */}
+        <div className="rounded-2xl border-2 border-gray-100 bg-white overflow-hidden">
+          <div className="px-5 py-3 border-b-2 border-gray-100">
+            <h3 className="font-display text-lg font-bold text-gray-900">
+              All Documents
+            </h3>
+          </div>
+          {kbLoading ? (
+            <div className="p-12 text-center">
+              <p className="text-gray-400 font-semibold">Loading...</p>
+            </div>
+          ) : kbDocs.length === 0 ? (
+            <div className="p-12 text-center">
+              <p className="text-gray-400 font-semibold">
+                No documents yet. Upload PDFs above to get started.
+              </p>
+            </div>
+          ) : (
+            <div className="overflow-x-auto">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b-2 border-gray-100">
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide">
+                      Title
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide">
+                      Filename
+                    </th>
+                    <th className="text-left px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide">
+                      Added
+                    </th>
+                    <th className="text-right px-5 py-3 text-xs font-bold text-gray-400 uppercase tracking-wide">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {kbDocs.map((doc) => (
+                    <tr
+                      key={doc.id}
+                      className="border-b border-gray-50 hover:bg-gray-50 transition-colors"
+                    >
+                      <td className="px-5 py-3 font-semibold text-gray-900">
+                        {doc.title || "Untitled"}
+                      </td>
+                      <td className="px-5 py-3 text-gray-500 truncate max-w-[200px]">
+                        {doc.filename || "—"}
+                      </td>
+                      <td className="px-5 py-3 text-gray-500">
+                        {new Date(doc.created_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </td>
+                      <td className="px-5 py-3 text-right">
+                        {kbDeletingId === doc.id ? (
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleKbDelete(doc.id)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg bg-red-500 text-white hover:bg-red-600 transition"
+                            >
+                              Confirm
+                            </button>
+                            <button
+                              onClick={() => setKbDeletingId(null)}
+                              className="px-3 py-1.5 text-xs font-semibold rounded-lg border border-gray-200 hover:bg-gray-50 transition"
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        ) : (
+                          <button
+                            onClick={() => setKbDeletingId(doc.id)}
+                            className="px-3 py-1.5 text-xs font-semibold rounded-lg text-red-500 hover:bg-red-50 transition"
+                          >
+                            Delete
+                          </button>
+                        )}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      </section>
     </div>
   );
 }

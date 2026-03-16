@@ -88,6 +88,7 @@ export async function POST(request) {
             title,
             filename,
             content,
+            category: "general",
             created_at: new Date().toISOString(),
           });
 

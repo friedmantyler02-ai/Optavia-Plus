@@ -39,6 +39,7 @@ export async function GET(request) {
       repliedResult,
       activeCampaignsResult,
       pendingRepliesResult,
+      dncResult,
       sentEmailsForReactivationResult,
     ] = await Promise.all([
       // Total emails sent across all campaigns
@@ -68,6 +69,13 @@ export async function GET(request) {
         .select("id", { count: "exact", head: true })
         .eq("coach_id", coach_id)
         .is("response_type", null),
+
+      // DNC count
+      supabaseAdmin
+        .from("clients")
+        .select("id", { count: "exact", head: true })
+        .eq("coach_id", coach_id)
+        .eq("do_not_contact", true),
 
       // Fetch sent emails with sent_at and client_id to compute reactivations
       supabaseAdmin
@@ -123,6 +131,7 @@ export async function GET(request) {
         reactivated,
         active_campaigns: activeCampaignsResult.count || 0,
         pending_replies: pendingRepliesResult.count || 0,
+        dnc_count: dncResult.count || 0,
       },
     });
   } catch (err) {

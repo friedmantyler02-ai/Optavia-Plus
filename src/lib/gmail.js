@@ -28,6 +28,7 @@ const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 
 /**
  * Send an email via Gmail API using a raw RFC 2822 message.
+ * If trackingUrl is provided, sends multipart/alternative with a tracking pixel in the HTML part.
  */
 export async function sendGmailEmail({
   accessToken,
@@ -36,18 +37,55 @@ export async function sendGmailEmail({
   body,
   fromName,
   fromEmail,
+  trackingUrl,
 }) {
-  // Build RFC 2822 message
-  const messageParts = [
-    `From: "${fromName}" <${fromEmail}>`,
-    `To: ${to}`,
-    `Subject: ${subject}`,
-    `MIME-Version: 1.0`,
-    `Content-Type: text/plain; charset="UTF-8"`,
-    ``,
-    body,
-  ];
-  const rawMessage = messageParts.join("\r\n");
+  let rawMessage;
+
+  if (trackingUrl) {
+    // Multipart/alternative: text/plain + text/html with tracking pixel
+    const boundary = `boundary_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+    const htmlBody =
+      body
+        .split("\n")
+        .map((line) => (line === "" ? "<br>" : `${line}<br>`))
+        .join("\n") +
+      `\n<img src="${trackingUrl}" width="1" height="1" alt="" style="display:none" />`;
+
+    const parts = [
+      `From: "${fromName}" <${fromEmail}>`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: multipart/alternative; boundary="${boundary}"`,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      ``,
+      body,
+      ``,
+      `--${boundary}`,
+      `Content-Type: text/html; charset="UTF-8"`,
+      ``,
+      `<html><body>`,
+      htmlBody,
+      `</body></html>`,
+      ``,
+      `--${boundary}--`,
+    ];
+    rawMessage = parts.join("\r\n");
+  } else {
+    // Plain text only
+    const parts = [
+      `From: "${fromName}" <${fromEmail}>`,
+      `To: ${to}`,
+      `Subject: ${subject}`,
+      `MIME-Version: 1.0`,
+      `Content-Type: text/plain; charset="UTF-8"`,
+      ``,
+      body,
+    ];
+    rawMessage = parts.join("\r\n");
+  }
 
   // Base64url encode
   const encoded = Buffer.from(rawMessage)

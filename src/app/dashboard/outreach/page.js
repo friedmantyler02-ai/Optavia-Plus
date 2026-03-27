@@ -20,6 +20,9 @@ function timeAgo(dateStr) {
   return `${days}d ago`;
 }
 
+const DNC_REPLY_TEMPLATE =
+  "Hi {{FirstName}}, Completely understand! This is just my personal email so I wanted to say hello. I hope you are doing well and wish you all the best. Take care, {{CoachName}}";
+
 const RESPONSE_TYPES = [
   { key: "interested", label: "Interested", color: "bg-green-500 hover:bg-green-600 text-white" },
   { key: "curious", label: "Curious", color: "bg-blue-500 hover:bg-blue-600 text-white" },
@@ -28,10 +31,26 @@ const RESPONSE_TYPES = [
   { key: "unsubscribe", label: "Unsubscribe", color: "bg-red-500 hover:bg-red-600 text-white" },
 ];
 
-function ReplyCard({ reply, onCategorize }) {
+const RESPONSE_BADGE = {
+  interested: "bg-green-100 text-green-700",
+  curious: "bg-blue-100 text-blue-700",
+  not_now: "bg-amber-100 text-amber-700",
+  not_interested: "bg-gray-100 text-gray-600",
+};
+
+const FOLLOW_UP_TYPES = new Set(["interested", "curious"]);
+
+function ReplyCard({ reply, onCategorize, onSaveFollowUp }) {
   const [categorizing, setCategorizing] = useState(null);
   const [visible, setVisible] = useState(true);
   const [confirmUnsubscribe, setConfirmUnsubscribe] = useState(false);
+  // Follow-up form state (shown after categorizing as interested/curious)
+  const [showFollowUpForm, setShowFollowUpForm] = useState(false);
+  const [savedType, setSavedType] = useState(null);
+  const [nextStep, setNextStep] = useState("");
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [savingFollowUp, setSavingFollowUp] = useState(false);
+
   const seg = SEGMENTS.find((s) => s.key === reply.segment);
 
   const handleCategory = async (responseType) => {
@@ -46,10 +65,23 @@ function ReplyCard({ reply, onCategorize }) {
     setCategorizing(responseType);
     const ok = await onCategorize(reply.id, responseType);
     if (ok) {
-      setVisible(false);
+      if (FOLLOW_UP_TYPES.has(responseType)) {
+        setSavedType(responseType);
+        setShowFollowUpForm(true);
+        setCategorizing(null);
+      } else {
+        setVisible(false);
+      }
     } else {
       setCategorizing(null);
     }
+  };
+
+  const handleSaveFollowUp = async () => {
+    setSavingFollowUp(true);
+    await onSaveFollowUp(reply.id, nextStep, followUpDate || null);
+    setSavingFollowUp(false);
+    setVisible(false);
   };
 
   if (!visible) return null;
@@ -66,6 +98,11 @@ function ReplyCard({ reply, onCategorize }) {
             {seg && (
               <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${seg.badge}`}>
                 {seg.emoji} {seg.label}
+              </span>
+            )}
+            {savedType && (
+              <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${RESPONSE_BADGE[savedType] || "bg-gray-100 text-gray-600"}`}>
+                {RESPONSE_TYPES.find((r) => r.key === savedType)?.label}
               </span>
             )}
           </div>
@@ -93,19 +130,62 @@ function ReplyCard({ reply, onCategorize }) {
           </a>
         )}
 
-        {/* Category buttons */}
-        <div className="flex flex-wrap gap-2 mt-1">
-          {RESPONSE_TYPES.map((rt) => (
-            <button
-              key={rt.key}
-              onClick={() => handleCategory(rt.key)}
-              disabled={!!categorizing}
-              className={`rounded-xl px-3 py-1.5 font-body text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${rt.color}`}
-            >
-              {categorizing === rt.key ? "..." : rt.label}
-            </button>
-          ))}
-        </div>
+        {/* Inline follow-up form (shown after categorizing as interested/curious) */}
+        {showFollowUpForm ? (
+          <div className="mt-3 rounded-xl bg-green-50 border border-green-200 p-4 space-y-3">
+            <p className="font-body text-xs font-semibold text-green-700">
+              Great! When should you follow up?
+            </p>
+            <div>
+              <label className="font-body text-xs text-gray-500">Next step (optional)</label>
+              <input
+                type="text"
+                placeholder="e.g. Send details, Book a call"
+                value={nextStep}
+                onChange={(e) => setNextStep(e.target.value)}
+                className="mt-1 w-full rounded-xl border-2 border-gray-200 px-3 py-2 font-body text-sm focus:border-[#E8735A] focus:outline-none"
+              />
+            </div>
+            <div>
+              <label className="font-body text-xs text-gray-500">Follow-up date (optional)</label>
+              <input
+                type="date"
+                value={followUpDate}
+                onChange={(e) => setFollowUpDate(e.target.value)}
+                className="mt-1 w-full rounded-xl border-2 border-gray-200 px-3 py-2 font-body text-sm focus:border-[#E8735A] focus:outline-none"
+              />
+            </div>
+            <div className="flex gap-2">
+              <button
+                onClick={handleSaveFollowUp}
+                disabled={savingFollowUp}
+                className="rounded-xl bg-[#E8735A] px-4 py-2 font-body text-sm font-semibold text-white hover:bg-[#d4634d] disabled:opacity-50 transition-colors"
+              >
+                {savingFollowUp ? "Saving…" : "Save & Done"}
+              </button>
+              <button
+                onClick={() => setVisible(false)}
+                className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+              >
+                Skip
+              </button>
+            </div>
+          </div>
+        ) : (
+          /* Category buttons */
+          <div className="flex flex-wrap gap-2 mt-1">
+            {RESPONSE_TYPES.map((rt) => (
+              <button
+                key={rt.key}
+                onClick={() => handleCategory(rt.key)}
+                disabled={!!categorizing}
+                className={`rounded-xl px-3 py-1.5 font-body text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${rt.color}`}
+              >
+                {categorizing === rt.key ? "..." : rt.label}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <ConfirmDialog
@@ -121,6 +201,68 @@ function ReplyCard({ reply, onCategorize }) {
         onCancel={() => setConfirmUnsubscribe(false)}
       />
     </>
+  );
+}
+
+function FollowUpCard({ followUp, onMarkDone, onSnooze }) {
+  const [acting, setActing] = useState(null);
+  const rtLabel = RESPONSE_TYPES.find((r) => r.key === followUp.response_type)?.label;
+  const badgeColor = RESPONSE_BADGE[followUp.response_type] || "bg-gray-100 text-gray-600";
+
+  const handle = async (action) => {
+    setActing(action);
+    if (action === "done") await onMarkDone(followUp.response_id);
+    else await onSnooze(followUp.response_id);
+    setActing(null);
+  };
+
+  return (
+    <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
+      <div className="flex items-start justify-between gap-3 mb-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          <span className="font-display font-bold text-gray-900">
+            {followUp.client_name}
+          </span>
+          {rtLabel && (
+            <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${badgeColor}`}>
+              {rtLabel}
+            </span>
+          )}
+          {followUp.is_overdue && (
+            <span className="rounded-full bg-red-100 px-2.5 py-0.5 font-body text-xs font-semibold text-red-600">
+              Overdue
+            </span>
+          )}
+        </div>
+        <span className="font-body text-xs text-gray-400 whitespace-nowrap shrink-0">
+          {new Date(followUp.follow_up_date).toLocaleDateString("en-US", {
+            month: "short",
+            day: "numeric",
+          })}
+        </span>
+      </div>
+
+      {followUp.next_step && (
+        <p className="font-body text-sm text-gray-600 mb-3">{followUp.next_step}</p>
+      )}
+
+      <div className="flex gap-2">
+        <button
+          onClick={() => handle("done")}
+          disabled={!!acting}
+          className="rounded-xl bg-green-500 px-3 py-1.5 font-body text-xs font-semibold text-white hover:bg-green-600 disabled:opacity-50 transition-colors"
+        >
+          {acting === "done" ? "..." : "Mark Done"}
+        </button>
+        <button
+          onClick={() => handle("snooze")}
+          disabled={!!acting}
+          className="rounded-xl border-2 border-gray-200 px-3 py-1.5 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+        >
+          {acting === "snooze" ? "..." : "Snooze 3 Days"}
+        </button>
+      </div>
+    </div>
   );
 }
 
@@ -148,6 +290,15 @@ export default function OutreachPage() {
 
   const [togglingCampaign, setTogglingCampaign] = useState(null);
 
+  const [followUps, setFollowUps] = useState([]);
+  const [loadingFollowUps, setLoadingFollowUps] = useState(true);
+
+  const [dncClients, setDncClients] = useState([]);
+  const [loadingDnc, setLoadingDnc] = useState(false);
+  const [showDnc, setShowDnc] = useState(false);
+  const [undoingDnc, setUndoingDnc] = useState(null);
+  const [copiedDncTemplate, setCopiedDncTemplate] = useState(false);
+
   useEffect(() => {
     if (!coach?.id) return;
     fetchSegments();
@@ -155,6 +306,7 @@ export default function OutreachPage() {
     fetchGmailStatus();
     fetchReplies();
     fetchStats();
+    fetchFollowUps();
   }, [coach?.id]);
 
   useEffect(() => {
@@ -219,6 +371,61 @@ export default function OutreachPage() {
     setLoadingStats(false);
   };
 
+  const fetchFollowUps = async () => {
+    try {
+      const res = await fetch(`/api/outreach/follow-ups?coach_id=${coach.id}`);
+      const data = await res.json();
+      setFollowUps(data.follow_ups || []);
+    } catch {
+      // ignore
+    }
+    setLoadingFollowUps(false);
+  };
+
+  const fetchDnc = async () => {
+    setLoadingDnc(true);
+    try {
+      const res = await fetch(`/api/outreach/dnc?coach_id=${coach.id}`);
+      const data = await res.json();
+      setDncClients(data.clients || []);
+    } catch {
+      // ignore
+    }
+    setLoadingDnc(false);
+  };
+
+  const handleUndoDnc = async (clientId) => {
+    setUndoingDnc(clientId);
+    try {
+      const res = await fetch(
+        `/api/outreach/dnc?coach_id=${coach.id}&client_id=${clientId}`,
+        { method: "DELETE" }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setDncClients((prev) => prev.filter((c) => c.id !== clientId));
+        showToast({ message: "Removed from DNC list.", variant: "success" });
+      } else {
+        showToast({ message: data.error || "Could not undo.", variant: "error" });
+      }
+    } catch {
+      showToast({ message: "Something went wrong.", variant: "error" });
+    }
+    setUndoingDnc(null);
+  };
+
+  const handleToggleDnc = () => {
+    if (!showDnc && dncClients.length === 0) fetchDnc();
+    setShowDnc((v) => !v);
+  };
+
+  const handleCopyDncTemplate = () => {
+    navigator.clipboard.writeText(DNC_REPLY_TEMPLATE).then(() => {
+      setCopiedDncTemplate(true);
+      setTimeout(() => setCopiedDncTemplate(false), 2000);
+    });
+  };
+
   const handleGmailDisconnect = async () => {
     if (!confirm("Disconnect Gmail? Active campaigns will stop sending.")) return;
     setDisconnecting(true);
@@ -256,6 +463,55 @@ export default function OutreachPage() {
     }
   }, []);
 
+  const handleSaveFollowUp = useCallback(async (responseId, nextStep, followUpDate) => {
+    try {
+      await fetch("/api/outreach/replies", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          response_id: responseId,
+          next_step: nextStep || null,
+          follow_up_date: followUpDate || null,
+        }),
+      });
+    } catch {
+      // best-effort — card will still close
+    }
+  }, []);
+
+  const handleMarkFollowUpDone = useCallback(async (responseId) => {
+    try {
+      await fetch("/api/outreach/replies", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: responseId, follow_up_date: null }),
+      });
+      setFollowUps((prev) => prev.filter((f) => f.response_id !== responseId));
+    } catch {
+      showToast({ message: "Something went wrong.", variant: "error" });
+    }
+  }, []);
+
+  const handleSnoozeFollowUp = useCallback(async (responseId) => {
+    try {
+      const followUp = followUps.find((f) => f.response_id === responseId);
+      const base = followUp?.follow_up_date
+        ? new Date(followUp.follow_up_date + "T00:00:00")
+        : new Date();
+      base.setDate(base.getDate() + 3);
+      const newDate = base.toISOString().split("T")[0];
+
+      await fetch("/api/outreach/replies", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: responseId, follow_up_date: newDate }),
+      });
+      setFollowUps((prev) => prev.filter((f) => f.response_id !== responseId));
+    } catch {
+      showToast({ message: "Something went wrong.", variant: "error" });
+    }
+  }, [followUps]);
+
   const handleToggleCampaign = async (campaign) => {
     const newStatus = campaign.status === "active" ? "paused" : "active";
     setTogglingCampaign(campaign.id);
@@ -290,6 +546,7 @@ export default function OutreachPage() {
   }
 
   const pendingReplies = replies.filter((r) => r.response_type === null);
+  const attentionCount = pendingReplies.length + followUps.length;
   const activeCampaigns = campaigns.filter((c) => c.status === "active");
   const pausedCampaigns = campaigns.filter((c) => c.status === "paused");
   const allManagedCampaigns = [...activeCampaigns, ...pausedCampaigns];
@@ -351,32 +608,55 @@ export default function OutreachPage() {
       <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
         <h2 className="font-display text-xl font-bold text-gray-900 mb-4">
           Needs Attention
-          {!loadingReplies && pendingReplies.length > 0 && (
+          {!loadingReplies && !loadingFollowUps && attentionCount > 0 && (
             <span className="ml-2 rounded-full bg-[#E8735A] px-2.5 py-0.5 font-body text-sm font-bold text-white">
-              {pendingReplies.length}
+              {attentionCount}
             </span>
           )}
         </h2>
 
+        {/* Uncategorized replies */}
         {loadingReplies ? (
-          <div className="animate-pulse space-y-3">
+          <div className="animate-pulse space-y-3 mb-4">
             <div className="h-24 rounded-2xl bg-gray-100" />
             <div className="h-24 rounded-2xl bg-gray-100" />
           </div>
-        ) : pendingReplies.length === 0 ? (
-          <p className="font-body text-sm text-gray-400">
-            No replies waiting — you're all caught up 👍
-          </p>
-        ) : (
-          <div className="space-y-3">
+        ) : pendingReplies.length > 0 ? (
+          <div className="space-y-3 mb-4">
             {pendingReplies.map((reply) => (
               <ReplyCard
                 key={reply.id}
                 reply={reply}
                 onCategorize={handleCategorize}
+                onSaveFollowUp={handleSaveFollowUp}
               />
             ))}
           </div>
+        ) : null}
+
+        {/* Follow-ups due */}
+        {!loadingFollowUps && followUps.length > 0 && (
+          <>
+            <p className="font-body text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3 mt-1">
+              Follow-Ups Due
+            </p>
+            <div className="space-y-3 mb-4">
+              {followUps.map((fu) => (
+                <FollowUpCard
+                  key={fu.response_id}
+                  followUp={fu}
+                  onMarkDone={handleMarkFollowUpDone}
+                  onSnooze={handleSnoozeFollowUp}
+                />
+              ))}
+            </div>
+          </>
+        )}
+
+        {!loadingReplies && !loadingFollowUps && attentionCount === 0 && (
+          <p className="font-body text-sm text-gray-400">
+            No replies waiting — you're all caught up 👍
+          </p>
         )}
       </div>
 
@@ -406,6 +686,101 @@ export default function OutreachPage() {
           </div>
         )}
       </div>
+
+      {/* DNC toggle link */}
+      <div className="mb-6 -mt-3 px-1">
+        <button
+          onClick={handleToggleDnc}
+          className="font-body text-sm text-gray-400 hover:text-gray-600 transition-colors underline underline-offset-2"
+        >
+          {showDnc ? "Hide" : "View"} Do Not Contact List
+          {!loadingStats && (stats?.dnc_count ?? dncClients.length) > 0
+            ? ` (${stats?.dnc_count ?? dncClients.length})`
+            : ""}
+        </button>
+      </div>
+
+      {/* DNC list panel */}
+      {showDnc && (
+        <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
+          <h2 className="font-display text-lg font-bold text-gray-900 mb-4">
+            Do Not Contact List
+          </h2>
+
+          {/* Suggested reply template */}
+          <div className="mb-5 rounded-xl bg-gray-50 border border-gray-200 p-4">
+            <p className="font-body text-xs font-semibold uppercase tracking-wide text-gray-500 mb-2">
+              Suggested reply when someone unsubscribes
+            </p>
+            <p className="font-body text-sm text-gray-700 italic leading-relaxed mb-3">
+              "{DNC_REPLY_TEMPLATE}"
+            </p>
+            <button
+              onClick={handleCopyDncTemplate}
+              className="rounded-xl border-2 border-gray-200 px-4 py-1.5 font-body text-xs font-semibold text-gray-600 hover:bg-gray-100 transition-colors duration-150"
+            >
+              {copiedDncTemplate ? "Copied!" : "Copy"}
+            </button>
+          </div>
+
+          {loadingDnc ? (
+            <div className="animate-pulse space-y-2">
+              {[1, 2, 3].map((i) => (
+                <div key={i} className="h-10 rounded-xl bg-gray-100" />
+              ))}
+            </div>
+          ) : dncClients.length === 0 ? (
+            <p className="font-body text-sm text-gray-400">
+              No contacts on the DNC list.
+            </p>
+          ) : (
+            <div className="space-y-2">
+              {dncClients.map((client) => {
+                const markedAt = client.do_not_contact_at
+                  ? new Date(client.do_not_contact_at).getTime()
+                  : 0;
+                const canUndo =
+                  markedAt > 0 &&
+                  Date.now() - markedAt < 24 * 60 * 60 * 1000;
+
+                return (
+                  <div
+                    key={client.id}
+                    className="flex items-center justify-between rounded-xl bg-gray-50 px-4 py-3"
+                  >
+                    <div>
+                      <p className="font-body text-sm font-semibold text-gray-800">
+                        {client.full_name}
+                      </p>
+                      <p className="font-body text-xs text-gray-400">
+                        {client.email}
+                        {client.do_not_contact_at && (
+                          <>
+                            {" · "}
+                            {new Date(client.do_not_contact_at).toLocaleDateString(
+                              "en-US",
+                              { month: "short", day: "numeric", year: "numeric" }
+                            )}
+                          </>
+                        )}
+                      </p>
+                    </div>
+                    {canUndo && (
+                      <button
+                        onClick={() => handleUndoDnc(client.id)}
+                        disabled={undoingDnc === client.id}
+                        className="ml-3 rounded-xl border-2 border-gray-200 px-3 py-1.5 font-body text-xs font-semibold text-gray-500 hover:bg-white disabled:opacity-50 transition-colors duration-150"
+                      >
+                        {undoingDnc === client.id ? "..." : "Undo"}
+                      </button>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Segment cards */}
       {loadingSegments ? (

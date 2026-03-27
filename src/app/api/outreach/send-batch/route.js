@@ -34,6 +34,17 @@ export async function POST(request) {
       return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
+    // Weekday guard — no sends on Saturday (6) or Sunday (0) UTC
+    const dayOfWeek = new Date().getUTCDay();
+    if (dayOfWeek === 0 || dayOfWeek === 6) {
+      return NextResponse.json({
+        message: "Skipping — weekends only",
+        campaigns_processed: 0,
+        emails_sent: 0,
+        errors: 0,
+      });
+    }
+
     // Find all active campaigns
     const { data: campaigns, error: campError } = await supabaseAdmin
       .from("reactivation_campaigns")
@@ -170,6 +181,10 @@ export async function POST(request) {
               coachName
             );
 
+            const siteUrl =
+              process.env.NEXT_PUBLIC_SITE_URL || "https://optaviaplus.com";
+            const trackingUrl = `${siteUrl}/api/outreach/track/${emailRow.id}`;
+
             let result;
             try {
               result = await sendGmailEmail({
@@ -179,6 +194,7 @@ export async function POST(request) {
                 body,
                 fromName: coachName,
                 fromEmail: tokenData.gmailAddress,
+                trackingUrl,
               });
             } catch (sendErr) {
               // If auth error, try refreshing token once and retry
@@ -198,6 +214,7 @@ export async function POST(request) {
                     body,
                     fromName: coachName,
                     fromEmail: tokenData.gmailAddress,
+                    trackingUrl,
                   });
                 } catch (retryErr) {
                   console.error(

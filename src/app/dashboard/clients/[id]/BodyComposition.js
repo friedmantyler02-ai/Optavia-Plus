@@ -92,6 +92,7 @@ export default function BodyComposition({ client, coach, supabase, showToast, on
   const [measuredAt, setMeasuredAt] = useState(new Date().toISOString().slice(0, 10));
   const [saving, setSaving] = useState(false);
   const [expandedId, setExpandedId] = useState(null);
+  const [dragging, setDragging] = useState(false);
   const fileInputRef = useRef(null);
 
   useEffect(() => {
@@ -110,10 +111,8 @@ export default function BodyComposition({ client, coach, supabase, showToast, on
     }
   };
 
-  const handleFileSelect = async (e) => {
-    const file = e.target.files?.[0];
+  const processFile = async (file) => {
     if (!file) return;
-
     setParsing(true);
     setParsedMetrics(null);
 
@@ -142,6 +141,21 @@ export default function BodyComposition({ client, coach, supabase, showToast, on
     } finally {
       setParsing(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleFileSelect = (e) => {
+    processFile(e.target.files?.[0]);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setDragging(false);
+    const file = e.dataTransfer.files?.[0];
+    if (file && /^image\//i.test(file.type)) {
+      processFile(file);
+    } else {
+      showToast({ message: "Please drop an image file (jpg, png, heic, webp)", variant: "error" });
     }
   };
 
@@ -193,46 +207,34 @@ export default function BodyComposition({ client, coach, supabase, showToast, on
 
   return (
     <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
-      <div className="flex items-center justify-between mb-4">
-        <h2 className="text-lg font-extrabold font-display">📊 Body Composition</h2>
-        <div>
-          <input
-            ref={fileInputRef}
-            type="file"
-            accept="image/jpeg,image/png,image/heic,image/webp"
-            onChange={handleFileSelect}
-            className="hidden"
-          />
-          <button
-            onClick={() => fileInputRef.current?.click()}
-            disabled={parsing}
-            className={
-              "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors min-h-[44px] touch-manipulation " +
-              (parsing
-                ? "bg-gray-200 text-gray-400"
-                : "bg-[#E8735A] text-white hover:bg-[#d4654e]")
-            }
-          >
-            {parsing ? (
-              <>
-                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
-                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
-                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
-                </svg>
-                Analyzing...
-              </>
-            ) : (
-              <>
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
-                </svg>
-                Upload Body Comp
-              </>
-            )}
-          </button>
+      <h2 className="text-lg font-extrabold font-display mb-4">📊 Body Composition</h2>
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/heic,image/webp"
+        onChange={handleFileSelect}
+        className="hidden"
+      />
+      {!parsedMetrics && !parsing && (
+        <div
+          onClick={() => fileInputRef.current?.click()}
+          onDragOver={(e) => { e.preventDefault(); setDragging(true); }}
+          onDragLeave={() => setDragging(false)}
+          onDrop={handleDrop}
+          className={`mb-4 border-2 border-dashed rounded-xl p-6 text-center cursor-pointer transition-colors min-h-[44px] touch-manipulation ${
+            dragging
+              ? "border-[#E8735A] bg-[#E8735A]/5"
+              : "border-gray-300 hover:border-[#E8735A]/50 hover:bg-[#faf7f2]"
+          }`}
+        >
+          <svg className="w-8 h-8 mx-auto mb-2 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+            <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+          </svg>
+          <p className="text-sm font-bold text-gray-500">Drop Renpho screenshot here or click to upload</p>
+          <p className="text-xs text-gray-400 mt-1">Supports jpg, png, heic, webp</p>
         </div>
-      </div>
+      )}
 
       {/* Parsing state */}
       {parsing && (

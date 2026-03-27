@@ -471,6 +471,15 @@ export default function ClientDetailPage() {
     return () => clearTimeout(t);
   }, [reminderConfirm]);
 
+  // Lock scroll when any modal is open
+  const anyModalOpen = meetingModal || noteModal || !!backdateModal;
+  useEffect(() => {
+    if (anyModalOpen) {
+      document.body.style.overflow = "hidden";
+      return () => { document.body.style.overflow = ""; };
+    }
+  }, [anyModalOpen]);
+
   useEffect(() => { loadClient(); }, [params.id]);
 
   const loadClient = async () => {
@@ -675,6 +684,7 @@ export default function ClientDetailPage() {
   const weightLost = client.weight_start && client.weight_current ? client.weight_start - client.weight_current : 0;
 
   return (
+    <>
     <div className="animate-fade-up">
       <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation">
         ← Back to All Clients
@@ -765,49 +775,6 @@ export default function ClientDetailPage() {
             <p className="mt-2 text-sm font-semibold text-green-600 animate-fade-up">{reminderConfirm} ✓</p>
           )}
         </div>
-        {/* Premier Member Status */}
-        <div className="border-t border-gray-100 pt-4 mt-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={handlePremierToggle}
-              disabled={saving}
-              className={`w-12 h-7 rounded-full transition-colors duration-200 relative flex-shrink-0 ${client.is_premier_member ? "bg-blue-500" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
-              aria-label={client.is_premier_member ? "Remove Premier status" : "Mark as Premier member"}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${client.is_premier_member ? "translate-x-5" : ""}`} />
-            </button>
-            <span className="text-sm font-semibold text-gray-600">Premier Member</span>
-            {client.is_premier_member && (
-              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
-            )}
-          </div>
-        </div>
-        {/* Returning Client Toggle */}
-        <div className="border-t border-gray-100 pt-4 mt-4">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={async () => {
-                const newVal = !client.is_returning_client;
-                setSaving(true);
-                try {
-                  const { data } = await supabase.from("clients").update({ is_returning_client: newVal, updated_at: new Date().toISOString() }).eq("id", client.id).select().single();
-                  if (data) setClient(data);
-                  showToast({ message: newVal ? "Marked as returning client" : "Returning client status removed", variant: "success" });
-                } catch {
-                  showToast({ message: "Something went wrong — please try again", variant: "error" });
-                } finally {
-                  setSaving(false);
-                }
-              }}
-              disabled={saving}
-              className={`w-12 h-7 rounded-full transition-colors duration-200 relative flex-shrink-0 ${client.is_returning_client ? "bg-blue-500" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
-              aria-label={client.is_returning_client ? "Remove returning client status" : "Mark as returning client"}
-            >
-              <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${client.is_returning_client ? "translate-x-5" : ""}`} />
-            </button>
-            <span className="text-sm font-semibold text-gray-600">Returning Client</span>
-          </div>
-        </div>
         {/* Move to Leads — shown for lapsed or archived clients */}
         {(client.status === "lapsed" || client.status === "archived") && (
           <div className="border-t border-gray-100 pt-4 mt-4">
@@ -825,9 +792,9 @@ export default function ClientDetailPage() {
             ) : (
               <button
                 onClick={() => setMoveToLeadsConfirm(true)}
-                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-500 hover:border-[#E8735A]/40 hover:text-[#E8735A] hover:bg-[#E8735A]/5 transition-all duration-150 touch-manipulation"
+                className="flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl text-sm font-bold bg-[#E8735A] text-white hover:bg-[#d4654e] transition-all duration-150 min-h-[48px] touch-manipulation"
               >
-                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
                 </svg>
                 Move to Leads Pipeline
@@ -882,65 +849,6 @@ export default function ClientDetailPage() {
         }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📅</span><span className="font-bold text-sm">Log a Meeting</span>
         </button>
-      </div>
-      {/* Log Scale Pic & Weight */}
-      <div className="bg-white rounded-2xl p-5 shadow-sm mb-5">
-        <h2 className="text-lg font-extrabold mb-3">📸 Log Scale Pic & Weight</h2>
-        <div className="flex flex-col sm:flex-row items-stretch sm:items-end gap-3">
-          <label className="flex items-center gap-2 cursor-pointer">
-            <input
-              type="checkbox"
-              checked={scalePicChecked}
-              onChange={async () => {
-                try {
-                  await fetch("/api/clients/checkin-weekly", {
-                    method: "POST",
-                    headers: { "Content-Type": "application/json" },
-                    body: JSON.stringify({ client_id: client.id, check_type: "scale_photo" }),
-                  });
-                  setScalePicChecked(!scalePicChecked);
-                  showToast({ message: scalePicChecked ? "Scale pic unchecked" : "Scale pic checked", variant: "success" });
-                } catch {
-                  showToast({ message: "Failed to update — try again", variant: "error" });
-                }
-              }}
-              className="w-5 h-5 rounded border-gray-300 text-green-600 focus:ring-green-500"
-            />
-            <span className={`text-sm font-semibold ${scalePicChecked ? "text-green-600" : "text-gray-500"}`}>
-              Scale pic received this week
-            </span>
-          </label>
-          <div className="flex-1 flex gap-2">
-            <input
-              type="number"
-              value={weightInput}
-              onChange={e => setWeightInput(e.target.value)}
-              placeholder="New weight (lbs)"
-              className="flex-1 px-4 py-2.5 text-base border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors min-h-[44px]"
-            />
-            <button
-              onClick={logScalePicAndWeight}
-              disabled={loggingWeight || (!weightInput && scalePicChecked)}
-              className="px-5 py-2.5 bg-[#E8735A] hover:bg-[#d4634d] text-white rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 disabled:opacity-50 min-h-[44px] touch-manipulation"
-            >
-              {loggingWeight ? "Saving..." : "Log"}
-            </button>
-          </div>
-        </div>
-        {/* Recent weight entries */}
-        {activities.filter(a => a.action === "Logged weight").length > 0 && (
-          <div className="mt-3 pt-3 border-t border-gray-100">
-            <p className="text-xs font-bold text-gray-400 uppercase mb-2">Recent Weights</p>
-            <div className="flex flex-wrap gap-2">
-              {activities.filter(a => a.action === "Logged weight").slice(0, 8).map(a => (
-                <span key={a.id} className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-[#faf7f2] rounded-lg text-xs">
-                  <span className="font-bold text-gray-700">{a.details}</span>
-                  <span className="text-gray-400">{new Date(a.created_at).toLocaleDateString("en-US", { month: "short", day: "numeric" })}</span>
-                </span>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {/* Quick Message */}
@@ -1309,6 +1217,7 @@ export default function ClientDetailPage() {
           )}
         </div>
       </div>
+    </div>
       {meetingModal && (
         <>
           <div className="fixed inset-0 z-50" onClick={() => setMeetingModal(false)} />
@@ -1498,6 +1407,6 @@ export default function ClientDetailPage() {
         onConfirm={handleDeleteConfirm}
         onCancel={() => setDeleteConfirm(false)}
       />
-    </div>
+    </>
   );
 }

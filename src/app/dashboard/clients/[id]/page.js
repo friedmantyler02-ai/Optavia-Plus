@@ -895,8 +895,8 @@ export default function ClientDetailPage() {
             <p className="mt-2 text-sm font-semibold text-green-600 animate-fade-up">{reminderConfirm} ✓</p>
           )}
         </div>
-        {/* Move to Leads — shown for lapsed or archived clients */}
-        {(client.status === "lapsed" || client.status === "archived") && (
+        {/* Move to Leads — shown for lapsed, archived, or reverted clients */}
+        {(client.status === "lapsed" || client.status === "archived" || client.account_status === "Reverted") && (
           <div className="border-t border-gray-100 pt-4 mt-4">
             {client.moved_to_lead_id ? (
               <div className="flex items-center gap-2 text-sm text-gray-500">

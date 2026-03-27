@@ -471,12 +471,17 @@ export default function ClientDetailPage() {
     return () => clearTimeout(t);
   }, [reminderConfirm]);
 
-  // Lock scroll when any modal is open
+  // Lock scroll when any modal is open (compensate scrollbar width to prevent layout shift)
   const anyModalOpen = meetingModal || noteModal || !!backdateModal;
   useEffect(() => {
     if (anyModalOpen) {
+      const scrollbarWidth = window.innerWidth - document.documentElement.clientWidth;
+      document.body.style.paddingRight = scrollbarWidth + "px";
       document.body.style.overflow = "hidden";
-      return () => { document.body.style.overflow = ""; };
+      return () => {
+        document.body.style.overflow = "";
+        document.body.style.paddingRight = "";
+      };
     }
   }, [anyModalOpen]);
 

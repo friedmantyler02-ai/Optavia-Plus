@@ -159,6 +159,35 @@ export default function BodyComposition({ client, coach, supabase, showToast, on
     }
   };
 
+  const handleDelete = async (entryId) => {
+    if (!window.confirm("Delete this body composition entry?")) return;
+    try {
+      const res = await fetch("/api/body-comp/delete", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: entryId, coach_id: coach.id }),
+      });
+      const json = await res.json();
+      if (json.error) {
+        showToast({ message: json.error, variant: "error" });
+        return;
+      }
+      showToast({ message: "Entry deleted", variant: "success" });
+      await loadHistory();
+    } catch {
+      showToast({ message: "Failed to delete — please try again", variant: "error" });
+    }
+  };
+
+  function formatEntryDate(measured_at) {
+    if (!measured_at) return "Unknown date";
+    // Handle both date-only ("2026-03-27") and full timestamps ("2026-03-27T00:00:00+00:00")
+    const dateStr = measured_at.includes("T") ? measured_at : measured_at + "T12:00:00";
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return measured_at;
+    return d.toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+  }
+
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -338,41 +367,48 @@ export default function BodyComposition({ client, coach, supabase, showToast, on
 
             return (
               <div key={entry.id} className="bg-[#faf7f2] rounded-xl overflow-hidden">
-                <button
-                  onClick={() => setExpandedId(isExpanded ? null : entry.id)}
-                  className="w-full p-3 flex items-center justify-between text-left touch-manipulation"
-                >
-                  <div className="flex items-center gap-3 min-w-0">
-                    <span className="text-xs font-bold text-gray-400">
-                      {new Date(entry.measured_at + "T12:00:00").toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </span>
-                    {entry.weight && (
-                      <span className="text-sm font-bold text-gray-800">
-                        {entry.weight} lbs
-                        {prev && getChangeIndicator(entry.weight, prev.weight, "down")}
-                      </span>
-                    )}
-                    {entry.body_fat_pct && (
-                      <span className="text-sm font-semibold text-gray-600">
-                        {entry.body_fat_pct}% BF
-                        {prev && getChangeIndicator(entry.body_fat_pct, prev.body_fat_pct, "down")}
-                      </span>
-                    )}
-                  </div>
-                  <svg
-                    className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                    strokeWidth={2}
+                <div className="p-3 flex items-center justify-between gap-2">
+                  <button
+                    onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                    className="flex-1 flex items-center gap-3 min-w-0 text-left touch-manipulation"
                   >
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                  </svg>
-                </button>
+                    <div className="flex items-center gap-3 min-w-0">
+                      <span className="text-xs font-bold text-gray-400">
+                        {formatEntryDate(entry.measured_at)}
+                      </span>
+                      {entry.weight && (
+                        <span className="text-sm font-bold text-gray-800">
+                          {entry.weight} lbs
+                          {prev && getChangeIndicator(entry.weight, prev.weight, "down")}
+                        </span>
+                      )}
+                      {entry.body_fat_pct && (
+                        <span className="text-sm font-semibold text-gray-600">
+                          {entry.body_fat_pct}% BF
+                          {prev && getChangeIndicator(entry.body_fat_pct, prev.body_fat_pct, "down")}
+                        </span>
+                      )}
+                    </div>
+                    <svg
+                      className={`w-4 h-4 text-gray-400 transition-transform ml-auto shrink-0 ${isExpanded ? "rotate-180" : ""}`}
+                      fill="none"
+                      viewBox="0 0 24 24"
+                      stroke="currentColor"
+                      strokeWidth={2}
+                    >
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
+                  </button>
+                  <button
+                    onClick={() => handleDelete(entry.id)}
+                    className="shrink-0 p-1.5 text-gray-300 hover:text-red-500 transition-colors touch-manipulation"
+                    title="Delete entry"
+                  >
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                    </svg>
+                  </button>
+                </div>
                 {isExpanded && (
                   <div className="px-3 pb-3">
                     <div className="grid grid-cols-3 gap-2">

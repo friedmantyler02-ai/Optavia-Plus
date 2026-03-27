@@ -598,8 +598,8 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
         <span className="text-gray-400 text-sm">{collapsed ? "▼" : "▲"}</span>
       </button>
       {!collapsed && (
-        <div className="border-t border-gray-100">
-          <table className="w-full" style={{ tableLayout: 'fixed' }}>
+        <div className="border-t border-gray-100 overflow-y-auto" style={{ maxHeight: 'calc(100vh - 220px)' }}>
+          <table className="w-full" style={{ tableLayout: 'fixed', borderCollapse: 'separate', borderSpacing: 0 }}>
             <colgroup>
               <col style={{ width: '46%' }} />
               <col style={{ width: '7%' }} />
@@ -609,31 +609,31 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
               <col style={{ width: '11.5%' }} />
             </colgroup>
             <thead>
-              <tr className="border-b border-gray-100 bg-[#faf7f2] hidden md:table-row sticky top-0 z-10">
-                <th className="text-left py-3 px-1 cursor-pointer select-none" onClick={() => onSort("name")}>
+              <tr className="hidden md:table-row">
+                <th className="sticky top-0 z-10 bg-[#faf7f2] border-b border-gray-100 text-left py-3 px-1 cursor-pointer select-none" onClick={() => onSort("name")}>
                   <span className={`text-sm font-semibold ${sortKey === "name" ? "text-[#E8735A]" : "text-gray-500"}`}>
                     Client Name {sortKey === "name" && (sortDir === "asc" ? "▲" : "▼")}
                   </span>
                 </th>
-                <th className="text-center py-3 pl-3 pr-1 cursor-pointer select-none" onClick={() => onSort("qv")}>
+                <th className="sticky top-0 z-10 bg-[#faf7f2] border-b border-gray-100 text-center py-3 pl-3 pr-1 cursor-pointer select-none" onClick={() => onSort("qv")}>
                   <span className={`text-sm font-semibold ${sortKey === "qv" ? "text-[#E8735A]" : "text-gray-500"}`}>
                     QV {sortKey === "qv" && (sortDir === "asc" ? "▲" : "▼")}
                   </span>
                 </th>
-                <th className="text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("last_order")}>
+                <th className="sticky top-0 z-10 bg-[#faf7f2] border-b border-gray-100 text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("last_order")}>
                   <span className={`text-sm font-semibold ${sortKey === "last_order" ? "text-[#E8735A]" : "text-gray-500"}`}>
                     Last Order {sortKey === "last_order" && (sortDir === "asc" ? "▲" : "▼")}
                   </span>
                 </th>
-                <th className="text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("checkin")}>
+                <th className="sticky top-0 z-10 bg-[#faf7f2] border-b border-gray-100 text-center py-3 px-1 cursor-pointer select-none" onClick={() => onSort("checkin")}>
                   <span className={`text-sm font-semibold ${sortKey === "checkin" ? "text-[#E8735A]" : "text-gray-500"}`}>
                     Last Contact {sortKey === "checkin" && (sortDir === "asc" ? "▲" : "▼")}
                   </span>
                 </th>
-                <th className="text-center py-3 px-1">
+                <th className="sticky top-0 z-10 bg-[#faf7f2] border-b border-gray-100 text-center py-3 px-1">
                   <span className="text-sm font-semibold text-gray-500">Check In</span>
                 </th>
-                <th className="text-center py-3 px-1">
+                <th className="sticky top-0 z-10 bg-[#faf7f2] border-b border-gray-100 text-center py-3 px-1">
                   <span className="text-sm font-semibold text-gray-500">Scale Pic</span>
                 </th>
               </tr>

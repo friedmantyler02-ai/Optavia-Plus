@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Link from "next/link";
 import { useCoach } from "../layout";
 import useShowToast from "@/hooks/useShowToast";
 import PageHeader from "../components/PageHeader";
@@ -661,7 +662,7 @@ export default function OutreachPage() {
       </div>
 
       {/* Stats bar */}
-      <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white px-5 py-4">
+      <div className="mb-2 rounded-2xl border-2 border-gray-100 bg-white px-5 py-4">
         {loadingStats ? (
           <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
             {[1, 2, 3, 4].map((i) => (
@@ -685,10 +686,18 @@ export default function OutreachPage() {
             ))}
           </div>
         )}
+        <div className="mt-3 flex justify-end">
+          <Link
+            href="/dashboard/outreach/analytics"
+            className="font-body text-sm font-semibold text-[#E8735A] hover:underline"
+          >
+            View Analytics 📊
+          </Link>
+        </div>
       </div>
 
       {/* DNC toggle link */}
-      <div className="mb-6 -mt-3 px-1">
+      <div className="mb-6 mt-2 px-1">
         <button
           onClick={handleToggleDnc}
           className="font-body text-sm text-gray-400 hover:text-gray-600 transition-colors underline underline-offset-2"

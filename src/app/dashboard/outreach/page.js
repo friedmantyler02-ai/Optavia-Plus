@@ -2,7 +2,8 @@
 
 import { useState, useEffect } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCoach, useShowToast } from "../layout";
+import { useCoach } from "../layout";
+import useShowToast from "@/hooks/useShowToast";
 import PageHeader from "../components/PageHeader";
 import { SEGMENTS } from "./segments";
 

@@ -29,14 +29,16 @@ export default function CampaignSetupPage() {
   const [showConfirm, setShowConfirm] = useState(false);
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState(null);
-
-  // Gmail always not connected for now
-  const gmailConnected = false;
+  const [gmailConnected, setGmailConnected] = useState(false);
 
   useEffect(() => {
     if (!coach?.id || !segmentKey) return;
     fetchTemplate();
     fetchClients();
+    fetch(`/api/gmail/status?coach_id=${coach.id}`)
+      .then((r) => r.json())
+      .then((d) => setGmailConnected(d.connected || false))
+      .catch(() => {});
   }, [coach?.id, segmentKey]);
 
   const fetchTemplate = async () => {

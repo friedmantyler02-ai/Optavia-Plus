@@ -715,7 +715,7 @@ export default function ClientsPage() {
     const { data, error: fetchError } = await supabase
       .from("clients")
       .select(
-        "id, full_name, email, phone, optavia_id, account_status, last_order_date, pqv, order_type, cv, order_total, order_status, account_type, order_alerts, last_checkin_date, last_scale_pic_date, wants_weekly_checkin, wants_value_adds, level"
+        "id, full_name, email, phone, optavia_id, account_status, last_order_date, pqv, order_type, cv, order_total, order_status, account_type, order_alerts, last_checkin_date, last_scale_pic_date, weekly_reminder, wants_value_adds, level"
       )
       .eq("coach_id", coach.id)
       .order("full_name", { ascending: true });

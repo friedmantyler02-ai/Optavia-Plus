@@ -54,14 +54,14 @@ export async function GET() {
         .order("next_followup_date", { ascending: true })
         .limit(10),
 
-      // 1b. Follow-up clients: wants_weekly_checkin AND overdue
+      // 1b. Follow-up clients: weekly_reminder AND overdue
       // Only include clients with at least one logged interaction (last_checkin_date not null)
       // to avoid flooding newly-imported clients with no app history
       supabase
         .from("clients")
         .select("id, full_name, last_checkin_date, last_order_date", { count: "exact" })
         .eq("coach_id", coachId)
-        .eq("wants_weekly_checkin", true)
+        .eq("weekly_reminder", true)
         .gt("last_order_date", sixtyDaysAgo)
         .not("last_checkin_date", "is", null)
         .lt("last_checkin_date", sevenDaysAgo)

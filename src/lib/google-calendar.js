@@ -168,27 +168,52 @@ export function buildGoogleEventForFollowup(lead) {
   const dateStr = lead.next_followup_date.split("T")[0];
   const startDateTime = `${dateStr}T09:00:00`;
   return {
-    summary: `Follow-up: ${lead.full_name}`,
+    summary: `${lead.full_name}: Follow-up`,
     description: "Lead follow-up",
     start: { dateTime: startDateTime, timeZone: "America/New_York" },
     end: { dateTime: `${dateStr}T09:30:00`, timeZone: "America/New_York" },
   };
 }
 
+// Maps contact_day display name → RRULE BYDAY code
+const CONTACT_DAY_RRULE = {
+  Monday: "MO",
+  Tuesday: "TU",
+  Wednesday: "WE",
+  Thursday: "TH",
+  Friday: "FR",
+};
+
+// Maps contact_day display name → JS getDay() value (0=Sun)
+const CONTACT_DAY_DOW = {
+  Monday: 1,
+  Tuesday: 2,
+  Wednesday: 3,
+  Thursday: 4,
+  Friday: 5,
+};
+
+// Returns null if contact_day is missing or unrecognised — caller must skip.
 export function buildGoogleEventForCheckin(client) {
+  const rruleDay = CONTACT_DAY_RRULE[client.contact_day];
+  const targetDow = CONTACT_DAY_DOW[client.contact_day];
+  if (!rruleDay || targetDow === undefined) return null;
+
+  // Find the next (or current) occurrence of the target day
   const now = new Date();
-  const dayOfWeek = now.getDay();
-  const daysUntilMonday = dayOfWeek === 0 ? 1 : dayOfWeek === 1 ? 0 : 8 - dayOfWeek;
-  const nextMonday = new Date(now);
-  nextMonday.setDate(now.getDate() + daysUntilMonday);
-  const dateStr = nextMonday.toISOString().split("T")[0];
+  const currentDow = now.getDay();
+  let daysUntil = targetDow - currentDow;
+  if (daysUntil < 0) daysUntil += 7;
+  const nextOccurrence = new Date(now);
+  nextOccurrence.setDate(now.getDate() + daysUntil);
+  const dateStr = nextOccurrence.toISOString().split("T")[0];
 
   return {
-    summary: `Check-in: ${client.full_name}`,
+    summary: `${client.full_name}: Check-in`,
     description: "Weekly client check-in",
     start: { dateTime: `${dateStr}T09:00:00`, timeZone: "America/New_York" },
     end: { dateTime: `${dateStr}T09:30:00`, timeZone: "America/New_York" },
-    recurrence: ["RRULE:FREQ=WEEKLY;BYDAY=MO"],
+    recurrence: [`RRULE:FREQ=WEEKLY;BYDAY=${rruleDay}`],
   };
 }
 
@@ -272,9 +297,10 @@ export async function bulkSyncClientCheckins(coachId, accessToken) {
 
   const { data: clients, error } = await supabaseAdmin
     .from("clients")
-    .select("id, full_name")
+    .select("id, full_name, contact_day")
     .eq("coach_id", coachId)
-    .eq("wants_weekly_checkin", true)
+    .eq("weekly_reminder", true)
+    .not("contact_day", "is", null)
     .gte("last_order_date", ninetyDaysAgo.toISOString())
     .is("google_calendar_event_id", null);
 
@@ -288,6 +314,10 @@ export async function bulkSyncClientCheckins(coachId, accessToken) {
   for (const client of clients) {
     try {
       const event = buildGoogleEventForCheckin(client);
+      if (!event) {
+        console.warn(`[gcal] Skipping client ${client.id} — unrecognised contact_day: "${client.contact_day}"`);
+        continue;
+      }
       const result = await createCalendarEvent(accessToken, event);
       await supabaseAdmin
         .from("clients")
@@ -340,10 +370,13 @@ async function bulkDeleteFromTable(tableName, coachId, accessToken) {
     .not("google_calendar_event_id", "is", null);
 
   let deleted = 0, failed = 0;
+  const succeededIds = [];
+
   if (!error && rows && rows.length > 0 && accessToken) {
     for (const row of rows) {
       try {
         await deleteCalendarEvent(accessToken, row.google_calendar_event_id);
+        succeededIds.push(row.id);
         deleted++;
       } catch (err) {
         console.error(`[gcal] Failed to delete event for ${tableName} ${row.id}:`, err.message);
@@ -352,11 +385,18 @@ async function bulkDeleteFromTable(tableName, coachId, accessToken) {
     }
   }
 
-  await supabaseAdmin
-    .from(tableName)
-    .update({ google_calendar_event_id: null })
-    .eq("coach_id", coachId)
-    .not("google_calendar_event_id", "is", null);
+  // Only clear IDs for rows whose Google Calendar event was actually deleted.
+  // Rows with failed deletes keep their ID so reconnect won't re-create duplicates.
+  if (succeededIds.length > 0) {
+    await supabaseAdmin
+      .from(tableName)
+      .update({ google_calendar_event_id: null })
+      .in("id", succeededIds);
+  }
+
+  if (failed > 0) {
+    console.warn(`[gcal] ${failed} event(s) in "${tableName}" could not be deleted from Google Calendar — their IDs are preserved in the DB to prevent duplicate creation on reconnect.`);
+  }
 
   return { deleted, failed };
 }

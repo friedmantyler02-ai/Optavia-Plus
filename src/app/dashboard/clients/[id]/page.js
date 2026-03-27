@@ -5,6 +5,7 @@ import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
 import TouchpointTimeline from './TouchpointTimeline';
+import BodyComposition from "./BodyComposition";
 import ConfirmDialog from "../../components/ConfirmDialog";
 import useShowToast from "@/hooks/useShowToast";
 import { formatPhoneDisplay } from "@/lib/phone";
@@ -1135,6 +1136,15 @@ export default function ClientDetailPage() {
           </div>
         </div>
       </div>
+
+      {/* Body Composition */}
+      <BodyComposition
+        client={client}
+        coach={coach}
+        supabase={supabase}
+        showToast={showToast}
+        onWeightUpdate={(w) => setClient((prev) => ({ ...prev, weight_current: w }))}
+      />
 
       <div className="grid md:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-6 shadow-sm">

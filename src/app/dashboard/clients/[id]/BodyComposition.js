@@ -1,0 +1,412 @@
+"use client";
+
+import { useState, useEffect, useRef } from "react";
+
+const METRIC_FIELDS = [
+  { key: "weight", label: "Weight", unit: "lbs", direction: "down" },
+  { key: "bmi", label: "BMI", unit: "", direction: "down" },
+  { key: "body_fat_pct", label: "Body Fat", unit: "%", direction: "down" },
+  { key: "skeletal_muscle_pct", label: "Skeletal Muscle", unit: "%", direction: "up" },
+  { key: "fat_free_mass", label: "Fat-Free Mass", unit: "lbs", direction: "up" },
+  { key: "subcutaneous_fat_pct", label: "Subcutaneous Fat", unit: "%", direction: "down" },
+  { key: "visceral_fat", label: "Visceral Fat", unit: "", direction: "down" },
+  { key: "body_water_pct", label: "Body Water", unit: "%", direction: "up" },
+  { key: "muscle_mass", label: "Muscle Mass", unit: "lbs", direction: "up" },
+  { key: "bone_mass", label: "Bone Mass", unit: "lbs", direction: "neutral" },
+  { key: "protein_pct", label: "Protein", unit: "%", direction: "up" },
+  { key: "bmr", label: "BMR", unit: "kcal", direction: "neutral" },
+  { key: "metabolic_age", label: "Metabolic Age", unit: "yrs", direction: "down" },
+];
+
+function getChangeIndicator(current, previous, direction) {
+  if (current == null || previous == null) return null;
+  const diff = current - previous;
+  if (Math.abs(diff) < 0.01) return null;
+  const isUp = diff > 0;
+  let color;
+  if (direction === "up") {
+    color = isUp ? "text-green-600" : "text-red-500";
+  } else if (direction === "down") {
+    color = isUp ? "text-red-500" : "text-green-600";
+  } else {
+    color = "text-gray-500";
+  }
+  return (
+    <span className={`text-xs font-bold ${color}`}>
+      {isUp ? "↑" : "↓"} {Math.abs(diff).toFixed(1)}
+    </span>
+  );
+}
+
+function TrendChart({ history, metricKey, label, color }) {
+  if (!history || history.length < 2) return null;
+  const points = [...history].reverse().slice(-10);
+  const values = points.map((p) => p[metricKey]).filter((v) => v != null);
+  if (values.length < 2) return null;
+
+  const min = Math.min(...values);
+  const max = Math.max(...values);
+  const range = max - min || 1;
+  const w = 200;
+  const h = 50;
+  const pad = 4;
+
+  const pts = values.map((v, i) => {
+    const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+    const y = h - pad - ((v - min) / range) * (h - pad * 2);
+    return `${x},${y}`;
+  });
+
+  return (
+    <div className="mt-2">
+      <div className="text-xs font-bold text-gray-400 mb-1">{label}</div>
+      <svg viewBox={`0 0 ${w} ${h}`} className="w-full" style={{ maxWidth: 200, height: 50 }}>
+        <polyline
+          points={pts.join(" ")}
+          fill="none"
+          stroke={color}
+          strokeWidth="2"
+          strokeLinecap="round"
+          strokeLinejoin="round"
+        />
+        {values.map((v, i) => {
+          const x = pad + (i / (values.length - 1)) * (w - pad * 2);
+          const y = h - pad - ((v - min) / range) * (h - pad * 2);
+          return <circle key={i} cx={x} cy={y} r="3" fill={color} />;
+        })}
+      </svg>
+      <div className="flex justify-between text-[10px] text-gray-400 font-semibold">
+        <span>{values[0]}</span>
+        <span>{values[values.length - 1]}</span>
+      </div>
+    </div>
+  );
+}
+
+export default function BodyComposition({ client, coach, supabase, showToast, onWeightUpdate }) {
+  const [history, setHistory] = useState([]);
+  const [loading, setLoading] = useState(true);
+  const [parsing, setParsing] = useState(false);
+  const [parsedMetrics, setParsedMetrics] = useState(null);
+  const [editMetrics, setEditMetrics] = useState({});
+  const [measuredAt, setMeasuredAt] = useState(new Date().toISOString().slice(0, 10));
+  const [saving, setSaving] = useState(false);
+  const [expandedId, setExpandedId] = useState(null);
+  const fileInputRef = useRef(null);
+
+  useEffect(() => {
+    loadHistory();
+  }, [client.id]);
+
+  const loadHistory = async () => {
+    try {
+      const res = await fetch(`/api/body-comp/history?client_id=${client.id}`);
+      const json = await res.json();
+      if (json.data) setHistory(json.data);
+    } catch (err) {
+      console.error("Error loading body comp history:", err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setParsing(true);
+    setParsedMetrics(null);
+
+    try {
+      const formData = new FormData();
+      formData.append("image", file);
+      formData.append("client_id", client.id);
+      formData.append("coach_id", coach.id);
+
+      const res = await fetch("/api/body-comp/parse", {
+        method: "POST",
+        body: formData,
+      });
+
+      const json = await res.json();
+      if (json.error) {
+        showToast({ message: json.error, variant: "error" });
+        return;
+      }
+
+      setParsedMetrics(json.metrics);
+      setEditMetrics({ ...json.metrics });
+      setMeasuredAt(new Date().toISOString().slice(0, 10));
+    } catch (err) {
+      showToast({ message: "Failed to analyze screenshot", variant: "error" });
+    } finally {
+      setParsing(false);
+      if (fileInputRef.current) fileInputRef.current.value = "";
+    }
+  };
+
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const res = await fetch("/api/body-comp/save", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          client_id: client.id,
+          coach_id: coach.id,
+          measured_at: measuredAt,
+          ...editMetrics,
+        }),
+      });
+
+      const json = await res.json();
+      if (json.error) {
+        showToast({ message: json.error, variant: "error" });
+        return;
+      }
+
+      showToast({ message: "Body composition saved!", variant: "success" });
+      setParsedMetrics(null);
+      setEditMetrics({});
+
+      // Update parent's weight if available
+      if (editMetrics.weight && onWeightUpdate) {
+        onWeightUpdate(editMetrics.weight);
+      }
+
+      await loadHistory();
+    } catch (err) {
+      showToast({ message: "Failed to save body composition", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleMetricChange = (key, value) => {
+    setEditMetrics((prev) => ({
+      ...prev,
+      [key]: value === "" ? null : Number(value),
+    }));
+  };
+
+  const previousEntry = history.length > 0 ? history[0] : null;
+
+  return (
+    <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
+      <div className="flex items-center justify-between mb-4">
+        <h2 className="text-lg font-extrabold font-display">📊 Body Composition</h2>
+        <div>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/heic,image/webp"
+            onChange={handleFileSelect}
+            className="hidden"
+          />
+          <button
+            onClick={() => fileInputRef.current?.click()}
+            disabled={parsing}
+            className={
+              "flex items-center gap-2 px-4 py-2.5 rounded-xl font-bold text-sm transition-colors min-h-[44px] touch-manipulation " +
+              (parsing
+                ? "bg-gray-200 text-gray-400"
+                : "bg-[#E8735A] text-white hover:bg-[#d4654e]")
+            }
+          >
+            {parsing ? (
+              <>
+                <svg className="w-4 h-4 animate-spin" viewBox="0 0 24 24" fill="none">
+                  <circle cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="3" className="opacity-25" />
+                  <path d="M4 12a8 8 0 018-8" stroke="currentColor" strokeWidth="3" strokeLinecap="round" />
+                </svg>
+                Analyzing...
+              </>
+            ) : (
+              <>
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M3 9a2 2 0 012-2h.93a2 2 0 001.664-.89l.812-1.22A2 2 0 0110.07 4h3.86a2 2 0 011.664.89l.812 1.22A2 2 0 0018.07 7H19a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2V9z" />
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M15 13a3 3 0 11-6 0 3 3 0 016 0z" />
+                </svg>
+                Upload Body Comp
+              </>
+            )}
+          </button>
+        </div>
+      </div>
+
+      {/* Parsing state */}
+      {parsing && (
+        <div className="text-center py-8">
+          <div className="text-3xl mb-3 animate-pulse">🔬</div>
+          <p className="text-sm font-semibold text-gray-500 font-body">Analyzing screenshot...</p>
+          <p className="text-xs text-gray-400 mt-1">Gemini is extracting your health metrics</p>
+        </div>
+      )}
+
+      {/* Confirmation / Edit View */}
+      {parsedMetrics && !parsing && (
+        <div className="mb-5">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-sm font-extrabold text-gray-700 font-display">Confirm Metrics</h3>
+            <input
+              type="date"
+              value={measuredAt}
+              onChange={(e) => setMeasuredAt(e.target.value)}
+              className="px-3 py-2 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors font-body"
+            />
+          </div>
+          <div className="grid grid-cols-3 gap-2.5">
+            {METRIC_FIELDS.map(({ key, label, unit }) => (
+              <div key={key} className="bg-[#faf7f2] rounded-xl p-3 text-center">
+                <label className="text-[10px] font-bold text-gray-400 uppercase block mb-1">
+                  {label}
+                </label>
+                <input
+                  type="number"
+                  step="0.1"
+                  value={editMetrics[key] ?? ""}
+                  onChange={(e) => handleMetricChange(key, e.target.value)}
+                  className="w-full text-center text-sm font-bold bg-white rounded-lg border border-gray-200 px-2 py-1.5 focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors font-body"
+                  placeholder="—"
+                />
+                {unit && (
+                  <span className="text-[10px] text-gray-400 font-semibold">{unit}</span>
+                )}
+              </div>
+            ))}
+          </div>
+          <div className="flex gap-3 mt-4">
+            <button
+              onClick={() => {
+                setParsedMetrics(null);
+                setEditMetrics({});
+              }}
+              className="flex-1 py-2.5 rounded-xl border-2 border-gray-200 font-bold text-sm text-gray-600 hover:bg-gray-50 transition-colors min-h-[44px] touch-manipulation"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSave}
+              disabled={saving}
+              className={
+                "flex-1 py-2.5 rounded-xl font-bold text-sm transition-colors min-h-[44px] touch-manipulation " +
+                (saving
+                  ? "bg-gray-200 text-gray-400"
+                  : "bg-[#E8735A] text-white hover:bg-[#d4654e]")
+              }
+            >
+              {saving ? "Saving..." : "Save"}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Trend Charts */}
+      {history.length >= 2 && !parsedMetrics && (
+        <div className="grid grid-cols-2 gap-4 mb-4 p-3 bg-[#faf7f2] rounded-xl">
+          <TrendChart
+            history={history}
+            metricKey="weight"
+            label="Weight (lbs)"
+            color="#E8735A"
+          />
+          <TrendChart
+            history={history}
+            metricKey="body_fat_pct"
+            label="Body Fat (%)"
+            color="#4a7c59"
+          />
+        </div>
+      )}
+
+      {/* History */}
+      {loading ? (
+        <div className="text-center py-6 text-gray-400 text-sm">Loading history...</div>
+      ) : history.length === 0 && !parsedMetrics ? (
+        <div className="text-center py-8 text-gray-400">
+          <div className="text-3xl mb-3">📷</div>
+          <p className="text-sm font-body">No body composition data yet.</p>
+          <p className="text-xs mt-1">Upload a Renpho screenshot to get started!</p>
+        </div>
+      ) : !parsedMetrics && (
+        <div className="space-y-2">
+          {history.map((entry, idx) => {
+            const prev = history[idx + 1] || null;
+            const isExpanded = expandedId === entry.id;
+
+            return (
+              <div key={entry.id} className="bg-[#faf7f2] rounded-xl overflow-hidden">
+                <button
+                  onClick={() => setExpandedId(isExpanded ? null : entry.id)}
+                  className="w-full p-3 flex items-center justify-between text-left touch-manipulation"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <span className="text-xs font-bold text-gray-400">
+                      {new Date(entry.measured_at + "T12:00:00").toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                    {entry.weight && (
+                      <span className="text-sm font-bold text-gray-800">
+                        {entry.weight} lbs
+                        {prev && getChangeIndicator(entry.weight, prev.weight, "down")}
+                      </span>
+                    )}
+                    {entry.body_fat_pct && (
+                      <span className="text-sm font-semibold text-gray-600">
+                        {entry.body_fat_pct}% BF
+                        {prev && getChangeIndicator(entry.body_fat_pct, prev.body_fat_pct, "down")}
+                      </span>
+                    )}
+                  </div>
+                  <svg
+                    className={`w-4 h-4 text-gray-400 transition-transform ${isExpanded ? "rotate-180" : ""}`}
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    stroke="currentColor"
+                    strokeWidth={2}
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+                {isExpanded && (
+                  <div className="px-3 pb-3">
+                    <div className="grid grid-cols-3 gap-2">
+                      {METRIC_FIELDS.map(({ key, label, unit, direction }) => {
+                        const val = entry[key];
+                        if (val == null) return null;
+                        return (
+                          <div
+                            key={key}
+                            className="bg-white rounded-lg p-2 text-center"
+                          >
+                            <div className="text-[10px] font-bold text-gray-400 uppercase">
+                              {label}
+                            </div>
+                            <div className="text-sm font-bold text-gray-800">
+                              {val}
+                              {unit && (
+                                <span className="text-[10px] text-gray-400 ml-0.5">{unit}</span>
+                              )}
+                            </div>
+                            {prev && (
+                              <div className="mt-0.5">
+                                {getChangeIndicator(val, prev[key], direction)}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}

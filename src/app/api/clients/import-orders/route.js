@@ -325,7 +325,6 @@ export async function POST(request) {
       const orderUpserts = orderRows.map(({ _clientMatch, ...order }) => ({
         ...order,
         client_id: fullClientMap[_clientMatch] || null,
-        updated_at: new Date().toISOString(),
       }));
 
       // Upsert in batches of 100

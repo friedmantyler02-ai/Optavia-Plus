@@ -124,7 +124,6 @@ export async function POST(request) {
             order_date: orderDate,
             cv,
             shipping_status: shippingStatus,
-            updated_at: new Date().toISOString(),
           },
           {
             onConflict: "order_number,coach_id",

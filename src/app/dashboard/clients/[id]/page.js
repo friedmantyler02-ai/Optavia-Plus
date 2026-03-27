@@ -809,6 +809,32 @@ export default function ClientDetailPage() {
       <button onClick={() => router.push("/dashboard/clients")} className="px-4 py-2 bg-white border-2 border-gray-200 rounded-xl font-bold text-sm text-gray-500 mb-5 hover:bg-gray-50 transition-colors duration-150 min-h-[44px] touch-manipulation">
         ← Back to All Clients
       </button>
+
+      {/* Move to Leads — prominent banner for lapsed/archived/reverted clients */}
+      {(client.status === "lapsed" || client.status === "archived" || client.account_status === "Reverted") && !client.moved_to_lead_id && (
+        <button
+          onClick={() => setMoveToLeadsConfirm(true)}
+          className="w-full flex items-center justify-center gap-3 mb-5 px-6 py-4 rounded-2xl text-lg font-bold bg-[#E8735A] text-white hover:bg-[#d4654e] shadow-md transition-all duration-150 active:scale-[0.98] min-h-[56px] touch-manipulation"
+        >
+          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+          </svg>
+          Move to Leads Pipeline
+        </button>
+      )}
+      {(client.status === "lapsed" || client.status === "archived" || client.account_status === "Reverted") && client.moved_to_lead_id && (
+        <div className="w-full flex items-center justify-center gap-2 mb-5 px-6 py-4 rounded-2xl bg-green-50 border-2 border-green-200">
+          <span>✅</span>
+          <span className="text-sm font-semibold text-green-700">Moved to leads pipeline</span>
+          <a
+            href={`/dashboard/leads/${client.moved_to_lead_id}`}
+            className="text-sm font-bold text-[#E8735A] hover:underline ml-2"
+          >
+            View Lead →
+          </a>
+        </div>
+      )}
+
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style={{ background: "linear-gradient(135deg, #e8f0ea, #eaf2f6)" }}>
@@ -895,33 +921,6 @@ export default function ClientDetailPage() {
             <p className="mt-2 text-sm font-semibold text-green-600 animate-fade-up">{reminderConfirm} ✓</p>
           )}
         </div>
-        {/* Move to Leads — shown for lapsed, archived, or reverted clients */}
-        {(client.status === "lapsed" || client.status === "archived" || client.account_status === "Reverted") && (
-          <div className="border-t border-gray-100 pt-4 mt-4">
-            {client.moved_to_lead_id ? (
-              <div className="flex items-center gap-2 text-sm text-gray-500">
-                <span>↩️</span>
-                <span className="font-semibold">Moved to leads pipeline</span>
-                <a
-                  href={`/dashboard/leads/${client.moved_to_lead_id}`}
-                  className="text-[#E8735A] font-bold hover:underline"
-                >
-                  View Lead →
-                </a>
-              </div>
-            ) : (
-              <button
-                onClick={() => setMoveToLeadsConfirm(true)}
-                className="flex items-center justify-center gap-2 w-full px-5 py-3 rounded-xl text-sm font-bold bg-[#E8735A] text-white hover:bg-[#d4654e] transition-all duration-150 min-h-[48px] touch-manipulation"
-              >
-                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-                </svg>
-                Move to Leads Pipeline
-              </button>
-            )}
-          </div>
-        )}
       </div>
       {/* Order Alerts */}
       {getAlertBadges(client.order_alerts).length > 0 && (

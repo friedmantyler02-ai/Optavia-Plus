@@ -1,8 +1,14 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
+import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { normalizeOrgCsvPhone } from "@/lib/phone";
 
 export const maxDuration = 60;
+
+const supabaseAdmin = createSupabaseClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL,
+  process.env.SUPABASE_SERVICE_ROLE_KEY
+);
 
 /**
  * Normalize CSV header keys — strip BOM, ="" wrapping, whitespace, quotes.
@@ -16,10 +22,21 @@ function cleanHeaderKey(key) {
     .trim();
 }
 
+/**
+ * Normalize a row: clean keys, and also create no-space variants so
+ * "OPTAVIA ID" can be accessed as row.OPTAVIAID, "First Name" as row.FirstName, etc.
+ */
 function normalizeRow(rawRow) {
   const out = {};
   for (const [k, v] of Object.entries(rawRow)) {
-    out[cleanHeaderKey(k)] = typeof v === "string" ? v.trim() : v;
+    const cleaned = cleanHeaderKey(k);
+    const val = typeof v === "string" ? v.trim() : v;
+    out[cleaned] = val;
+    // Also store a no-space version: "OPTAVIA ID" → "OPTAVIAID", "First Name" → "FirstName"
+    const noSpaces = cleaned.replace(/\s+/g, "");
+    if (noSpaces !== cleaned) {
+      out[noSpaces] = val;
+    }
   }
   return out;
 }
@@ -107,6 +124,7 @@ export async function POST(request) {
     // Process all rows in memory — separate into updates and inserts
     const updateOps = [];  // { id, updates }
     const insertRows = []; // full records for new clients
+    const orderRows = [];  // orders to upsert into the orders table
 
     for (let i = 0; i < orders.length; i++) {
       const row = normalizeRow(orders[i]);
@@ -124,11 +142,28 @@ export async function POST(request) {
       const email = (row.Email || "").trim() || null;
       const phone = normalizeOrgCsvPhone(row.Phone || "");
       const orderNumber = (row.OrderNumber || "").trim() || null;
+      const trackingRaw = (row.TrackingNumbers || row["Tracking Numbers"] || "").trim();
       const firstName = (row.FirstName || "").trim();
       const lastName = (row.LastName || "").trim();
       const fullName = `${firstName} ${lastName}`.trim();
       const countryCode = (row.CountryCode || "").trim() || null;
       const level = (row.Level || "").trim() || null;
+
+      // Build order record for the orders table (if we have an order number)
+      if (orderNumber) {
+        const isNoTracking = !trackingRaw || trackingRaw === "NO_TRACKING_NUMBER" || trackingRaw.toUpperCase() === "N/A";
+        orderRows.push({
+          optavia_id: optaviaId,
+          client_name: fullName || null,
+          order_number: orderNumber,
+          tracking_number: isNoTracking ? null : trackingRaw,
+          order_date: orderDate,
+          cv,
+          shipping_status: isNoTracking ? "no_tracking" : "unknown",
+          coach_id: coachId,
+          _clientMatch: optaviaId, // used below for client_id lookup
+        });
+      }
 
       const existing = clientMap[optaviaId];
 
@@ -270,7 +305,44 @@ export async function POST(request) {
       }
     }
 
-    return NextResponse.json({ updated, created, alerts: alertCount, errors });
+    // Upsert orders into the orders table (with tracking data)
+    let ordersImported = 0;
+    if (orderRows.length > 0) {
+      // Re-fetch clients to get IDs for newly created clients too
+      const { data: allClients } = await supabaseAdmin
+        .from("clients")
+        .select("id, optavia_id")
+        .eq("coach_id", coachId);
+
+      const fullClientMap = {};
+      if (allClients) {
+        for (const c of allClients) {
+          if (c.optavia_id) fullClientMap[c.optavia_id] = c.id;
+        }
+      }
+
+      const orderUpserts = orderRows.map(({ _clientMatch, ...order }) => ({
+        ...order,
+        client_id: fullClientMap[_clientMatch] || null,
+        updated_at: new Date().toISOString(),
+      }));
+
+      // Upsert in batches of 100
+      for (let i = 0; i < orderUpserts.length; i += 100) {
+        const batch = orderUpserts.slice(i, i + 100);
+        const { error: orderError, count } = await supabaseAdmin
+          .from("orders")
+          .upsert(batch, { onConflict: "order_number,coach_id", ignoreDuplicates: false });
+
+        if (orderError) {
+          console.error("[import-orders] Orders upsert error:", orderError.message);
+        } else {
+          ordersImported += batch.length;
+        }
+      }
+    }
+
+    return NextResponse.json({ updated, created, alerts: alertCount, errors, ordersImported });
   } catch (err) {
     console.error("Import orders error:", err);
     return NextResponse.json(

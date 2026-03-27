@@ -587,7 +587,7 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
   const sorted = sortClients(clients, sortKey, sortDir);
 
   return (
-    <div className={`rounded-2xl border-2 border-gray-100 bg-white overflow-hidden mb-4 border-l-4 ${borderColor}`}>
+    <div className={`rounded-2xl border-2 border-gray-100 bg-white overflow-clip mb-4 border-l-4 ${borderColor}`}>
       <button
         onClick={() => setCollapsed(!collapsed)}
         className="w-full flex items-center justify-between px-5 py-3.5 hover:bg-gray-50 transition min-h-[44px] touch-manipulation"

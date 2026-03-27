@@ -807,8 +807,8 @@ export default function ClientDetailPage() {
             <span className="text-sm font-semibold text-gray-600">Returning Client</span>
           </div>
         </div>
-        {/* Move to Leads — only shown for lapsed clients */}
-        {client.status === "lapsed" && (
+        {/* Move to Leads — shown for lapsed or archived clients */}
+        {(client.status === "lapsed" || client.status === "archived") && (
           <div className="border-t border-gray-100 pt-4 mt-4">
             {client.moved_to_lead_id ? (
               <div className="flex items-center gap-2 text-sm text-gray-500">
@@ -1300,9 +1300,9 @@ export default function ClientDetailPage() {
         </div>
       </div>
       {meetingModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setMeetingModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setMeetingModal(false)} />
+          <div className="fixed z-50 bg-white rounded-2xl shadow-xl w-[calc(100%-2rem)] max-w-sm p-6" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
             <h2 className="font-display text-lg font-bold text-gray-900 mb-1">📅 Log a Meeting</h2>
             <p className="text-sm text-gray-500 mb-4">Record a meeting with {client.full_name}</p>
             <div className="space-y-3 mb-4">
@@ -1389,12 +1389,12 @@ export default function ClientDetailPage() {
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
       {noteModal && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setNoteModal(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-sm p-6">
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setNoteModal(false)} />
+          <div className="fixed z-50 bg-white rounded-2xl shadow-xl w-[calc(100%-2rem)] max-w-sm p-6" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
             <h2 className="font-display text-lg font-bold text-gray-900 mb-1">📝 Log a Note</h2>
             <p className="text-sm text-gray-500 mb-4">Add a note about {client.full_name}</p>
             <textarea
@@ -1422,12 +1422,12 @@ export default function ClientDetailPage() {
               </button>
             </div>
           </div>
-        </div>
+        </>
       )}
       {backdateModal && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/50" onClick={() => setBackdateModal(null)} />
-          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-xs p-5">
+        <>
+          <div className="fixed inset-0 z-50" onClick={() => setBackdateModal(null)} />
+          <div className="fixed z-50 bg-white rounded-2xl shadow-xl w-[calc(100%-2rem)] max-w-xs p-5" style={{ top: '50%', left: '50%', transform: 'translate(-50%, -50%)' }}>
             <h2 className="font-display text-base font-bold text-gray-900 mb-1">
               {backdateModal === "call" ? "📞 Log a Call" : "💬 Log a Text"}
             </h2>
@@ -1469,7 +1469,7 @@ export default function ClientDetailPage() {
               </div>
             )}
           </div>
-        </div>
+        </>
       )}
       <ConfirmDialog
         isOpen={moveToLeadsConfirm}

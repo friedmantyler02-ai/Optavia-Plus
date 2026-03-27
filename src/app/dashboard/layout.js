@@ -105,7 +105,7 @@ export default function DashboardLayout({ children }) {
     { href: "/dashboard/clients", label: "Clients", icon: "👥" },
     { href: "/dashboard/leads", label: "Leads", icon: "🎯" },
     { href: "/dashboard/calendar", label: "Calendar", icon: "📅" },
-    { href: "/dashboard/resources", label: "Resources", icon: "📚" },
+    { href: "/dashboard/outreach", label: "Outreach", icon: "📧" },
   ];
 
   const isActive = (href) => {

@@ -31,6 +31,9 @@ export default function CampaignSetupPage() {
   const [launchError, setLaunchError] = useState(null);
   const [gmailConnected, setGmailConnected] = useState(false);
 
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testToast, setTestToast] = useState(null);
+
   useEffect(() => {
     if (!coach?.id || !segmentKey) return;
     fetchTemplate();
@@ -96,6 +99,32 @@ export default function CampaignSetupPage() {
       // ignore
     }
     setSaving(false);
+  };
+
+  const handleSendTest = async () => {
+    setSendingTest(true);
+    setTestToast(null);
+    try {
+      const res = await fetch("/api/outreach/send-test", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          coach_id: coach.id,
+          subject: template?.subject || "",
+          body: template?.body || "",
+        }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTestToast({ type: "success", message: "Test email sent! Check your Gmail inbox." });
+      } else {
+        setTestToast({ type: "error", message: data.error || "Failed to send test email." });
+      }
+    } catch {
+      setTestToast({ type: "error", message: "Failed to send test email." });
+    }
+    setSendingTest(false);
+    setTimeout(() => setTestToast(null), 5000);
   };
 
   const handleReset = async () => {
@@ -252,6 +281,13 @@ export default function CampaignSetupPage() {
               >
                 Edit Message
               </button>
+              <button
+                onClick={handleSendTest}
+                disabled={sendingTest || !gmailConnected}
+                className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-sm font-semibold text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+              >
+                {sendingTest ? "Sending…" : "Send Test to Myself"}
+              </button>
               {template && !template.is_default && (
                 <button
                   onClick={handleReset}
@@ -261,6 +297,17 @@ export default function CampaignSetupPage() {
                 </button>
               )}
             </div>
+            {testToast && (
+              <div
+                className={`mt-3 rounded-xl px-4 py-2.5 font-body text-sm ${
+                  testToast.type === "success"
+                    ? "bg-green-50 text-green-700 border border-green-200"
+                    : "bg-red-50 text-red-600 border border-red-200"
+                }`}
+              >
+                {testToast.message}
+              </div>
+            )}
           </>
         )}
       </div>

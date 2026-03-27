@@ -1,63 +1,55 @@
 "use client";
 
 import { useState, useEffect } from "react";
+import { useRouter } from "next/navigation";
 import { useCoach } from "../layout";
 import PageHeader from "../components/PageHeader";
-
-const SEGMENTS = [
-  {
-    key: "warm",
-    label: "Warm",
-    range: "2–6 months",
-    emoji: "\uD83D\uDD25",
-    description: "They remember you — just need a nudge",
-    accent: "border-orange-300 bg-orange-50",
-    badge: "bg-orange-500 text-white",
-  },
-  {
-    key: "moderate",
-    label: "Moderate",
-    range: "6–12 months",
-    emoji: "\u23F0",
-    description: "A friendly reconnection works well here",
-    accent: "border-amber-300 bg-amber-50",
-    badge: "bg-amber-500 text-white",
-  },
-  {
-    key: "cold",
-    label: "Cold",
-    range: "12–24 months",
-    emoji: "\u2744\uFE0F",
-    description: "Reintroduce yourself gently",
-    accent: "border-blue-300 bg-blue-50",
-    badge: "bg-blue-500 text-white",
-  },
-  {
-    key: "dormant",
-    label: "Dormant",
-    range: "24+ months",
-    emoji: "\uD83D\uDCA4",
-    description: "May not know who you are — introduce yourself",
-    accent: "border-purple-300 bg-purple-50",
-    badge: "bg-purple-500 text-white",
-  },
-];
+import { SEGMENTS } from "./segments";
 
 export default function OutreachPage() {
   const { coach } = useCoach();
+  const router = useRouter();
+
   const [segments, setSegments] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const [loadingSegments, setLoadingSegments] = useState(true);
+  const [activeCampaigns, setActiveCampaigns] = useState([]);
+  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
 
   useEffect(() => {
     if (!coach?.id) return;
-    fetch(`/api/outreach/segments?coach_id=${coach.id}`)
-      .then((r) => r.json())
-      .then((data) => {
-        setSegments(data);
-        setLoading(false);
-      })
-      .catch(() => setLoading(false));
+    fetchSegments();
+    fetchCampaigns();
   }, [coach?.id]);
+
+  const fetchSegments = async () => {
+    try {
+      const res = await fetch(`/api/outreach/segments?coach_id=${coach.id}`);
+      const data = await res.json();
+      setSegments(data);
+    } catch {
+      // ignore
+    }
+    setLoadingSegments(false);
+  };
+
+  const fetchCampaigns = async () => {
+    try {
+      const res = await fetch(
+        `/api/outreach/campaigns?coach_id=${coach.id}&status=active`
+      );
+      const data = await res.json();
+      setActiveCampaigns(data.campaigns || []);
+    } catch {
+      // ignore
+    }
+    setLoadingCampaigns(false);
+  };
+
+  // Build a map of segment key → active campaign
+  const campaignBySegment = {};
+  for (const c of activeCampaigns) {
+    campaignBySegment[c.segment] = c;
+  }
 
   return (
     <div className="animate-fade-up">
@@ -79,39 +71,49 @@ export default function OutreachPage() {
         </div>
         <button
           disabled
-          className="font-body rounded-xl bg-gray-200 px-4 py-2 text-sm font-semibold text-gray-400 cursor-not-allowed"
+          className="cursor-not-allowed rounded-xl bg-gray-200 px-4 py-2 font-body text-sm font-semibold text-gray-400"
         >
           Connect
         </button>
       </div>
 
       {/* Segment cards */}
-      {loading ? (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+      {loadingSegments ? (
+        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {[1, 2, 3, 4].map((i) => (
             <div
               key={i}
-              className="rounded-2xl border-2 border-gray-100 bg-white p-5 animate-pulse h-40"
+              className="h-44 animate-pulse rounded-2xl border-2 border-gray-100 bg-white p-5"
             />
           ))}
         </div>
       ) : (
-        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+        <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {SEGMENTS.map((seg) => {
             const count = segments?.segments?.[seg.key] || 0;
+            const campaign = campaignBySegment[seg.key];
+
             return (
               <button
                 key={seg.key}
-                onClick={() => console.log(seg.key)}
+                onClick={() =>
+                  router.push(`/dashboard/outreach/campaign/${seg.key}`)
+                }
                 className={`rounded-2xl border-2 p-5 text-left transition-shadow hover:shadow-md ${seg.accent}`}
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl">{seg.emoji}</span>
-                  <span
-                    className={`rounded-full px-3 py-0.5 text-sm font-bold ${seg.badge}`}
-                  >
-                    {count}
-                  </span>
+                  {campaign ? (
+                    <span className="rounded-full bg-green-500 px-2.5 py-0.5 font-body text-xs font-bold text-white">
+                      Active
+                    </span>
+                  ) : (
+                    <span
+                      className={`rounded-full px-3 py-0.5 font-body text-sm font-bold ${seg.badge}`}
+                    >
+                      {count}
+                    </span>
+                  )}
                 </div>
                 <h3 className="font-display text-lg font-bold text-gray-900">
                   {seg.label}
@@ -119,9 +121,28 @@ export default function OutreachPage() {
                 <p className="font-body text-xs text-gray-500 mt-0.5">
                   {seg.range}
                 </p>
-                <p className="font-body text-xs text-gray-600 mt-2 leading-snug">
-                  {seg.description}
-                </p>
+                {campaign ? (
+                  <div className="mt-2">
+                    <p className="font-body text-xs font-semibold text-gray-700">
+                      {campaign.total_sent}/{campaign.total_queued} sent
+                    </p>
+                    <div className="mt-1 h-1.5 w-full rounded-full bg-white/60">
+                      <div
+                        className="h-1.5 rounded-full bg-green-500 transition-all duration-300"
+                        style={{
+                          width:
+                            campaign.total_queued > 0
+                              ? `${Math.round((campaign.total_sent / campaign.total_queued) * 100)}%`
+                              : "0%",
+                        }}
+                      />
+                    </div>
+                  </div>
+                ) : (
+                  <p className="font-body text-xs text-gray-600 mt-2 leading-snug">
+                    {seg.description}
+                  </p>
+                )}
               </button>
             );
           })}
@@ -129,7 +150,7 @@ export default function OutreachPage() {
       )}
 
       {/* Active clients info */}
-      <div className="rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4 mb-6">
+      <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4">
         <p className="font-body text-sm text-gray-500">
           <span className="font-semibold text-gray-600">
             Active clients (ordered in last 60 days):{" "}
@@ -140,13 +161,78 @@ export default function OutreachPage() {
       </div>
 
       {/* Active Campaigns */}
-      <div className="rounded-2xl border-2 border-gray-100 bg-white p-6 mb-6">
-        <h2 className="font-display text-xl font-bold text-gray-900 mb-3">
+      <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
+        <h2 className="font-display text-xl font-bold text-gray-900 mb-4">
           Active Campaigns
         </h2>
-        <p className="font-body text-sm text-gray-400">
-          No active campaigns yet. Choose a segment above to start.
-        </p>
+
+        {loadingCampaigns ? (
+          <div className="animate-pulse space-y-3">
+            <div className="h-16 rounded-xl bg-gray-100" />
+            <div className="h-16 rounded-xl bg-gray-100" />
+          </div>
+        ) : activeCampaigns.length === 0 ? (
+          <p className="font-body text-sm text-gray-400">
+            No active campaigns yet. Choose a segment above to start.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {activeCampaigns.map((campaign) => {
+              const seg = SEGMENTS.find((s) => s.key === campaign.segment);
+              const pct =
+                campaign.total_queued > 0
+                  ? Math.round((campaign.total_sent / campaign.total_queued) * 100)
+                  : 0;
+              return (
+                <button
+                  key={campaign.id}
+                  onClick={() =>
+                    router.push(
+                      `/dashboard/outreach/campaign/${campaign.segment}`
+                    )
+                  }
+                  className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4 text-left hover:bg-gray-100 transition-colors duration-150"
+                >
+                  <div className="flex items-center justify-between mb-2">
+                    <div className="flex items-center gap-2">
+                      <span className="text-lg">{seg?.emoji}</span>
+                      <span className="font-display font-bold text-gray-900">
+                        {seg?.label} Campaign
+                      </span>
+                    </div>
+                    <span className="rounded-full bg-green-100 px-3 py-0.5 font-body text-xs font-semibold text-green-700">
+                      Active
+                    </span>
+                  </div>
+                  <div className="flex items-center justify-between mb-1.5">
+                    <p className="font-body text-xs text-gray-500">
+                      {campaign.total_sent} of {campaign.total_queued} emails sent
+                    </p>
+                    <p className="font-body text-xs font-semibold text-gray-600">
+                      {pct}%
+                    </p>
+                  </div>
+                  <div className="h-2 w-full rounded-full bg-gray-200">
+                    <div
+                      className="h-2 rounded-full bg-green-500 transition-all duration-300"
+                      style={{ width: `${pct}%` }}
+                    />
+                  </div>
+                  {campaign.started_at && (
+                    <p className="mt-2 font-body text-xs text-gray-400">
+                      Started{" "}
+                      {new Date(campaign.started_at).toLocaleDateString("en-US", {
+                        month: "short",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </p>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Needs Attention */}

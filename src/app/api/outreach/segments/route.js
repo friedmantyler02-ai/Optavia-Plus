@@ -7,9 +7,18 @@ const supabaseAdmin = createSupabaseClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY
 );
 
+function getSegmentBucket(last_order_date) {
+  if (!last_order_date) return "dormant";
+  const daysSince = Math.floor((Date.now() - new Date(last_order_date)) / 86400000);
+  if (daysSince <= 60) return "active";
+  if (daysSince <= 180) return "warm";
+  if (daysSince <= 365) return "moderate";
+  if (daysSince <= 730) return "cold";
+  return "dormant";
+}
+
 export async function GET(request) {
   try {
-    // Auth check
     const supabase = await createServerClient();
     const { data: { user }, error: authError } = await supabase.auth.getUser();
     if (authError || !user) {
@@ -18,15 +27,15 @@ export async function GET(request) {
 
     const { searchParams } = new URL(request.url);
     const coach_id = searchParams.get("coach_id");
+    const segmentFilter = searchParams.get("segment");
 
     if (!coach_id) {
       return NextResponse.json({ error: "coach_id is required" }, { status: 400 });
     }
 
-    // Fetch eligible clients
     const { data: clients, error } = await supabaseAdmin
       .from("clients")
-      .select("id, email, last_order_date")
+      .select("id, first_name, last_name, email, last_order_date")
       .eq("coach_id", coach_id)
       .or("do_not_contact.is.null,do_not_contact.eq.false")
       .or("bad_email.is.null,bad_email.eq.false")
@@ -37,36 +46,32 @@ export async function GET(request) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Filter out @medifastinc.com emails and segment
-    const now = new Date();
-    const segments = { active: 0, warm: 0, moderate: 0, cold: 0, dormant: 0 };
+    // Build segment map
+    const segmentMap = { active: [], warm: [], moderate: [], cold: [], dormant: [] };
 
     for (const client of clients || []) {
-      // Skip medifastinc emails (already filtered no-email above)
-      if (client.email && client.email.toLowerCase().includes("@medifastinc.com")) {
-        continue;
-      }
-
-      if (!client.last_order_date) {
-        segments.dormant++;
-        continue;
-      }
-
-      const lastOrder = new Date(client.last_order_date);
-      const daysSince = Math.floor((now - lastOrder) / (1000 * 60 * 60 * 24));
-
-      if (daysSince <= 60) {
-        segments.active++;
-      } else if (daysSince <= 180) {
-        segments.warm++;
-      } else if (daysSince <= 365) {
-        segments.moderate++;
-      } else if (daysSince <= 730) {
-        segments.cold++;
-      } else {
-        segments.dormant++;
-      }
+      if (client.email?.toLowerCase().includes("@medifastinc.com")) continue;
+      const bucket = getSegmentBucket(client.last_order_date);
+      segmentMap[bucket].push(client);
     }
+
+    // If segment param provided, return client list for that segment
+    if (segmentFilter) {
+      const segClients = segmentMap[segmentFilter] || [];
+      return NextResponse.json({
+        clients: segClients.slice(0, 50).map((c) => ({
+          id: c.id,
+          first_name: c.first_name,
+          last_name: c.last_name,
+          last_order_date: c.last_order_date,
+        })),
+        count: segClients.length,
+      });
+    }
+
+    // Otherwise return counts
+    const segments = {};
+    for (const [key, arr] of Object.entries(segmentMap)) segments[key] = arr.length;
 
     return NextResponse.json({
       segments,

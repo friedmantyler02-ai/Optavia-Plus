@@ -1,3 +1,28 @@
+/**
+ * Check a Gmail thread for reply detection.
+ */
+export async function checkGmailThread({ accessToken, threadId }) {
+  const res = await fetch(
+    `https://gmail.googleapis.com/gmail/v1/users/me/threads/${threadId}?format=metadata&metadataHeaders=Subject`,
+    {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    }
+  );
+
+  if (!res.ok) {
+    const errText = await res.text();
+    throw new Error(`Gmail thread fetch failed (${res.status}): ${errText}`);
+  }
+
+  const data = await res.json();
+  const messageCount = data.messages ? data.messages.length : 0;
+  const snippet = data.snippet || "";
+
+  return { messageCount, snippet };
+}
+
 const GOOGLE_CLIENT_ID = process.env.GOOGLE_CLIENT_ID;
 const GOOGLE_CLIENT_SECRET = process.env.GOOGLE_CLIENT_SECRET;
 

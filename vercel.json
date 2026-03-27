@@ -11,6 +11,14 @@
     {
       "path": "/api/org/escalations/evaluate",
       "schedule": "0 14 * * *"
+    },
+    {
+      "path": "/api/outreach/send-batch",
+      "schedule": "*/15 * * * *"
+    },
+    {
+      "path": "/api/outreach/check-replies",
+      "schedule": "*/15 * * * *"
     }
   ]
 }

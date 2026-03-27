@@ -359,6 +359,121 @@ function QuickMessageCard({ client }) {
   );
 }
 
+// ---------------------------------------------------------------------------
+// Orders & Shipping section
+// ---------------------------------------------------------------------------
+function ShippingBadge({ status, deliveredAt }) {
+  const config = {
+    unknown: { label: "Awaiting Update", cls: "bg-gray-100 text-gray-600" },
+    in_transit: { label: "In Transit", cls: "bg-blue-100 text-blue-700" },
+    out_for_delivery: { label: "Out for Delivery", cls: "bg-orange-100 text-orange-700" },
+    delivered: { label: "Delivered", cls: "bg-green-100 text-green-700" },
+    exception: { label: "Exception", cls: "bg-red-100 text-red-700" },
+  };
+  const c = config[status];
+  if (!c) return null;
+
+  return (
+    <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-bold ${c.cls}`}>
+      {c.label}
+      {status === "delivered" && deliveredAt && (
+        <span className="font-normal ml-1">
+          {new Date(deliveredAt).toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+        </span>
+      )}
+    </span>
+  );
+}
+
+function OrdersShipping({ clientId }) {
+  const [orders, setOrders] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!clientId) return;
+    fetch(`/api/orders/list?client_id=${clientId}`)
+      .then((r) => (r.ok ? r.json() : { orders: [] }))
+      .then((d) => setOrders(d.orders || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [clientId]);
+
+  if (loading) {
+    return (
+      <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
+        <h2 className="text-lg font-extrabold mb-4 flex items-center gap-2">
+          <span>📦</span> Orders & Shipping
+        </h2>
+        <div className="animate-pulse space-y-3">
+          <div className="h-4 bg-gray-200 rounded w-3/4" />
+          <div className="h-4 bg-gray-200 rounded w-1/2" />
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
+      <h2 className="text-lg font-extrabold mb-4 flex items-center gap-2">
+        <span>📦</span> Orders & Shipping
+      </h2>
+      {orders.length === 0 ? (
+        <p className="text-sm text-gray-400 italic">No orders imported yet</p>
+      ) : (
+        <div className="space-y-3">
+          {orders.map((order) => {
+            const hasTracking =
+              order.tracking_number &&
+              order.tracking_number !== "NO_TRACKING_NUMBER";
+            const orderDate = order.order_date
+              ? new Date(order.order_date + "T00:00:00").toLocaleDateString("en-US", {
+                  month: "short",
+                  day: "numeric",
+                  year: "numeric",
+                })
+              : null;
+
+            return (
+              <div
+                key={order.id}
+                className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl"
+              >
+                <div className="flex flex-col gap-1">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {orderDate && (
+                      <span className="text-sm font-semibold text-gray-800">{orderDate}</span>
+                    )}
+                    <span className="text-xs text-gray-400">#{order.order_number}</span>
+                    {order.cv != null && (
+                      <span className="text-xs font-bold text-gray-500">{order.cv} CV</span>
+                    )}
+                  </div>
+                  {hasTracking && (
+                    <a
+                      href={`https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-[#E8735A] hover:underline font-medium"
+                      onClick={(e) => e.stopPropagation()}
+                    >
+                      {order.tracking_number}
+                    </a>
+                  )}
+                </div>
+                <div>
+                  {hasTracking && order.shipping_status !== "no_tracking" && (
+                    <ShippingBadge status={order.shipping_status} deliveredAt={order.delivered_at} />
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
 function getAlertBadges(alerts) {
@@ -1058,6 +1173,9 @@ export default function ClientDetailPage() {
         showToast={showToast}
         onWeightUpdate={(w) => setClient((prev) => ({ ...prev, weight_current: w }))}
       />
+
+      {/* Orders & Shipping */}
+      <OrdersShipping clientId={client.id} />
 
       <div className="grid md:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-6 shadow-sm">

@@ -95,6 +95,24 @@ const IMPORT_TYPES = {
       { key: "status", label: "Status", render: (r) => r.OrderStatus || "\u2014" },
     ],
   },
+  order_tracking: {
+    title: "Upload Order Tracking",
+    subtitle: "Import an order CSV with tracking numbers to track shipments.",
+    dropLabel: "Order CSV with tracking numbers",
+    buttonLabel: (n) => `Import ${n} Orders`,
+    customImport: true,
+    previewCols: [
+      { key: "name", label: "Name", render: (r) => `${r["First Name"] || r.FirstName || ""} ${r["Last Name"] || r.LastName || ""}`.trim() },
+      { key: "id", label: "Optavia ID", render: (r) => r["OPTAVIA ID"] || r.OPTAVIAID || "\u2014" },
+      { key: "order", label: "Order #", render: (r) => r["Order Number"] || r.OrderNumber || "\u2014" },
+      { key: "tracking", label: "Tracking", render: (r) => {
+        const t = r["Tracking Numbers"] || r.TrackingNumbers || "";
+        return t === "NO_TRACKING_NUMBER" ? "None" : t || "\u2014";
+      }},
+      { key: "date", label: "Order Date", render: (r) => r["Order Date"] || r.OrderDate || "\u2014" },
+      { key: "cv", label: "CV", align: "right", render: (r) => r.CV || "\u2014" },
+    ],
+  },
 };
 
 function ImportModal({ onClose, onComplete }) {
@@ -162,10 +180,56 @@ function ImportModal({ onClose, onComplete }) {
     setResult(null);
 
     try {
-      const data = await importCSVChunked(parsedRows, (progress) => {
-        setBatchProgress(progress);
-      });
-      setResult(data);
+      if (importType === "order_tracking") {
+        // Map CSV rows to order objects for /api/orders/import
+        const mapped = parsedRows.map((raw) => {
+          const row = {};
+          for (const [k, v] of Object.entries(raw)) {
+            row[cleanHeader(k)] = typeof v === "string" ? v.trim() : v;
+          }
+          const firstName = row["First Name"] || row.FirstName || "";
+          const lastName = row["Last Name"] || row.LastName || "";
+          return {
+            optavia_id: row["OPTAVIA ID"] || row.OPTAVIAID || "",
+            client_name: `${firstName} ${lastName}`.trim(),
+            order_number: row["Order Number"] || row.OrderNumber || "",
+            tracking_number: row["Tracking Numbers"] || row.TrackingNumbers || "",
+            order_date: row["Order Date"] || row.OrderDate || "",
+            cv: row.CV || "",
+          };
+        });
+
+        // Send in chunks of 100
+        const CHUNK = 100;
+        let imported = 0, skipped = 0, matched = 0, unmatched = 0;
+        for (let i = 0; i < mapped.length; i += CHUNK) {
+          const chunk = mapped.slice(i, i + CHUNK);
+          setBatchProgress({
+            current: Math.floor(i / CHUNK) + 1,
+            total: Math.ceil(mapped.length / CHUNK),
+            rowsProcessed: Math.min(i + CHUNK, mapped.length),
+            totalRows: mapped.length,
+          });
+          const res = await fetch("/api/orders/import", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ orders: chunk }),
+          });
+          if (res.ok) {
+            const d = await res.json();
+            imported += d.imported || 0;
+            skipped += d.skipped || 0;
+            matched += d.matched || 0;
+            unmatched += d.unmatched || 0;
+          }
+        }
+        setResult({ orderTracking: true, imported, skipped, matched, unmatched });
+      } else {
+        const data = await importCSVChunked(parsedRows, (progress) => {
+          setBatchProgress(progress);
+        });
+        setResult(data);
+      }
     } catch {
       setResult({ error: "Network error. Please try again." });
     } finally {
@@ -220,6 +284,16 @@ function ImportModal({ onClose, onComplete }) {
                       <p className="text-xs text-gray-500">Client Orders CSV &mdash; updates order dates and detects alerts</p>
                     </div>
                   </button>
+                  <button
+                    onClick={() => setImportType("order_tracking")}
+                    className="w-full flex items-center gap-4 p-4 rounded-xl border-2 border-gray-200 hover:border-[#E8735A] hover:bg-[#faf7f2] transition text-left"
+                  >
+                    <span className="text-2xl">&#128666;</span>
+                    <div>
+                      <p className="font-bold text-sm text-gray-800">Upload Order Tracking</p>
+                      <p className="text-xs text-gray-500">Order CSV with tracking numbers &mdash; track FedEx shipments</p>
+                    </div>
+                  </button>
                 </div>
               </>
             )}
@@ -243,12 +317,19 @@ function ImportModal({ onClose, onComplete }) {
                 {result && !result.error && (
                   <div className="bg-green-50 border-2 border-green-200 rounded-xl p-4 mb-4 mt-3">
                     <p className="text-sm font-semibold text-green-700 mb-1">Import complete!</p>
-                    <p className="text-sm text-green-600">
-                      Updated {result.updated} clients, Created {result.created} new
-                      {result.alerts > 0 && `, ${result.alerts} alerts detected`}
-                      {result.errors?.length > 0 && `, ${result.errors.length} errors`}
-                      {result.failedBatches > 0 && ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
-                    </p>
+                    {result.orderTracking ? (
+                      <div className="text-sm text-green-600 space-y-1">
+                        <p>Imported {result.imported} orders{result.skipped > 0 ? `, ${result.skipped} skipped` : ""}</p>
+                        <p>{result.matched} matched to clients, {result.unmatched} unmatched</p>
+                      </div>
+                    ) : (
+                      <p className="text-sm text-green-600">
+                        Updated {result.updated} clients, Created {result.created} new
+                        {result.alerts > 0 && `, ${result.alerts} alerts detected`}
+                        {result.errors?.length > 0 && `, ${result.errors.length} errors`}
+                        {result.failedBatches > 0 && ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
+                      </p>
+                    )}
                     <button
                       onClick={() => { onComplete(); onClose(); }}
                       className="mt-3 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"
@@ -269,7 +350,7 @@ function ImportModal({ onClose, onComplete }) {
                   </div>
                 )}
 
-                {!result?.updated && !result?.created && (
+                {!result?.updated && !result?.created && !result?.orderTracking && (
                   <>
                     {/* Drop zone */}
                     <div
@@ -325,6 +406,30 @@ function ImportModal({ onClose, onComplete }) {
                             </tbody>
                           </table>
                         </div>
+                      </div>
+                    )}
+
+                    {/* Order tracking summary */}
+                    {importType === "order_tracking" && parsedRows.length > 0 && (
+                      <div className="mt-4 grid grid-cols-2 gap-2">
+                        {(() => {
+                          const withTracking = parsedRows.filter((r) => {
+                            const t = (r["Tracking Numbers"] || r.TrackingNumbers || "").trim();
+                            return t && t !== "NO_TRACKING_NUMBER" && t.toUpperCase() !== "N/A";
+                          }).length;
+                          return (
+                            <>
+                              <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                <p className="text-lg font-bold text-gray-800">{parsedRows.length}</p>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase">Total Orders</p>
+                              </div>
+                              <div className="bg-gray-50 rounded-xl p-3 text-center">
+                                <p className="text-lg font-bold text-blue-600">{withTracking}</p>
+                                <p className="text-[10px] font-bold text-gray-400 uppercase">With Tracking</p>
+                              </div>
+                            </>
+                          );
+                        })()}
                       </div>
                     )}
 

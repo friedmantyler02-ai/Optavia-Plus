@@ -50,6 +50,14 @@ function phoneDigits(raw) {
   return String(raw).replace(/\D/g, "");
 }
 
+// Same logic as bucketClient in clients/page.js — past = 3+ months since last order
+function isPastClient(client) {
+  if (!client.last_order_date) return true;
+  const d = new Date(client.last_order_date.includes("T") ? client.last_order_date : client.last_order_date + "T00:00:00");
+  const months = (Date.now() - d) / (1000 * 60 * 60 * 24 * 30.44);
+  return months > 3;
+}
+
 function normalizeSocialUrl(value, base) {
   if (!value) return "";
   const trimmed = value.trim();
@@ -810,8 +818,8 @@ export default function ClientDetailPage() {
         ← Back to All Clients
       </button>
 
-      {/* Move to Leads — prominent banner for lapsed/archived/reverted clients */}
-      {(client.status === "lapsed" || client.status === "archived" || client.account_status === "Reverted") && !client.moved_to_lead_id && (
+      {/* Move to Leads — shown for past clients (no order in 3+ months) */}
+      {isPastClient(client) && !client.moved_to_lead_id && (
         <button
           onClick={() => setMoveToLeadsConfirm(true)}
           className="w-full flex items-center justify-center gap-3 mb-5 px-6 py-4 rounded-2xl text-lg font-bold bg-[#E8735A] text-white hover:bg-[#d4654e] shadow-md transition-all duration-150 active:scale-[0.98] min-h-[56px] touch-manipulation"
@@ -822,7 +830,7 @@ export default function ClientDetailPage() {
           Move to Leads Pipeline
         </button>
       )}
-      {(client.status === "lapsed" || client.status === "archived" || client.account_status === "Reverted") && client.moved_to_lead_id && (
+      {isPastClient(client) && client.moved_to_lead_id && (
         <div className="w-full flex items-center justify-center gap-2 mb-5 px-6 py-4 rounded-2xl bg-green-50 border-2 border-green-200">
           <span>✅</span>
           <span className="text-sm font-semibold text-green-700">Moved to leads pipeline</span>

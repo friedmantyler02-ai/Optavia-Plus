@@ -1,11 +1,128 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCoach } from "../layout";
 import useShowToast from "@/hooks/useShowToast";
 import PageHeader from "../components/PageHeader";
+import ConfirmDialog from "../components/ConfirmDialog";
 import { SEGMENTS } from "./segments";
+
+function timeAgo(dateStr) {
+  if (!dateStr) return "";
+  const diff = Date.now() - new Date(dateStr).getTime();
+  const mins = Math.floor(diff / 60000);
+  if (mins < 1) return "just now";
+  if (mins < 60) return `${mins}m ago`;
+  const hrs = Math.floor(mins / 60);
+  if (hrs < 24) return `${hrs}h ago`;
+  const days = Math.floor(hrs / 24);
+  return `${days}d ago`;
+}
+
+const RESPONSE_TYPES = [
+  { key: "interested", label: "Interested", color: "bg-green-500 hover:bg-green-600 text-white" },
+  { key: "curious", label: "Curious", color: "bg-blue-500 hover:bg-blue-600 text-white" },
+  { key: "not_now", label: "Not Now", color: "bg-amber-400 hover:bg-amber-500 text-white" },
+  { key: "not_interested", label: "Not Interested", color: "bg-gray-400 hover:bg-gray-500 text-white" },
+  { key: "unsubscribe", label: "Unsubscribe", color: "bg-red-500 hover:bg-red-600 text-white" },
+];
+
+function ReplyCard({ reply, onCategorize }) {
+  const [categorizing, setCategorizing] = useState(null);
+  const [visible, setVisible] = useState(true);
+  const [confirmUnsubscribe, setConfirmUnsubscribe] = useState(false);
+  const seg = SEGMENTS.find((s) => s.key === reply.segment);
+
+  const handleCategory = async (responseType) => {
+    if (responseType === "unsubscribe") {
+      setConfirmUnsubscribe(true);
+      return;
+    }
+    await doCategory(responseType);
+  };
+
+  const doCategory = async (responseType) => {
+    setCategorizing(responseType);
+    const ok = await onCategorize(reply.id, responseType);
+    if (ok) {
+      setVisible(false);
+    } else {
+      setCategorizing(null);
+    }
+  };
+
+  if (!visible) return null;
+
+  return (
+    <>
+      <div className="rounded-2xl border-2 border-gray-100 bg-white p-5 transition-all duration-300">
+        {/* Header row */}
+        <div className="flex items-start justify-between gap-3 mb-2">
+          <div className="flex items-center gap-2 flex-wrap">
+            <span className="font-display font-bold text-gray-900">
+              {reply.client_name}
+            </span>
+            {seg && (
+              <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-semibold ${seg.badge}`}>
+                {seg.emoji} {seg.label}
+              </span>
+            )}
+          </div>
+          <span className="font-body text-xs text-gray-400 whitespace-nowrap shrink-0">
+            {timeAgo(reply.detected_at)}
+          </span>
+        </div>
+
+        {/* Snippet */}
+        {reply.reply_snippet && (
+          <p className="font-body text-sm text-gray-600 italic mb-3 leading-relaxed">
+            "{reply.reply_snippet}"
+          </p>
+        )}
+
+        {/* Gmail link */}
+        {reply.gmail_message_id && (
+          <a
+            href={`https://mail.google.com/mail/u/0/#inbox/${reply.gmail_message_id}`}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="mb-3 inline-flex items-center gap-1.5 font-body text-xs font-semibold text-[#E8735A] hover:underline"
+          >
+            Open in Gmail ↗
+          </a>
+        )}
+
+        {/* Category buttons */}
+        <div className="flex flex-wrap gap-2 mt-1">
+          {RESPONSE_TYPES.map((rt) => (
+            <button
+              key={rt.key}
+              onClick={() => handleCategory(rt.key)}
+              disabled={!!categorizing}
+              className={`rounded-xl px-3 py-1.5 font-body text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${rt.color}`}
+            >
+              {categorizing === rt.key ? "..." : rt.label}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      <ConfirmDialog
+        isOpen={confirmUnsubscribe}
+        title="Unsubscribe this contact?"
+        message={`This will permanently block all future emails to ${reply.client_name}. This cannot be undone.`}
+        confirmLabel="Yes, Unsubscribe"
+        confirmVariant="danger"
+        onConfirm={() => {
+          setConfirmUnsubscribe(false);
+          doCategory("unsubscribe");
+        }}
+        onCancel={() => setConfirmUnsubscribe(false)}
+      />
+    </>
+  );
+}
 
 export default function OutreachPage() {
   const { coach } = useCoach();
@@ -15,17 +132,29 @@ export default function OutreachPage() {
 
   const [segments, setSegments] = useState(null);
   const [loadingSegments, setLoadingSegments] = useState(true);
-  const [activeCampaigns, setActiveCampaigns] = useState([]);
+
+  const [campaigns, setCampaigns] = useState([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+
+  const [replies, setReplies] = useState([]);
+  const [loadingReplies, setLoadingReplies] = useState(true);
+
+  const [stats, setStats] = useState(null);
+  const [loadingStats, setLoadingStats] = useState(true);
+
   const [gmailStatus, setGmailStatus] = useState({ connected: false, gmail_address: null });
   const [gmailLoading, setGmailLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
+
+  const [togglingCampaign, setTogglingCampaign] = useState(null);
 
   useEffect(() => {
     if (!coach?.id) return;
     fetchSegments();
     fetchCampaigns();
     fetchGmailStatus();
+    fetchReplies();
+    fetchStats();
   }, [coach?.id]);
 
   useEffect(() => {
@@ -46,6 +175,50 @@ export default function OutreachPage() {
     setGmailLoading(false);
   };
 
+  const fetchSegments = async () => {
+    try {
+      const res = await fetch(`/api/outreach/segments?coach_id=${coach.id}`);
+      const data = await res.json();
+      setSegments(data);
+    } catch {
+      // ignore
+    }
+    setLoadingSegments(false);
+  };
+
+  const fetchCampaigns = async () => {
+    try {
+      const res = await fetch(`/api/outreach/campaigns?coach_id=${coach.id}`);
+      const data = await res.json();
+      setCampaigns(data.campaigns || []);
+    } catch {
+      // ignore
+    }
+    setLoadingCampaigns(false);
+  };
+
+  const fetchReplies = async () => {
+    try {
+      const res = await fetch(`/api/outreach/replies?coach_id=${coach.id}`);
+      const data = await res.json();
+      setReplies(data.replies || []);
+    } catch {
+      // ignore
+    }
+    setLoadingReplies(false);
+  };
+
+  const fetchStats = async () => {
+    try {
+      const res = await fetch(`/api/outreach/stats?coach_id=${coach.id}`);
+      const data = await res.json();
+      setStats(data.stats || null);
+    } catch {
+      // ignore
+    }
+    setLoadingStats(false);
+  };
+
   const handleGmailDisconnect = async () => {
     if (!confirm("Disconnect Gmail? Active campaigns will stop sending.")) return;
     setDisconnecting(true);
@@ -62,35 +235,64 @@ export default function OutreachPage() {
     setDisconnecting(false);
   };
 
-  const fetchSegments = async () => {
+  const handleCategorize = useCallback(async (responseId, responseType) => {
     try {
-      const res = await fetch(`/api/outreach/segments?coach_id=${coach.id}`);
+      const res = await fetch("/api/outreach/replies", {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ response_id: responseId, response_type: responseType }),
+      });
       const data = await res.json();
-      setSegments(data);
+      if (!data.success) {
+        showToast({ message: data.error || "Failed to save.", variant: "error" });
+        return false;
+      }
+      // Refresh stats after categorizing
+      fetchStats();
+      return true;
     } catch {
-      // ignore
+      showToast({ message: "Something went wrong.", variant: "error" });
+      return false;
     }
-    setLoadingSegments(false);
+  }, []);
+
+  const handleToggleCampaign = async (campaign) => {
+    const newStatus = campaign.status === "active" ? "paused" : "active";
+    setTogglingCampaign(campaign.id);
+    try {
+      const res = await fetch(`/api/outreach/campaigns/${campaign.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: newStatus }),
+      });
+      const data = await res.json();
+      if (data.campaign) {
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === campaign.id ? data.campaign : c))
+        );
+        showToast({
+          message: newStatus === "paused" ? "Campaign paused." : "Campaign resumed.",
+          variant: "success",
+        });
+      } else {
+        showToast({ message: data.error || "Failed to update campaign.", variant: "error" });
+      }
+    } catch {
+      showToast({ message: "Something went wrong.", variant: "error" });
+    }
+    setTogglingCampaign(null);
   };
 
-  const fetchCampaigns = async () => {
-    try {
-      const res = await fetch(
-        `/api/outreach/campaigns?coach_id=${coach.id}&status=active`
-      );
-      const data = await res.json();
-      setActiveCampaigns(data.campaigns || []);
-    } catch {
-      // ignore
-    }
-    setLoadingCampaigns(false);
-  };
-
-  // Build a map of segment key → active campaign
+  // Build a map of segment key → campaign
   const campaignBySegment = {};
-  for (const c of activeCampaigns) {
+  for (const c of campaigns) {
     campaignBySegment[c.segment] = c;
   }
+
+  const pendingReplies = replies.filter((r) => r.response_type === null);
+  const activeCampaigns = campaigns.filter((c) => c.status === "active");
+  const pausedCampaigns = campaigns.filter((c) => c.status === "paused");
+  const allManagedCampaigns = [...activeCampaigns, ...pausedCampaigns];
 
   return (
     <div className="animate-fade-up">
@@ -145,6 +347,66 @@ export default function OutreachPage() {
         )}
       </div>
 
+      {/* Needs Attention */}
+      <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
+        <h2 className="font-display text-xl font-bold text-gray-900 mb-4">
+          Needs Attention
+          {!loadingReplies && pendingReplies.length > 0 && (
+            <span className="ml-2 rounded-full bg-[#E8735A] px-2.5 py-0.5 font-body text-sm font-bold text-white">
+              {pendingReplies.length}
+            </span>
+          )}
+        </h2>
+
+        {loadingReplies ? (
+          <div className="animate-pulse space-y-3">
+            <div className="h-24 rounded-2xl bg-gray-100" />
+            <div className="h-24 rounded-2xl bg-gray-100" />
+          </div>
+        ) : pendingReplies.length === 0 ? (
+          <p className="font-body text-sm text-gray-400">
+            No replies waiting — you're all caught up 👍
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {pendingReplies.map((reply) => (
+              <ReplyCard
+                key={reply.id}
+                reply={reply}
+                onCategorize={handleCategorize}
+              />
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Stats bar */}
+      <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white px-5 py-4">
+        {loadingStats ? (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-10 animate-pulse rounded-xl bg-gray-100" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            {[
+              { label: "Emails Sent", value: stats?.emails_sent ?? 0 },
+              { label: "Replies", value: stats?.replies ?? 0 },
+              { label: "Reactivated", value: stats?.reactivated ?? 0 },
+              { label: "Active Campaigns", value: stats?.active_campaigns ?? 0 },
+            ].map((stat) => (
+              <div key={stat.label} className="rounded-xl bg-gray-50 px-4 py-3 text-center">
+                <p className="font-display text-2xl font-bold text-gray-900">
+                  {stat.value}
+                </p>
+                <p className="font-body text-xs text-gray-500 mt-0.5">{stat.label}</p>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
       {/* Segment cards */}
       {loadingSegments ? (
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -172,13 +434,11 @@ export default function OutreachPage() {
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl">{seg.emoji}</span>
                   {campaign ? (
-                    <span className="rounded-full bg-green-500 px-2.5 py-0.5 font-body text-xs font-bold text-white">
-                      Active
+                    <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-bold text-white ${campaign.status === "paused" ? "bg-amber-400" : "bg-green-500"}`}>
+                      {campaign.status === "paused" ? "Paused" : "Active"}
                     </span>
                   ) : (
-                    <span
-                      className={`rounded-full px-3 py-0.5 font-body text-sm font-bold ${seg.badge}`}
-                    >
+                    <span className={`rounded-full px-3 py-0.5 font-body text-sm font-bold ${seg.badge}`}>
                       {count}
                     </span>
                   )}
@@ -228,90 +488,103 @@ export default function OutreachPage() {
         </p>
       </div>
 
-      {/* Active Campaigns */}
-      <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
-        <h2 className="font-display text-xl font-bold text-gray-900 mb-4">
-          Active Campaigns
-        </h2>
+      {/* Campaigns (active + paused) */}
+      {(loadingCampaigns || allManagedCampaigns.length > 0) && (
+        <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
+          <h2 className="font-display text-xl font-bold text-gray-900 mb-4">
+            Campaigns
+          </h2>
 
-        {loadingCampaigns ? (
-          <div className="animate-pulse space-y-3">
-            <div className="h-16 rounded-xl bg-gray-100" />
-            <div className="h-16 rounded-xl bg-gray-100" />
-          </div>
-        ) : activeCampaigns.length === 0 ? (
-          <p className="font-body text-sm text-gray-400">
-            No active campaigns yet. Choose a segment above to start.
-          </p>
-        ) : (
-          <div className="space-y-3">
-            {activeCampaigns.map((campaign) => {
-              const seg = SEGMENTS.find((s) => s.key === campaign.segment);
-              const pct =
-                campaign.total_queued > 0
-                  ? Math.round((campaign.total_sent / campaign.total_queued) * 100)
-                  : 0;
-              return (
-                <button
-                  key={campaign.id}
-                  onClick={() =>
-                    router.push(
-                      `/dashboard/outreach/campaign/${campaign.segment}`
-                    )
-                  }
-                  className="w-full rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4 text-left hover:bg-gray-100 transition-colors duration-150"
-                >
-                  <div className="flex items-center justify-between mb-2">
-                    <div className="flex items-center gap-2">
-                      <span className="text-lg">{seg?.emoji}</span>
-                      <span className="font-display font-bold text-gray-900">
-                        {seg?.label} Campaign
-                      </span>
+          {loadingCampaigns ? (
+            <div className="animate-pulse space-y-3">
+              <div className="h-20 rounded-xl bg-gray-100" />
+              <div className="h-20 rounded-xl bg-gray-100" />
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {allManagedCampaigns.map((campaign) => {
+                const seg = SEGMENTS.find((s) => s.key === campaign.segment);
+                const pct =
+                  campaign.total_queued > 0
+                    ? Math.round((campaign.total_sent / campaign.total_queued) * 100)
+                    : 0;
+                const isActive = campaign.status === "active";
+                const toggling = togglingCampaign === campaign.id;
+
+                return (
+                  <div
+                    key={campaign.id}
+                    className="rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4"
+                  >
+                    <div className="flex items-center justify-between mb-2">
+                      <button
+                        onClick={() =>
+                          router.push(`/dashboard/outreach/campaign/${campaign.segment}`)
+                        }
+                        className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
+                      >
+                        <span className="text-lg">{seg?.emoji}</span>
+                        <span className="font-display font-bold text-gray-900">
+                          {seg?.label} Campaign
+                        </span>
+                      </button>
+                      <div className="flex items-center gap-2">
+                        <span
+                          className={`rounded-full px-3 py-0.5 font-body text-xs font-semibold ${
+                            isActive
+                              ? "bg-green-100 text-green-700"
+                              : "bg-amber-100 text-amber-700"
+                          }`}
+                        >
+                          {isActive ? "Active" : "Paused"}
+                        </span>
+                        <button
+                          onClick={() => handleToggleCampaign(campaign)}
+                          disabled={toggling}
+                          className={`rounded-xl border-2 px-3 py-1.5 font-body text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${
+                            isActive
+                              ? "border-gray-200 text-gray-600 hover:bg-gray-100"
+                              : "border-green-300 text-green-700 hover:bg-green-50"
+                          }`}
+                        >
+                          {toggling ? "..." : isActive ? "Pause" : "Resume"}
+                        </button>
+                      </div>
                     </div>
-                    <span className="rounded-full bg-green-100 px-3 py-0.5 font-body text-xs font-semibold text-green-700">
-                      Active
-                    </span>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <p className="font-body text-xs text-gray-500">
+                        {campaign.total_sent} of {campaign.total_queued} emails sent
+                      </p>
+                      <p className="font-body text-xs font-semibold text-gray-600">
+                        {pct}%
+                      </p>
+                    </div>
+                    <div className="h-2 w-full rounded-full bg-gray-200">
+                      <div
+                        className="h-2 rounded-full bg-green-500 transition-all duration-300"
+                        style={{ width: `${pct}%` }}
+                      />
+                    </div>
+                    {campaign.started_at && (
+                      <p className="mt-2 font-body text-xs text-gray-400">
+                        Started{" "}
+                        {new Date(campaign.started_at).toLocaleDateString("en-US", {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                        {campaign.total_replied > 0 && (
+                          <> · {campaign.total_replied} {campaign.total_replied === 1 ? "reply" : "replies"}</>
+                        )}
+                      </p>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between mb-1.5">
-                    <p className="font-body text-xs text-gray-500">
-                      {campaign.total_sent} of {campaign.total_queued} emails sent
-                    </p>
-                    <p className="font-body text-xs font-semibold text-gray-600">
-                      {pct}%
-                    </p>
-                  </div>
-                  <div className="h-2 w-full rounded-full bg-gray-200">
-                    <div
-                      className="h-2 rounded-full bg-green-500 transition-all duration-300"
-                      style={{ width: `${pct}%` }}
-                    />
-                  </div>
-                  {campaign.started_at && (
-                    <p className="mt-2 font-body text-xs text-gray-400">
-                      Started{" "}
-                      {new Date(campaign.started_at).toLocaleDateString("en-US", {
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })}
-                    </p>
-                  )}
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      {/* Needs Attention */}
-      <div className="rounded-2xl border-2 border-gray-100 bg-white p-6">
-        <h2 className="font-display text-xl font-bold text-gray-900 mb-3">
-          Needs Attention
-        </h2>
-        <p className="font-body text-sm text-gray-400">
-          Replies and follow-ups will appear here.
-        </p>
-      </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
     </div>
   );
 }

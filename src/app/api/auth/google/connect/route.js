@@ -36,7 +36,10 @@ export async function GET(request) {
     return NextResponse.redirect(new URL("/login", origin));
   }
 
-  const origin = new URL(request.url).origin;
-  const authUrl = getAuthUrl(user.id, origin);
+  const requestUrl = new URL(request.url);
+  const origin = requestUrl.origin;
+  const from = requestUrl.searchParams.get("from") || "calendar";
+  const state = JSON.stringify({ uid: user.id, from });
+  const authUrl = getAuthUrl(state, origin);
   return NextResponse.redirect(authUrl);
 }

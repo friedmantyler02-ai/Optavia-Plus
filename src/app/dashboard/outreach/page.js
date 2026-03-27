@@ -1,25 +1,65 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useRouter } from "next/navigation";
-import { useCoach } from "../layout";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useCoach, useShowToast } from "../layout";
 import PageHeader from "../components/PageHeader";
 import { SEGMENTS } from "./segments";
 
 export default function OutreachPage() {
   const { coach } = useCoach();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const showToast = useShowToast();
 
   const [segments, setSegments] = useState(null);
   const [loadingSegments, setLoadingSegments] = useState(true);
   const [activeCampaigns, setActiveCampaigns] = useState([]);
   const [loadingCampaigns, setLoadingCampaigns] = useState(true);
+  const [gmailStatus, setGmailStatus] = useState({ connected: false, gmail_address: null });
+  const [gmailLoading, setGmailLoading] = useState(true);
+  const [disconnecting, setDisconnecting] = useState(false);
 
   useEffect(() => {
     if (!coach?.id) return;
     fetchSegments();
     fetchCampaigns();
+    fetchGmailStatus();
   }, [coach?.id]);
+
+  useEffect(() => {
+    if (searchParams.get("connected") === "true") {
+      showToast({ message: "Gmail connected!", variant: "success" });
+      router.replace("/dashboard/outreach", { scroll: false });
+    }
+  }, [searchParams]);
+
+  const fetchGmailStatus = async () => {
+    try {
+      const res = await fetch(`/api/gmail/status?coach_id=${coach.id}`);
+      const data = await res.json();
+      setGmailStatus(data);
+    } catch {
+      // ignore
+    }
+    setGmailLoading(false);
+  };
+
+  const handleGmailDisconnect = async () => {
+    if (!confirm("Disconnect Gmail? Active campaigns will stop sending.")) return;
+    setDisconnecting(true);
+    try {
+      await fetch("/api/gmail/disconnect", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ coach_id: coach.id }),
+      });
+      setGmailStatus({ connected: false, gmail_address: null });
+    } catch {
+      // ignore
+    }
+    setDisconnecting(false);
+  };
 
   const fetchSegments = async () => {
     try {
@@ -61,20 +101,47 @@ export default function OutreachPage() {
       {/* Gmail connection status */}
       <div className="mb-6 flex items-center gap-3 rounded-2xl border-2 border-gray-100 bg-white px-5 py-4">
         <span className="text-xl">✉️</span>
-        <div className="flex-1">
-          <p className="font-body text-sm font-semibold text-gray-400">
-            Gmail not connected
-          </p>
-          <p className="font-body text-xs text-gray-400">
-            Connect your Gmail to send campaigns
-          </p>
-        </div>
-        <button
-          disabled
-          className="cursor-not-allowed rounded-xl bg-gray-200 px-4 py-2 font-body text-sm font-semibold text-gray-400"
-        >
-          Connect
-        </button>
+        {gmailLoading ? (
+          <div className="flex-1">
+            <div className="h-4 w-32 animate-pulse rounded bg-gray-100" />
+            <div className="mt-1 h-3 w-48 animate-pulse rounded bg-gray-100" />
+          </div>
+        ) : gmailStatus.connected ? (
+          <>
+            <div className="flex-1">
+              <p className="font-body text-sm font-semibold text-green-700">
+                Gmail Connected
+              </p>
+              <p className="font-body text-xs text-gray-500">
+                {gmailStatus.gmail_address}
+              </p>
+            </div>
+            <button
+              onClick={handleGmailDisconnect}
+              disabled={disconnecting}
+              className="rounded-xl border border-gray-200 px-4 py-2 font-body text-sm font-semibold text-gray-500 hover:bg-gray-50 transition-colors"
+            >
+              {disconnecting ? "..." : "Disconnect"}
+            </button>
+          </>
+        ) : (
+          <>
+            <div className="flex-1">
+              <p className="font-body text-sm font-semibold text-gray-400">
+                Gmail not connected
+              </p>
+              <p className="font-body text-xs text-gray-400">
+                Connect your Gmail to send campaigns
+              </p>
+            </div>
+            <a
+              href="/api/auth/google/connect?from=outreach"
+              className="rounded-xl bg-brand-500 px-4 py-2 font-body text-sm font-semibold text-white hover:bg-brand-600 transition-colors"
+            >
+              Connect Gmail
+            </a>
+          </>
+        )}
       </div>
 
       {/* Segment cards */}

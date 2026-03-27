@@ -48,11 +48,24 @@ export async function GET(request) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  if (!user || user.id !== state) {
+  // Parse state — supports both legacy (plain user ID) and new (JSON) formats
+  let stateUid = state;
+  let from = "calendar";
+  try {
+    const parsed = JSON.parse(state);
+    stateUid = parsed.uid;
+    from = parsed.from || "calendar";
+  } catch {
+    // Legacy plain UID format — stateUid is already set
+  }
+
+  if (!user || user.id !== stateUid) {
     return NextResponse.redirect(
       new URL("/dashboard/calendar?error=unauthorized", origin)
     );
   }
+
+  const redirectBase = from === "outreach" ? "/dashboard/outreach" : "/dashboard/calendar";
 
   try {
     const tokens = await exchangeCodeForTokens(code, origin);
@@ -60,6 +73,7 @@ export async function GET(request) {
       Date.now() + tokens.expires_in * 1000
     ).toISOString();
 
+    // Store Calendar tokens
     const { error } = await supabaseAdmin
       .from("google_calendar_connections")
       .upsert(
@@ -76,8 +90,42 @@ export async function GET(request) {
     if (error) {
       console.error("Failed to store Google Calendar tokens:", error);
       return NextResponse.redirect(
-        new URL("/dashboard/calendar?error=storage_failed", origin)
+        new URL(`${redirectBase}?error=storage_failed`, origin)
       );
+    }
+
+    // Fetch Gmail address from Google userinfo
+    let gmailAddress = null;
+    try {
+      const userinfoRes = await fetch(
+        "https://www.googleapis.com/oauth2/v2/userinfo",
+        { headers: { Authorization: `Bearer ${tokens.access_token}` } }
+      );
+      if (userinfoRes.ok) {
+        const userinfo = await userinfoRes.json();
+        gmailAddress = userinfo.email;
+      }
+    } catch (err) {
+      console.error("Failed to fetch Google userinfo:", err.message);
+    }
+
+    // Store Gmail tokens
+    const { error: gmailError } = await supabaseAdmin
+      .from("gmail_tokens")
+      .upsert(
+        {
+          coach_id: user.id,
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_expiry: expiresAt,
+          gmail_address: gmailAddress,
+        },
+        { onConflict: "coach_id" }
+      );
+
+    if (gmailError) {
+      console.error("Failed to store Gmail tokens:", gmailError);
+      // Non-fatal — Calendar still works
     }
 
     // Bulk sync all existing events to Google Calendar
@@ -91,12 +139,12 @@ export async function GET(request) {
     }
 
     return NextResponse.redirect(
-      new URL("/dashboard/calendar?connected=true", origin)
+      new URL(`${redirectBase}?connected=true`, origin)
     );
   } catch (err) {
     console.error("Google OAuth callback error:", err);
     return NextResponse.redirect(
-      new URL("/dashboard/calendar?error=token_exchange_failed", origin)
+      new URL(`${redirectBase}?error=token_exchange_failed`, origin)
     );
   }
 }

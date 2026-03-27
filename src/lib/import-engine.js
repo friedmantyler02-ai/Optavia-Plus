@@ -332,6 +332,16 @@ export async function batchUpsertClients(supabase, records, onProgress) {
       group.map(async ({ start, chunk }) => {
         const batchIndex = Math.floor(start / BATCH_SIZE);
 
+        // Fetch existing records before upsert to detect premier membership changes
+        const optaviaIds = chunk.map((r) => r.optavia_id);
+        const { data: existingClients } = await supabase
+          .from("clients")
+          .select("optavia_id, id, is_premier_member, order_alerts, coach_id")
+          .in("optavia_id", optaviaIds);
+        const existingMap = new Map(
+          (existingClients ?? []).map((c) => [c.optavia_id, c])
+        );
+
         let result = await supabase
           .from("clients")
           .upsert(chunk, {
@@ -364,6 +374,45 @@ export async function batchUpsertClients(supabase, records, onProgress) {
             },
           };
         } else {
+          // Detect and handle premier membership cancellations
+          const premierCancellations = chunk.filter((record) => {
+            const existing = existingMap.get(record.optavia_id);
+            return (
+              existing &&
+              existing.is_premier_member === true &&
+              (record.is_premier_member === false || record.is_premier_member === null)
+            );
+          });
+
+          if (premierCancellations.length > 0) {
+            const detectedAt = new Date().toISOString();
+            await Promise.all(
+              premierCancellations.map(async (record) => {
+                const existing = existingMap.get(record.optavia_id);
+                const newAlert = {
+                  type: "premier_cancelled",
+                  message: "Premier membership cancelled",
+                  detected_at: detectedAt,
+                };
+                const existingAlerts = Array.isArray(existing.order_alerts)
+                  ? existing.order_alerts
+                  : [];
+                await supabase
+                  .from("clients")
+                  .update({ order_alerts: [...existingAlerts, newAlert] })
+                  .eq("id", existing.id);
+                if (existing.coach_id) {
+                  await supabase.from("activities").insert({
+                    coach_id: existing.coach_id,
+                    client_id: existing.id,
+                    action: "premier_cancelled",
+                    details: "Premier membership cancelled (detected on import)",
+                  });
+                }
+              })
+            );
+          }
+
           const succeeded = result.data ? result.data.length : chunk.length;
           return { ok: true, succeeded, rowCount: chunk.length };
         }

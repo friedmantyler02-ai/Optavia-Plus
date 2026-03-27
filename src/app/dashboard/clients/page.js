@@ -57,6 +57,8 @@ function getAlertBadges(alerts) {
     badges.push({ emoji: "\uD83D\uDFE1", label: "Date Changed", cls: "bg-yellow-100 text-yellow-700" });
   if (types.has("qv_drop"))
     badges.push({ emoji: "\uD83D\uDFE0", label: "QV Drop", cls: "bg-orange-100 text-orange-700" });
+  if (types.has("premier_cancelled"))
+    badges.push({ emoji: "\uD83D\uDD35", label: "Premier Cancelled", cls: "bg-blue-100 text-blue-700" });
   return badges;
 }
 

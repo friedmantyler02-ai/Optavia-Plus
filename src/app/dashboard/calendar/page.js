@@ -27,12 +27,18 @@ function getWeekStart(date) {
 }
 
 const EVENT_COLORS = {
-  lead_followup: { bg: "bg-[#E8735A]", text: "text-[#E8735A]", light: "bg-[#fef0ed]", border: "border-[#E8735A]" },
-  client_checkin: { bg: "bg-[#3B82F6]", text: "text-[#3B82F6]", light: "bg-blue-50", border: "border-[#3B82F6]" },
-  reminder: { bg: "bg-[#8B5CF6]", text: "text-[#8B5CF6]", light: "bg-purple-50", border: "border-[#8B5CF6]" },
+  lead_followup:      { bg: "bg-[#E8735A]",    text: "text-[#E8735A]",    light: "bg-[#fef0ed]",  border: "border-[#E8735A]" },
+  client_checkin:     { bg: "bg-[#3B82F6]",    text: "text-[#3B82F6]",    light: "bg-blue-50",    border: "border-[#3B82F6]" },
+  reminder:           { bg: "bg-[#8B5CF6]",    text: "text-[#8B5CF6]",    light: "bg-purple-50",  border: "border-[#8B5CF6]" },
+  recurring_reminder: { bg: "bg-emerald-500",  text: "text-emerald-600",  light: "bg-emerald-50", border: "border-emerald-500" },
 };
 
-const TYPE_LABELS = { lead_followup: "Follow-up", client_checkin: "Check-in", reminder: "Reminder" };
+const TYPE_LABELS = {
+  lead_followup: "Follow-up",
+  client_checkin: "Check-in",
+  reminder: "Reminder",
+  recurring_reminder: "Recurring",
+};
 
 // --- Skeleton ---
 function CalendarSkeleton() {
@@ -76,7 +82,7 @@ function EventCard({ event, onClick }) {
 // --- Day Detail Panel ---
 function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
   const grouped = useMemo(() => {
-    const g = { lead_followup: [], client_checkin: [], reminder: [] };
+    const g = { lead_followup: [], client_checkin: [], reminder: [], recurring_reminder: [] };
     events.forEach(e => { if (g[e.type]) g[e.type].push(e); });
     return g;
   }, [events]);
@@ -115,7 +121,7 @@ function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
                         </div>
                       </div>
                       <div className="flex items-center gap-2 mt-2.5 ml-5 flex-wrap">
-                        {!event.isCompleted && (
+                        {!event.isCompleted && type !== "recurring_reminder" && (
                           <button
                             onClick={() => onAction("complete", event)}
                             disabled={actionLoading === event.id}
@@ -132,6 +138,13 @@ function DayDetailPanel({ date, events, onClose, onAction, actionLoading }) {
                         )}
                         {type === "reminder" && (
                           <>
+                            <button onClick={() => onAction("edit", event)} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1 rounded-lg hover:bg-gray-50 transition">Edit</button>
+                            <button onClick={() => onAction("delete", event)} className="text-xs font-medium text-red-500 hover:text-red-600 px-2.5 py-1 rounded-lg hover:bg-red-50 transition">Delete</button>
+                          </>
+                        )}
+                        {type === "recurring_reminder" && (
+                          <>
+                            <span className="text-xs text-emerald-600 font-medium">↻ Recurring</span>
                             <button onClick={() => onAction("edit", event)} className="text-xs font-medium text-gray-500 hover:text-gray-700 px-2.5 py-1 rounded-lg hover:bg-gray-50 transition">Edit</button>
                             <button onClick={() => onAction("delete", event)} className="text-xs font-medium text-red-500 hover:text-red-600 px-2.5 py-1 rounded-lg hover:bg-red-50 transition">Delete</button>
                           </>
@@ -311,6 +324,262 @@ function ReminderModal({ isOpen, onClose, onSave, initial, saving }) {
   );
 }
 
+// --- Recurring Reminder Modal ---
+const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
+const ORDINALS = ["1st", "2nd", "3rd", "4th"];
+
+function RecurringReminderModal({ isOpen, onClose, onSave, initial, saving }) {
+  const [title, setTitle] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientName, setClientName] = useState("");
+  const [clientSearch, setClientSearch] = useState("");
+  const [clients, setClients] = useState([]);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const [frequency, setFrequency] = useState("weekly");
+  const [dayOfWeek, setDayOfWeek] = useState("Monday");
+  const [monthlyOrdinal, setMonthlyOrdinal] = useState("1st");
+  const [monthlyDay, setMonthlyDay] = useState("Monday");
+  const [isAllDay, setIsAllDay] = useState(true);
+  const [reminderTime, setReminderTime] = useState("09:00");
+  const { supabase } = useCoach();
+
+  useEffect(() => {
+    if (!isOpen) return;
+    setTitle(initial?.recurringRawTitle || "");
+    setClientId(initial?.recurringClientId || "");
+    setClientName(initial?.recurringClientName || "");
+    setClientSearch(initial?.recurringClientName || "");
+    setFrequency(initial?.recurringFrequency || "weekly");
+    setDayOfWeek(initial?.recurringDayOfWeek || "Monday");
+    setMonthlyOrdinal(initial?.recurringMonthlyOrdinal || "1st");
+    setMonthlyDay(initial?.recurringMonthlyDay || "Monday");
+    setIsAllDay(initial?.isAllDay !== false);
+    setReminderTime(initial?.dueTime?.slice(0, 5) || "09:00");
+    loadClients();
+  }, [isOpen]);
+
+  const loadClients = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    const { data } = await supabase
+      .from("clients")
+      .select("id, full_name")
+      .eq("coach_id", user.id)
+      .order("full_name");
+    setClients(data || []);
+  };
+
+  const filteredClients = clients.filter(c =>
+    c.full_name.toLowerCase().includes(clientSearch.toLowerCase())
+  );
+
+  const selectClient = (c) => {
+    setClientId(c.id);
+    setClientName(c.full_name);
+    setClientSearch(c.full_name);
+    setShowDropdown(false);
+  };
+
+  const clearClient = () => {
+    setClientId("");
+    setClientName("");
+    setClientSearch("");
+  };
+
+  const handleSave = () => {
+    if (!title.trim()) return;
+    onSave({
+      id: initial?.recurringReminderId || null,
+      title: title.trim(),
+      client_id: clientId || null,
+      client_name: clientName || null,
+      frequency,
+      day_of_week: frequency !== "monthly" ? dayOfWeek : null,
+      monthly_ordinal: frequency === "monthly" ? monthlyOrdinal : null,
+      monthly_day: frequency === "monthly" ? monthlyDay : null,
+      is_all_day: isAllDay,
+      reminder_time: isAllDay ? null : reminderTime,
+    });
+  };
+
+  const canSave = title.trim() &&
+    (frequency === "monthly" || dayOfWeek) &&
+    (frequency !== "monthly" || (monthlyOrdinal && monthlyDay));
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4" onClick={onClose}>
+      <div className="absolute inset-0 bg-black/40" />
+      <div
+        className="relative bg-white rounded-2xl shadow-xl max-w-md w-full p-6 max-h-[90vh] overflow-y-auto"
+        onClick={e => e.stopPropagation()}
+      >
+        <h2 className="font-display text-lg font-bold text-gray-900 mb-5">
+          {initial?.recurringReminderId ? "Edit Recurring Reminder" : "Add Recurring Reminder"}
+        </h2>
+
+        <div className="space-y-4">
+          {/* Title */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Title *</label>
+            <input
+              value={title}
+              onChange={e => setTitle(e.target.value)}
+              placeholder="e.g. Weekly check-in call"
+              className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:border-[#E8735A] transition-colors min-h-[44px]"
+            />
+          </div>
+
+          {/* Client search */}
+          <div className="relative">
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Client (optional)</label>
+            <div className="relative">
+              <input
+                value={clientSearch}
+                onChange={e => {
+                  setClientSearch(e.target.value);
+                  setShowDropdown(true);
+                  if (!e.target.value) clearClient();
+                }}
+                onFocus={() => setShowDropdown(true)}
+                onBlur={() => setTimeout(() => setShowDropdown(false), 150)}
+                placeholder="Search clients..."
+                className="w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:border-[#E8735A] transition-colors min-h-[44px] pr-10"
+              />
+              {clientId && (
+                <button
+                  onMouseDown={e => { e.preventDefault(); clearClient(); }}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600 text-xl leading-none"
+                >
+                  &times;
+                </button>
+              )}
+            </div>
+            {showDropdown && clientSearch && filteredClients.length > 0 && (
+              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-200 rounded-xl shadow-lg max-h-40 overflow-y-auto">
+                {filteredClients.slice(0, 8).map(c => (
+                  <button
+                    key={c.id}
+                    onMouseDown={() => selectClient(c)}
+                    className="w-full text-left px-4 py-2.5 text-sm hover:bg-gray-50 transition"
+                  >
+                    {c.full_name}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Frequency */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Frequency *</label>
+            <div className="flex gap-2">
+              {[
+                { key: "weekly", label: "Weekly" },
+                { key: "biweekly", label: "Every 2 Wks" },
+                { key: "monthly", label: "Monthly" },
+              ].map(({ key, label }) => (
+                <button
+                  key={key}
+                  onClick={() => setFrequency(key)}
+                  className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition min-h-[44px] ${frequency === key ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Weekday picker (weekly / biweekly) */}
+          {(frequency === "weekly" || frequency === "biweekly") && (
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Day *</label>
+              <div className="flex gap-1.5">
+                {WEEKDAYS.map(day => (
+                  <button
+                    key={day}
+                    onClick={() => setDayOfWeek(day)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-bold transition min-h-[44px] ${dayOfWeek === day ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+                  >
+                    {day.slice(0, 3)}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Monthly picker */}
+          {frequency === "monthly" && (
+            <div>
+              <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Repeats on *</label>
+              <div className="flex gap-2">
+                <select
+                  value={monthlyOrdinal}
+                  onChange={e => setMonthlyOrdinal(e.target.value)}
+                  className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-base font-body focus:outline-none focus:border-[#E8735A] min-h-[44px]"
+                >
+                  {ORDINALS.map(o => <option key={o} value={o}>{o}</option>)}
+                </select>
+                <select
+                  value={monthlyDay}
+                  onChange={e => setMonthlyDay(e.target.value)}
+                  className="flex-1 border-2 border-gray-200 rounded-xl px-3 py-2.5 text-base font-body focus:outline-none focus:border-[#E8735A] min-h-[44px]"
+                >
+                  {WEEKDAYS.map(d => <option key={d} value={d}>{d}</option>)}
+                </select>
+              </div>
+            </div>
+          )}
+
+          {/* Time */}
+          <div>
+            <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-2">Time</label>
+            <div className="flex gap-2">
+              <button
+                onClick={() => setIsAllDay(true)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition min-h-[44px] ${isAllDay ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+              >
+                All day
+              </button>
+              <button
+                onClick={() => setIsAllDay(false)}
+                className={`flex-1 py-2.5 rounded-xl text-sm font-bold transition min-h-[44px] ${!isAllDay ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200"}`}
+              >
+                Specific time
+              </button>
+            </div>
+            {!isAllDay && (
+              <input
+                type="time"
+                value={reminderTime}
+                onChange={e => setReminderTime(e.target.value)}
+                className="mt-2 w-full border-2 border-gray-200 rounded-xl px-4 py-2.5 text-base font-body focus:outline-none focus:border-[#E8735A] min-h-[44px]"
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="flex gap-3 justify-end mt-6">
+          <button
+            onClick={onClose}
+            className="border-2 border-gray-200 text-gray-600 hover:bg-gray-50 px-5 py-2.5 rounded-xl text-sm font-bold transition"
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={!canSave || saving}
+            className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-6 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 disabled:opacity-50 flex items-center gap-2"
+          >
+            {saving && <span className="w-4 h-4 border-2 border-white/30 border-t-white rounded-full animate-spin" />}
+            {initial?.recurringReminderId ? "Update" : "Save"}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // === MAIN PAGE ===
 export default function CalendarPage() {
   const { coach, supabase } = useCoach();
@@ -365,12 +634,17 @@ export default function CalendarPage() {
   const [selectedDay, setSelectedDay] = useState(null);
   const [actionLoading, setActionLoading] = useState(null);
 
-  // Reminder modal
+  // Reminder modal (one-time)
   const [reminderModal, setReminderModal] = useState({ open: false, initial: null });
   const [savingReminder, setSavingReminder] = useState(false);
 
-  // Delete confirm
+  // Recurring reminder modal
+  const [recurringModal, setRecurringModal] = useState({ open: false, initial: null });
+  const [savingRecurring, setSavingRecurring] = useState(false);
+
+  // Delete confirms
   const [deleteConfirm, setDeleteConfirm] = useState({ open: false, event: null });
+  const [deleteRecurringConfirm, setDeleteRecurringConfirm] = useState({ open: false, event: null });
 
   // Fetch events
   const fetchEvents = useCallback(async () => {
@@ -470,11 +744,19 @@ export default function CalendarPage() {
       return;
     }
     if (action === "edit") {
-      setReminderModal({ open: true, initial: event });
+      if (event.type === "recurring_reminder") {
+        setRecurringModal({ open: true, initial: event });
+      } else {
+        setReminderModal({ open: true, initial: event });
+      }
       return;
     }
     if (action === "delete") {
-      setDeleteConfirm({ open: true, event });
+      if (event.type === "recurring_reminder") {
+        setDeleteRecurringConfirm({ open: true, event });
+      } else {
+        setDeleteConfirm({ open: true, event });
+      }
       return;
     }
     if (action === "complete") {
@@ -549,6 +831,45 @@ export default function CalendarPage() {
     }
   };
 
+  // Save recurring reminder
+  const handleSaveRecurring = async (data) => {
+    setSavingRecurring(true);
+    try {
+      const method = data.id ? "PATCH" : "POST";
+      const res = await fetch("/api/calendar/recurring", {
+        method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+      if (!res.ok) throw new Error();
+      setRecurringModal({ open: false, initial: null });
+      showToast({ message: data.id ? "Recurring reminder updated" : "Recurring reminder added", variant: "success" });
+      fetchEvents();
+    } catch {
+      showToast({ message: "Failed to save recurring reminder", variant: "error" });
+    } finally {
+      setSavingRecurring(false);
+    }
+  };
+
+  // Delete recurring reminder
+  const handleDeleteRecurring = async () => {
+    const event = deleteRecurringConfirm.event;
+    setDeleteRecurringConfirm({ open: false, event: null });
+    try {
+      const res = await fetch("/api/calendar/recurring", {
+        method: "DELETE",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ id: event.recurringReminderId }),
+      });
+      if (!res.ok) throw new Error();
+      setEvents(prev => prev.filter(e => e.recurringReminderId !== event.recurringReminderId));
+      showToast({ message: "Recurring reminder deleted", variant: "success" });
+    } catch {
+      showToast({ message: "Failed to delete recurring reminder", variant: "error" });
+    }
+  };
+
   // Week label
   const weekLabel = useMemo(() => {
     const d = new Date(selectedWeekStart);
@@ -572,12 +893,20 @@ export default function CalendarPage() {
         title="Calendar"
         subtitle="Your upcoming follow-ups and check-ins"
         actions={
-          <button
-            onClick={() => setReminderModal({ open: true, initial: null })}
-            className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm min-h-[44px] touch-manipulation"
-          >
-            + Add Reminder
-          </button>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setReminderModal({ open: true, initial: null })}
+              className="bg-[#E8735A] hover:bg-[#d4634d] text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm min-h-[44px] touch-manipulation"
+            >
+              + Reminder
+            </button>
+            <button
+              onClick={() => setRecurringModal({ open: true, initial: null })}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all active:scale-95 shadow-sm min-h-[44px] touch-manipulation"
+            >
+              ↻ Recurring
+            </button>
+          </div>
         }
       />
 
@@ -772,7 +1101,7 @@ export default function CalendarPage() {
         saving={savingReminder}
       />
 
-      {/* Delete Confirm */}
+      {/* Delete one-time reminder confirm */}
       <ConfirmDialog
         isOpen={deleteConfirm.open}
         title="Delete Reminder"
@@ -781,6 +1110,26 @@ export default function CalendarPage() {
         confirmVariant="danger"
         onConfirm={handleDelete}
         onCancel={() => setDeleteConfirm({ open: false, event: null })}
+      />
+
+      {/* Recurring reminder modal */}
+      <RecurringReminderModal
+        isOpen={recurringModal.open}
+        onClose={() => setRecurringModal({ open: false, initial: null })}
+        onSave={handleSaveRecurring}
+        initial={recurringModal.initial}
+        saving={savingRecurring}
+      />
+
+      {/* Delete recurring confirm */}
+      <ConfirmDialog
+        isOpen={deleteRecurringConfirm.open}
+        title="Delete Recurring Reminder"
+        message={`Delete "${deleteRecurringConfirm.event?.recurringRawTitle || deleteRecurringConfirm.event?.title}"? This will remove all future occurrences and delete it from Google Calendar.`}
+        confirmLabel="Delete All"
+        confirmVariant="danger"
+        onConfirm={handleDeleteRecurring}
+        onCancel={() => setDeleteRecurringConfirm({ open: false, event: null })}
       />
 
       {/* Slide-in animation */}

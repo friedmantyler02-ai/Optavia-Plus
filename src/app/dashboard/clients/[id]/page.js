@@ -167,6 +167,21 @@ function QuickMessageCard({ client }) {
 
 const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday"];
 
+function getAlertBadges(alerts) {
+  if (!alerts || !Array.isArray(alerts) || alerts.length === 0) return [];
+  const badges = [];
+  const types = new Set(alerts.map((a) => a.type));
+  if (types.has("cancellation"))
+    badges.push({ emoji: "🔴", label: "Cancelled", cls: "bg-red-100 text-red-700", type: "cancellation" });
+  if (types.has("date_change"))
+    badges.push({ emoji: "🟡", label: "Date Changed", cls: "bg-yellow-100 text-yellow-700", type: "date_change" });
+  if (types.has("qv_drop"))
+    badges.push({ emoji: "🟠", label: "QV Drop", cls: "bg-orange-100 text-orange-700", type: "qv_drop" });
+  if (types.has("premier_cancelled"))
+    badges.push({ emoji: "🔵", label: "Premier Cancelled", cls: "bg-blue-100 text-blue-700", type: "premier_cancelled" });
+  return badges;
+}
+
 export default function ClientDetailPage() {
   const { coach, supabase } = useCoach();
   const router = useRouter();
@@ -196,6 +211,62 @@ export default function ClientDetailPage() {
   const [editingSocials, setEditingSocials] = useState(false);
   const [socialsForm, setSocialsForm] = useState({ facebook_url: "", instagram_url: "" });
   const showToast = useShowToast();
+
+  const handleDismissAlert = async (alertType) => {
+    const updatedAlerts = (client.order_alerts || []).filter((a) => a.type !== alertType);
+    const { data } = await supabase
+      .from("clients")
+      .update({ order_alerts: updatedAlerts, updated_at: new Date().toISOString() })
+      .eq("id", client.id)
+      .select()
+      .single();
+    if (data) { setClient(data); setForm(data); }
+  };
+
+  const handlePremierToggle = async () => {
+    const wasPremier = client.is_premier_member;
+    const newValue = !wasPremier;
+    setSaving(true);
+    try {
+      const existingAlerts = Array.isArray(client.order_alerts) ? client.order_alerts : [];
+      let alertUpdates = {};
+      if (!newValue && wasPremier) {
+        alertUpdates = {
+          order_alerts: [...existingAlerts, {
+            type: "premier_cancelled",
+            message: "Premier membership cancelled (manual update)",
+            detected_at: new Date().toISOString(),
+          }],
+        };
+      } else if (newValue && !wasPremier) {
+        alertUpdates = {
+          order_alerts: existingAlerts.filter((a) => a.type !== "premier_cancelled"),
+        };
+      }
+      const { data } = await supabase
+        .from("clients")
+        .update({ is_premier_member: newValue, ...alertUpdates, updated_at: new Date().toISOString() })
+        .eq("id", client.id)
+        .select()
+        .single();
+      if (data) { setClient(data); setForm(data); }
+      if (!newValue && wasPremier) {
+        await supabase.from("activities").insert({
+          coach_id: coach.id,
+          client_id: client.id,
+          action: "premier_cancelled",
+          details: "Premier membership cancelled (manual update)",
+        });
+        showToast({ message: "Premier status removed", variant: "success" });
+      } else {
+        showToast({ message: "Premier status updated", variant: "success" });
+      }
+    } catch {
+      showToast({ message: "Something went wrong — please try again", variant: "error" });
+    } finally {
+      setSaving(false);
+    }
+  };
 
   useEffect(() => {
     if (!reminderConfirm) return;
@@ -456,7 +527,42 @@ export default function ClientDetailPage() {
             <p className="mt-2 text-sm font-semibold text-green-600 animate-fade-up">{reminderConfirm} ✓</p>
           )}
         </div>
+        {/* Premier Member Status */}
+        <div className="border-t border-gray-100 pt-4 mt-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={handlePremierToggle}
+              disabled={saving}
+              className={`w-12 h-7 rounded-full transition-colors duration-200 relative flex-shrink-0 ${client.is_premier_member ? "bg-blue-500" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
+              aria-label={client.is_premier_member ? "Remove Premier status" : "Mark as Premier member"}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${client.is_premier_member ? "translate-x-5" : ""}`} />
+            </button>
+            <span className="text-sm font-semibold text-gray-600">Premier Member</span>
+            {client.is_premier_member && (
+              <span className="inline-block rounded-full px-2 py-0.5 text-[10px] font-bold bg-blue-100 text-blue-700">Premier+</span>
+            )}
+          </div>
+        </div>
       </div>
+      {/* Order Alerts */}
+      {getAlertBadges(client.order_alerts).length > 0 && (
+        <div className="bg-white rounded-2xl px-5 py-4 shadow-sm mb-5 flex flex-wrap gap-2 items-center">
+          <span className="text-xs font-bold text-gray-400 uppercase mr-1">Alerts</span>
+          {getAlertBadges(client.order_alerts).map((badge) => (
+            <span key={badge.type} className={`inline-flex items-center gap-1 rounded-full pl-2.5 pr-1 py-1 text-xs font-bold ${badge.cls}`}>
+              {badge.emoji} {badge.label}
+              <button
+                onClick={() => handleDismissAlert(badge.type)}
+                className="ml-0.5 w-4 h-4 rounded-full inline-flex items-center justify-center hover:bg-black/10 transition text-sm leading-none"
+                title="Dismiss"
+              >
+                &times;
+              </button>
+            </span>
+          ))}
+        </div>
+      )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
         <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📞</span><span className="font-bold text-sm">Log a Call</span>

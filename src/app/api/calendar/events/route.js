@@ -1,6 +1,61 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase-server";
 
+// ─── Helper: compute all dates in `month` (1-indexed) that a recurring reminder falls on ───
+function getRecurringOccurrences(reminder, year, mon) {
+  const DAY_TO_DOW = { Monday: 1, Tuesday: 2, Wednesday: 3, Thursday: 4, Friday: 5 };
+  const ORDINAL_NUM = { "1st": 1, "2nd": 2, "3rd": 3, "4th": 4 };
+  const daysInMonth = new Date(year, mon, 0).getDate();
+  const pad = (n) => String(n).padStart(2, "0");
+  const dateStr = (d) => `${year}-${pad(mon)}-${pad(d)}`;
+  const dates = [];
+
+  if (reminder.frequency === "monthly") {
+    const dow = DAY_TO_DOW[reminder.monthly_day];
+    const n = ORDINAL_NUM[reminder.monthly_ordinal] || 1;
+    if (dow === undefined) return [];
+    let count = 0;
+    for (let d = 1; d <= daysInMonth; d++) {
+      if (new Date(year, mon - 1, d).getDay() === dow) {
+        count++;
+        if (count === n) { dates.push(dateStr(d)); break; }
+      }
+    }
+    return dates;
+  }
+
+  const dow = DAY_TO_DOW[reminder.day_of_week];
+  if (dow === undefined) return [];
+
+  // All days in this month that match the target weekday
+  const allDays = [];
+  for (let d = 1; d <= daysInMonth; d++) {
+    if (new Date(year, mon - 1, d).getDay() === dow) allDays.push(d);
+  }
+
+  if (reminder.frequency === "weekly") {
+    return allDays.map(dateStr);
+  }
+
+  // Biweekly: anchor to the first occurrence of the target day on or after created_at
+  const anchor = new Date(reminder.created_at);
+  anchor.setHours(0, 0, 0, 0);
+  const anchorDow = anchor.getDay();
+  let toTarget = dow - anchorDow;
+  if (toTarget < 0) toTarget += 7;
+  const firstAnchor = new Date(anchor);
+  firstAnchor.setDate(anchor.getDate() + toTarget);
+
+  return allDays
+    .filter((d) => {
+      const diffDays = Math.round(
+        (new Date(year, mon - 1, d) - firstAnchor) / 86400000
+      );
+      return diffDays >= 0 && diffDays % 14 === 0;
+    })
+    .map(dateStr);
+}
+
 export async function GET(request) {
   try {
     const supabase = await createClient();
@@ -121,6 +176,53 @@ export async function GET(request) {
         leadId: r.lead_id,
         isCompleted: r.is_completed,
         dueTime: r.due_time,
+      });
+    });
+
+    // 4. Recurring reminders
+    const { data: recurringReminders, error: recurringErr } = await supabase
+      .from("recurring_reminders")
+      .select(`
+        id, title, frequency, day_of_week, monthly_ordinal, monthly_day,
+        is_all_day, reminder_time, created_at, client_id,
+        clients ( full_name )
+      `)
+      .eq("coach_id", user.id);
+
+    if (recurringErr) console.error("Calendar recurring reminders error:", recurringErr);
+
+    (recurringReminders ?? []).forEach((reminder) => {
+      const clientName = reminder.clients?.full_name ?? null;
+      const displayTitle = clientName ? `${clientName}: ${reminder.title}` : reminder.title;
+
+      let scheduleLabel;
+      if (reminder.frequency === "monthly") {
+        scheduleLabel = `${reminder.monthly_ordinal} ${reminder.monthly_day} of each month`;
+      } else if (reminder.frequency === "biweekly") {
+        scheduleLabel = `Every other ${reminder.day_of_week}`;
+      } else {
+        scheduleLabel = `Every ${reminder.day_of_week}`;
+      }
+
+      const occurrences = getRecurringOccurrences(reminder, year, mon);
+      occurrences.forEach((dateStr) => {
+        events.push({
+          id: `recurring-${reminder.id}-${dateStr}`,
+          type: "recurring_reminder",
+          date: dateStr,
+          title: displayTitle,
+          subtitle: scheduleLabel,
+          recurringReminderId: reminder.id,
+          recurringRawTitle: reminder.title,
+          isCompleted: false,
+          dueTime: reminder.is_all_day ? null : reminder.reminder_time,
+          recurringFrequency: reminder.frequency,
+          recurringDayOfWeek: reminder.day_of_week,
+          recurringMonthlyOrdinal: reminder.monthly_ordinal,
+          recurringMonthlyDay: reminder.monthly_day,
+          recurringClientId: reminder.client_id,
+          recurringClientName: clientName,
+        });
       });
     });
 

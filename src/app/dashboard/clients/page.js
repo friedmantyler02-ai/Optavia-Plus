@@ -249,6 +249,14 @@ function ImportModal({ onClose, onComplete }) {
                       {result.errors?.length > 0 && `, ${result.errors.length} errors`}
                       {result.failedBatches > 0 && ` (${result.failedBatches} batch${result.failedBatches !== 1 ? "es" : ""} failed)`}
                     </p>
+                    {result.ordersPending > 0 && (
+                      <p className="text-sm text-green-600 mt-1">
+                        Orders: {result.ordersImported || 0} of {result.ordersPending} saved
+                        {result.orderErrors?.length > 0 && (
+                          <span className="text-red-600 font-semibold"> — {result.orderErrors[0].error}</span>
+                        )}
+                      </p>
+                    )}
                     <button
                       onClick={() => { onComplete(); onClose(); }}
                       className="mt-3 bg-[#E8735A] hover:bg-[#d4634d] text-white px-4 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95 shadow-sm"

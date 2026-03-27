@@ -818,37 +818,12 @@ export default function ClientDetailPage() {
         ← Back to All Clients
       </button>
 
-      {/* Move to Leads — shown for past clients (no order in 3+ months) */}
-      {isPastClient(client) && !client.moved_to_lead_id && (
-        <button
-          onClick={() => setMoveToLeadsConfirm(true)}
-          className="w-full flex items-center justify-center gap-3 mb-5 px-6 py-4 rounded-2xl text-lg font-bold bg-[#E8735A] text-white hover:bg-[#d4654e] shadow-md transition-all duration-150 active:scale-[0.98] min-h-[56px] touch-manipulation"
-        >
-          <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
-          </svg>
-          Move to Leads Pipeline
-        </button>
-      )}
-      {isPastClient(client) && client.moved_to_lead_id && (
-        <div className="w-full flex items-center justify-center gap-2 mb-5 px-6 py-4 rounded-2xl bg-green-50 border-2 border-green-200">
-          <span>✅</span>
-          <span className="text-sm font-semibold text-green-700">Moved to leads pipeline</span>
-          <a
-            href={`/dashboard/leads/${client.moved_to_lead_id}`}
-            className="text-sm font-bold text-[#E8735A] hover:underline ml-2"
-          >
-            View Lead →
-          </a>
-        </div>
-      )}
-
       <div className="bg-white rounded-2xl p-6 shadow-sm mb-5">
         <div className="flex items-center gap-4 mb-4">
           <div className="w-16 h-16 rounded-2xl flex items-center justify-center text-3xl flex-shrink-0" style={{ background: "linear-gradient(135deg, #e8f0ea, #eaf2f6)" }}>
             {statusEmojis[client.status]}
           </div>
-          <div className="min-w-0">
+          <div className="min-w-0 flex-1">
             <h1 className="font-display text-2xl font-bold">{client.full_name}</h1>
             <p className="text-sm text-gray-400">
               {client.email || "No email"} ·{" "}
@@ -873,6 +848,23 @@ export default function ClientDetailPage() {
               )}
             </div>
           </div>
+          {/* Move to Leads — shown for past clients (no order in 3+ months) */}
+          {isPastClient(client) && !client.moved_to_lead_id && (
+            <button
+              onClick={() => setMoveToLeadsConfirm(true)}
+              className="shrink-0 px-4 py-2 rounded-lg text-sm font-bold bg-[#E8735A] text-white hover:bg-[#d4654e] transition-colors duration-150 touch-manipulation"
+            >
+              Move to Leads
+            </button>
+          )}
+          {isPastClient(client) && client.moved_to_lead_id && (
+            <a
+              href={`/dashboard/leads/${client.moved_to_lead_id}`}
+              className="shrink-0 px-4 py-2 rounded-lg text-sm font-bold bg-green-50 text-green-700 border border-green-200 hover:bg-green-100 transition-colors duration-150"
+            >
+              View Lead →
+            </a>
+          )}
         </div>
         {/* Inline Weekly Reminder */}
         <div className="border-t border-gray-100 pt-4">

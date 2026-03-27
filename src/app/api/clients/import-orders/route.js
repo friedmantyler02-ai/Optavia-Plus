@@ -307,6 +307,7 @@ export async function POST(request) {
 
     // Upsert orders into the orders table (with tracking data)
     let ordersImported = 0;
+    let orderErrors = [];
     if (orderRows.length > 0) {
       // Re-fetch clients to get IDs for newly created clients too
       const { data: allClients } = await supabaseAdmin
@@ -330,19 +331,32 @@ export async function POST(request) {
       // Upsert in batches of 100
       for (let i = 0; i < orderUpserts.length; i += 100) {
         const batch = orderUpserts.slice(i, i + 100);
-        const { error: orderError, count } = await supabaseAdmin
+        const { error: orderError } = await supabaseAdmin
           .from("orders")
           .upsert(batch, { onConflict: "order_number,coach_id", ignoreDuplicates: false });
 
         if (orderError) {
-          console.error("[import-orders] Orders upsert error:", orderError.message);
+          console.error("[import-orders] Orders upsert error:", orderError.message, orderError.code, orderError.details);
+          orderErrors.push({
+            batch: Math.floor(i / 100) + 1,
+            error: orderError.message,
+            code: orderError.code,
+          });
         } else {
           ordersImported += batch.length;
         }
       }
     }
 
-    return NextResponse.json({ updated, created, alerts: alertCount, errors, ordersImported });
+    return NextResponse.json({
+      updated,
+      created,
+      alerts: alertCount,
+      errors,
+      ordersImported,
+      ordersPending: orderRows.length,
+      orderErrors: orderErrors.length > 0 ? orderErrors : undefined,
+    });
   } catch (err) {
     console.error("Import orders error:", err);
     return NextResponse.json(

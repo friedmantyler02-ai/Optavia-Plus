@@ -115,6 +115,9 @@ async function importOrdersChunked(rows, onProgress) {
   let alerts = 0;
   let errors = [];
   let failedBatches = 0;
+  let ordersImported = 0;
+  let ordersPending = 0;
+  let orderErrors = [];
 
   for (let i = 0; i < chunks.length; i++) {
     const rowsProcessed = Math.min((i + 1) * CHUNK_SIZE, rows.length);
@@ -138,6 +141,11 @@ async function importOrdersChunked(rows, onProgress) {
       updated += data.updated || 0;
       created += data.created || 0;
       alerts += data.alerts || 0;
+      ordersImported += data.ordersImported || 0;
+      ordersPending += data.ordersPending || 0;
+      if (data.orderErrors?.length) {
+        orderErrors = orderErrors.concat(data.orderErrors);
+      }
       if (data.errors?.length) {
         errors = errors.concat(data.errors);
       }
@@ -147,7 +155,7 @@ async function importOrdersChunked(rows, onProgress) {
     }
   }
 
-  return { updated, created, alerts, errors, failedBatches };
+  return { updated, created, alerts, errors, failedBatches, ordersImported, ordersPending, orderErrors };
 }
 
 /**

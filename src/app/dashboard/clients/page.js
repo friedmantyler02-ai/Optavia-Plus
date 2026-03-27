@@ -609,7 +609,7 @@ function ClientSection({ title, count, borderColor, clients, router, defaultColl
               <col style={{ width: '11.5%' }} />
             </colgroup>
             <thead>
-              <tr className="border-b border-gray-100 bg-gray-50/50 hidden md:table-row">
+              <tr className="border-b border-gray-100 bg-[#faf7f2] hidden md:table-row sticky top-0 z-10">
                 <th className="text-left py-3 px-1 cursor-pointer select-none" onClick={() => onSort("name")}>
                   <span className={`text-sm font-semibold ${sortKey === "name" ? "text-[#E8735A]" : "text-gray-500"}`}>
                     Client Name {sortKey === "name" && (sortDir === "asc" ? "▲" : "▼")}

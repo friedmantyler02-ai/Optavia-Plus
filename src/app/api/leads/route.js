@@ -110,7 +110,7 @@ export async function POST(request) {
     }
 
     const body = await request.json();
-    const { full_name, email, phone, facebook_url, source, stage, groups, notes, next_followup_date, originally_met_date } = body;
+    const { full_name, email, phone, facebook_url, source, stage, groups, notes, next_followup_date, originally_met_date, converted_client_id } = body;
 
     if (!full_name || !full_name.trim()) {
       return NextResponse.json(
@@ -133,6 +133,7 @@ export async function POST(request) {
         notes: notes || null,
         next_followup_date: next_followup_date || null,
         originally_met_date: originally_met_date || null,
+        converted_client_id: converted_client_id || null,
       })
       .select()
       .single();

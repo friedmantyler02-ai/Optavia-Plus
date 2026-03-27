@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useCoach } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import AssignSequence from "./AssignSequence";
@@ -19,6 +19,18 @@ const programPhaseOptions = [
   { value: "active_gaining", label: "Active - Gaining" },
   { value: "maintenance", label: "Maintenance" },
   { value: "paused", label: "Paused" },
+];
+
+const planOptions = [
+  "5&1",
+  "5&1 Active",
+  "4&2",
+  "4&2 Active",
+  "GLP-1 Nutrition Support",
+  "3&3",
+  "Nursing Mom",
+  "Optimization",
+  "Other",
 ];
 
 const sourceOptions = [
@@ -66,6 +78,187 @@ function getRelationshipScore(client) {
 }
 
 function getScoreColor(s) { return s >= 70 ? "#4a7c59" : s >= 40 ? "#c4855c" : "#c25b50"; }
+
+function PhonePopover({ digits, display, className }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className={className || "text-[#E8735A] hover:underline font-semibold"}
+      >
+        {display}
+      </button>
+      {open && (
+        <span className="absolute left-0 top-full mt-1.5 z-30 bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col min-w-[130px] overflow-hidden">
+          <a
+            href={`tel:${digits}`}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-[#faf7f2] transition-colors"
+          >
+            📞 Call
+          </a>
+          <a
+            href={`sms:${digits}`}
+            onClick={() => setOpen(false)}
+            className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-[#faf7f2] transition-colors border-t border-gray-100"
+          >
+            💬 Text
+          </a>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function InlineEditField({ value, field, onSave, type = "text", placeholder, displayRender, options, suffix }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [saveState, setSaveState] = useState(null); // "saved" | "error"
+  const inputRef = useRef(null);
+  const timerRef = useRef(null);
+
+  useEffect(() => {
+    if (!editing) setDraft(value ?? "");
+  }, [value, editing]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      if (type === "textarea") {
+        inputRef.current.style.height = "auto";
+        inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+      }
+    }
+  }, [editing]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const flash = (state) => {
+    setSaveState(state);
+    timerRef.current = setTimeout(() => setSaveState(null), 1500);
+  };
+
+  const save = useCallback(async () => {
+    const trimmed = typeof draft === "string" ? draft.trim() : draft;
+    if (trimmed === (value ?? "")) { setEditing(false); return; }
+    try {
+      await onSave(field, trimmed || null);
+      flash("saved");
+      setEditing(false);
+    } catch {
+      flash("error");
+      setDraft(value ?? "");
+      setEditing(false);
+    }
+  }, [draft, value, field, onSave]);
+
+  const cancel = () => { setDraft(value ?? ""); setEditing(false); };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && type !== "textarea") { e.preventDefault(); save(); }
+    if (e.key === "Enter" && type === "textarea" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+    if (e.key === "Escape") cancel();
+  };
+
+  if (editing) {
+    const cls = "w-full text-right text-sm font-semibold bg-white px-3 py-2 rounded-lg border-2 border-[#E8735A] focus:outline-none focus:ring-2 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px] font-body";
+    return type === "textarea" ? (
+      <textarea
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        rows={2}
+        className={cls + " resize-none text-left"}
+      />
+    ) : (
+      <input
+        ref={inputRef}
+        type={type === "phone" ? "tel" : "text"}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={cls}
+      />
+    );
+  }
+
+  const hasValue = value !== null && value !== undefined && value !== "";
+
+  const isTextarea = type === "textarea";
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className={`group flex items-center gap-1.5 min-h-[44px] touch-manipulation ${isTextarea ? "w-full text-left" : "text-right max-w-[60%] ml-auto"}`}
+    >
+      {saveState === "saved" && <span className="text-green-500 text-sm font-bold animate-fade-up shrink-0">✓</span>}
+      {saveState === "error" && <span className="text-red-500 text-xs font-bold animate-fade-up shrink-0">Failed</span>}
+      {displayRender ? displayRender(value) : hasValue ? (
+        <span className={`text-sm font-semibold text-gray-800 ${isTextarea ? "whitespace-pre-wrap" : "truncate"}`}>{value}{suffix || ""}</span>
+      ) : (
+        <span className="text-sm italic text-gray-400">{placeholder || "Add..."}</span>
+      )}
+      <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 ml-auto" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+    </button>
+  );
+}
+
+function InlineSelectField({ value, field, onSave, options, displayRender }) {
+  const [saveState, setSaveState] = useState(null);
+  const timerRef = useRef(null);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const flash = (state) => {
+    setSaveState(state);
+    timerRef.current = setTimeout(() => setSaveState(null), 1500);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {saveState === "saved" && <span className="text-green-500 text-sm font-bold animate-fade-up shrink-0">✓</span>}
+      {saveState === "error" && <span className="text-red-500 text-xs font-bold animate-fade-up shrink-0">Failed</span>}
+      <select
+        value={value || ""}
+        onChange={async (e) => {
+          const newVal = e.target.value || null;
+          try {
+            await onSave(field, newVal);
+            flash("saved");
+          } catch {
+            flash("error");
+          }
+        }}
+        className="text-right text-sm font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px] cursor-pointer font-body"
+      >
+        {options.map((o) =>
+          typeof o === "string" ? (
+            <option key={o} value={o}>{o}</option>
+          ) : (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          )
+        )}
+      </select>
+    </div>
+  );
+}
 
 function QuickMessageCard({ client }) {
   const isCheckin = ["active", "new", "milestone"].includes(client.status);
@@ -188,8 +381,6 @@ export default function ClientDetailPage() {
   const params = useParams();
   const [client, setClient] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [editing, setEditing] = useState(false);
-  const [form, setForm] = useState({});
   const [saving, setSaving] = useState(false);
   const [activities, setActivities] = useState([]);
   const [showAssign, setShowAssign] = useState(false);
@@ -209,6 +400,11 @@ export default function ClientDetailPage() {
   const [loggingMeeting, setLoggingMeeting] = useState(false);
   const [reminderConfirm, setReminderConfirm] = useState(null);
   const [editingSocials, setEditingSocials] = useState(false);
+  const [backdateModal, setBackdateModal] = useState(null); // "call" | "text" | null
+  const [moveToLeadsConfirm, setMoveToLeadsConfirm] = useState(false);
+  const [movingToLeads, setMovingToLeads] = useState(false);
+  const [backdateDate, setBackdateDate] = useState("");
+  const [backdateExpanded, setBackdateExpanded] = useState(false);
   const [socialsForm, setSocialsForm] = useState({ facebook_url: "", instagram_url: "" });
   const showToast = useShowToast();
 
@@ -220,7 +416,7 @@ export default function ClientDetailPage() {
       .eq("id", client.id)
       .select()
       .single();
-    if (data) { setClient(data); setForm(data); }
+    if (data) { setClient(data);}
   };
 
   const handlePremierToggle = async () => {
@@ -249,7 +445,7 @@ export default function ClientDetailPage() {
         .eq("id", client.id)
         .select()
         .single();
-      if (data) { setClient(data); setForm(data); }
+      if (data) { setClient(data);}
       if (!newValue && wasPremier) {
         await supabase.from("activities").insert({
           coach_id: coach.id,
@@ -280,7 +476,7 @@ export default function ClientDetailPage() {
     try {
       const { data, error: cErr } = await supabase.from("clients").select("*").eq("id", params.id).eq("coach_id", coach.id).single();
       if (cErr || !data) { router.push("/dashboard/clients"); return; }
-      setClient(data); setForm(data);
+      setClient(data);
       const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
       if (acts) setActivities(acts);
       // Check if any sequences exist in the database
@@ -335,7 +531,6 @@ export default function ClientDetailPage() {
         });
 
         setClient(prev => ({ ...prev, weight_current: newWeight }));
-        setForm(prev => ({ ...prev, weight_current: newWeight }));
         setWeightInput("");
 
         // Refresh activities
@@ -351,51 +546,89 @@ export default function ClientDetailPage() {
     }
   };
 
-  const saveChanges = async () => {
-    setSaving(true);
+  const saveField = useCallback(async (field, value) => {
+    const isWeight = ["weight_start", "weight_current", "weight_goal"].includes(field);
+    const updates = {
+      [field]: isWeight && value ? Number(value) : value,
+      updated_at: new Date().toISOString(),
+    };
+    const { data, error } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
+    if (error) throw error;
+    if (data) setClient(data);
+  }, [client?.id, supabase]);
+
+  const handleMoveToLeads = async () => {
+    setMovingToLeads(true);
     try {
-      // weight_goal and program_phase require migration:
-      // ALTER TABLE clients ADD COLUMN IF NOT EXISTS weight_goal numeric;
-      // ALTER TABLE clients ADD COLUMN IF NOT EXISTS program_phase text DEFAULT 'active_losing';
-      const updates = {
-        full_name: form.full_name,
-        email: form.email || null,
-        phone: form.phone || null,
-        plan: form.plan || null,
-        weight_current: form.weight_current ? Number(form.weight_current) : null,
-        weight_start: form.weight_start ? Number(form.weight_start) : null,
-        weight_goal: form.weight_goal ? Number(form.weight_goal) : null,
-        program_phase: form.program_phase || null,
-        facebook_url: form.facebook_url || null,
-        instagram_url: form.instagram_url || null,
-        is_facebook_friend: form.is_facebook_friend || false,
-        is_instagram_follower: form.is_instagram_follower || false,
-        source: form.source || null,
-        groups: form.groups || null,
-        originally_met_date: form.originally_met_date || null,
-        notes: form.notes || null,
-        status: form.status,
-        updated_at: new Date().toISOString(),
-      };
-      const { data } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
-      if (data) { setClient(data); setForm(data); }
-      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Updated client info", details: client.full_name });
-      setEditing(false);
-      showToast({ message: "Client updated", variant: "success" });
+      const notes = client.plan
+        ? `Returning past client. Previously on ${client.plan} plan.`
+        : "Returning past client.";
+
+      const res = await fetch("/api/leads", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          full_name: client.full_name,
+          email: client.email || null,
+          phone: client.phone || null,
+          facebook_url: client.facebook_url || null,
+          source: "past_client",
+          stage: "prospect",
+          notes,
+          converted_client_id: client.id,
+        }),
+      });
+      const newLead = await res.json();
+      if (!res.ok) throw new Error(newLead.error || "Failed to create lead");
+
+      // Link the client to the new lead
+      await supabase
+        .from("clients")
+        .update({ moved_to_lead_id: newLead.id, updated_at: new Date().toISOString() })
+        .eq("id", client.id);
+
+      // Log activity on the client
+      await supabase.from("activities").insert({
+        coach_id: coach.id,
+        client_id: client.id,
+        action: "Moved to leads pipeline",
+        details: client.full_name,
+      });
+
+      // Log activity on the lead
+      await fetch(`/api/leads/${newLead.id}/activities`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ action: "note", details: "Created from past client profile" }),
+      });
+
+      setClient((prev) => ({ ...prev, moved_to_lead_id: newLead.id }));
+      setMoveToLeadsConfirm(false);
+      showToast({
+        message: `${client.full_name} added to leads pipeline`,
+        variant: "success",
+        action: { label: "View Lead", href: `/dashboard/leads/${newLead.id}` },
+      });
     } catch (err) {
-      console.error("Error saving client:", err);
+      console.error("Move to leads error:", err);
       showToast({ message: "Something went wrong — please try again", variant: "error" });
     } finally {
-      setSaving(false);
+      setMovingToLeads(false);
     }
   };
 
-  const logQuickAction = async (actionType, details) => {
+  const logQuickAction = async (actionType, details, overrideDate) => {
     try {
       const actionText = actionType === "call" ? "Logged a call" : actionType === "text" ? "Logged a text check-in" : actionType === "meeting" ? "Logged a meeting" : actionType === "comment" ? "Commented on client's post" : actionType === "shared_post" ? "Shared post with client" : "Logged a note";
-      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: details || client.full_name });
-      await supabase.from("clients").update({ last_contact_date: new Date().toISOString(), updated_at: new Date().toISOString() }).eq("id", client.id);
-      setClient(prev => ({ ...prev, last_contact_date: new Date().toISOString() }));
+      const activityTs = overrideDate ? new Date(overrideDate).toISOString() : new Date().toISOString();
+      await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: actionText, details: details || client.full_name, created_at: activityTs });
+      // Only update last_contact_date if the logged date is more recent than existing
+      const existingContact = client.last_contact_date ? new Date(client.last_contact_date) : null;
+      const newContact = new Date(activityTs);
+      if (!existingContact || newContact > existingContact) {
+        await supabase.from("clients").update({ last_contact_date: activityTs, updated_at: new Date().toISOString() }).eq("id", client.id);
+        setClient(prev => ({ ...prev, last_contact_date: activityTs }));
+      }
       const { data: acts } = await supabase.from("activities").select("*").eq("coach_id", coach.id).eq("client_id", params.id).order("created_at", { ascending: false }).limit(20);
       if (acts) setActivities(acts);
       const label = actionType === "call" ? "Call logged" : actionType === "text" ? "Text logged" : actionType === "meeting" ? "Meeting logged" : actionType === "comment" ? "Comment logged" : actionType === "shared_post" ? "Shared post logged" : "Note saved";
@@ -455,13 +688,18 @@ export default function ClientDetailPage() {
             <p className="text-sm text-gray-400">
               {client.email || "No email"} ·{" "}
               {client.phone ? (
-                <a href={`tel:${phoneDigits(client.phone)}`} className="text-[#E8735A] hover:underline">{formatPhoneDisplay(client.phone)}</a>
+                <PhonePopover digits={phoneDigits(client.phone)} display={formatPhoneDisplay(client.phone)} className="text-[#E8735A] hover:underline font-semibold" />
               ) : "No phone"}
             </p>
             <div className="flex items-center gap-2 mt-1">
               <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold bg-[#faf7f2] text-gray-500">
                 {statusEmojis[client.status]} {statusLabels[client.status]}
               </span>
+              {client.is_returning_client && (
+                <span className="inline-block px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-50 text-blue-600">
+                  🔄 Returning Client
+                </span>
+              )}
               {client.facebook_url && (
                 <a href={normalizeSocialUrl(client.facebook_url, "https://facebook.com/")} target="_blank" rel="noopener noreferrer" className="text-lg hover:opacity-70 transition-opacity" title="Facebook">📘</a>
               )}
@@ -481,12 +719,11 @@ export default function ClientDetailPage() {
                   // Toggle off — save immediately
                   setSaving(true);
                   supabase.from("clients").update({ weekly_reminder: false, contact_day: null, updated_at: new Date().toISOString() }).eq("id", client.id).select().single()
-                    .then(({ data }) => { if (data) { setClient(data); setForm(data); } setReminderConfirm("Reminder removed"); setSaving(false); })
+                    .then(({ data }) => { if (data) { setClient(data);} setReminderConfirm("Reminder removed"); setSaving(false); })
                     .catch(() => setSaving(false));
                 } else {
                   // Toggle on — optimistic UI, wait for day pick to save
                   setClient(prev => ({ ...prev, weekly_reminder: true }));
-                  setForm(prev => ({ ...prev, weekly_reminder: true }));
                 }
               }}
               disabled={saving}
@@ -504,7 +741,7 @@ export default function ClientDetailPage() {
                     onClick={() => {
                       setSaving(true);
                       supabase.from("clients").update({ weekly_reminder: true, contact_day: day, updated_at: new Date().toISOString() }).eq("id", client.id).select().single()
-                        .then(({ data }) => { if (data) { setClient(data); setForm(data); } setReminderConfirm(`Reminder set for ${day}s`); setSaving(false); })
+                        .then(({ data }) => { if (data) { setClient(data);} setReminderConfirm(`Reminder set for ${day}s`); setSaving(false); })
                         .catch(() => setSaving(false));
                     }}
                     disabled={saving}
@@ -544,6 +781,59 @@ export default function ClientDetailPage() {
             )}
           </div>
         </div>
+        {/* Returning Client Toggle */}
+        <div className="border-t border-gray-100 pt-4 mt-4">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={async () => {
+                const newVal = !client.is_returning_client;
+                setSaving(true);
+                try {
+                  const { data } = await supabase.from("clients").update({ is_returning_client: newVal, updated_at: new Date().toISOString() }).eq("id", client.id).select().single();
+                  if (data) setClient(data);
+                  showToast({ message: newVal ? "Marked as returning client" : "Returning client status removed", variant: "success" });
+                } catch {
+                  showToast({ message: "Something went wrong — please try again", variant: "error" });
+                } finally {
+                  setSaving(false);
+                }
+              }}
+              disabled={saving}
+              className={`w-12 h-7 rounded-full transition-colors duration-200 relative flex-shrink-0 ${client.is_returning_client ? "bg-blue-500" : "bg-gray-300"} ${saving ? "opacity-50" : ""}`}
+              aria-label={client.is_returning_client ? "Remove returning client status" : "Mark as returning client"}
+            >
+              <span className={`absolute top-0.5 left-0.5 w-6 h-6 bg-white rounded-full shadow transition-transform duration-200 ${client.is_returning_client ? "translate-x-5" : ""}`} />
+            </button>
+            <span className="text-sm font-semibold text-gray-600">Returning Client</span>
+          </div>
+        </div>
+        {/* Move to Leads — only shown for lapsed clients */}
+        {client.status === "lapsed" && (
+          <div className="border-t border-gray-100 pt-4 mt-4">
+            {client.moved_to_lead_id ? (
+              <div className="flex items-center gap-2 text-sm text-gray-500">
+                <span>↩️</span>
+                <span className="font-semibold">Moved to leads pipeline</span>
+                <a
+                  href={`/dashboard/leads/${client.moved_to_lead_id}`}
+                  className="text-[#E8735A] font-bold hover:underline"
+                >
+                  View Lead →
+                </a>
+              </div>
+            ) : (
+              <button
+                onClick={() => setMoveToLeadsConfirm(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-bold border-2 border-gray-200 text-gray-500 hover:border-[#E8735A]/40 hover:text-[#E8735A] hover:bg-[#E8735A]/5 transition-all duration-150 touch-manipulation"
+              >
+                <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M13 7l5 5m0 0l-5 5m5-5H6" />
+                </svg>
+                Move to Leads Pipeline
+              </button>
+            )}
+          </div>
+        )}
       </div>
       {/* Order Alerts */}
       {getAlertBadges(client.order_alerts).length > 0 && (
@@ -564,10 +854,10 @@ export default function ClientDetailPage() {
         </div>
       )}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-5">
-        <button onClick={() => logQuickAction("call")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
+        <button onClick={() => { setBackdateDate(new Date().toISOString().slice(0, 10)); setBackdateExpanded(false); setBackdateModal("call"); }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">📞</span><span className="font-bold text-sm">Log a Call</span>
         </button>
-        <button onClick={() => logQuickAction("text")} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
+        <button onClick={() => { setBackdateDate(new Date().toISOString().slice(0, 10)); setBackdateExpanded(false); setBackdateModal("text"); }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
           <span className="text-2xl">💬</span><span className="font-bold text-sm">Log a Text</span>
         </button>
         <button onClick={() => { setNoteText(""); setNoteModal(true); }} className="bg-white rounded-2xl p-4 shadow-sm flex flex-col items-center gap-2 hover:shadow-md transition-all duration-150 active:scale-95 min-h-[72px] touch-manipulation">
@@ -729,7 +1019,7 @@ export default function ClientDetailPage() {
                       updated_at: new Date().toISOString(),
                     };
                     const { data } = await supabase.from("clients").update(updates).eq("id", client.id).select().single();
-                    if (data) { setClient(data); setForm(data); }
+                    if (data) { setClient(data);}
                     setEditingSocials(false);
                     showToast({ message: "Socials updated", variant: "success" });
                   } catch {
@@ -799,7 +1089,6 @@ export default function ClientDetailPage() {
                 try {
                   await supabase.from("clients").update({ is_facebook_friend: newVal, updated_at: new Date().toISOString() }).eq("id", client.id);
                   setClient(prev => ({ ...prev, is_facebook_friend: newVal }));
-                  setForm(prev => ({ ...prev, is_facebook_friend: newVal }));
                   showToast({ message: newVal ? "Marked as Facebook friend" : "Unmarked Facebook friend", variant: "success" });
                 } catch {
                   showToast({ message: "Something went wrong — please try again", variant: "error" });
@@ -818,7 +1107,6 @@ export default function ClientDetailPage() {
                 try {
                   await supabase.from("clients").update({ is_instagram_follower: newVal, updated_at: new Date().toISOString() }).eq("id", client.id);
                   setClient(prev => ({ ...prev, is_instagram_follower: newVal }));
-                  setForm(prev => ({ ...prev, is_instagram_follower: newVal }));
                   showToast({ message: newVal ? "Marked as Instagram follower" : "Unmarked Instagram follower", variant: "success" });
                 } catch {
                   showToast({ message: "Something went wrong — please try again", variant: "error" });
@@ -850,59 +1138,83 @@ export default function ClientDetailPage() {
 
       <div className="grid md:grid-cols-2 gap-5">
         <div className="bg-white rounded-2xl p-6 shadow-sm">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-extrabold">📊 Details</h2>
-            <button onClick={() => editing ? saveChanges() : setEditing(true)} className={"px-4 py-2 rounded-xl font-bold text-sm transition-all duration-150 " + (editing ? "bg-brand-500 text-white" : "bg-gray-100 text-gray-500 hover:bg-gray-200")}>
-              {saving ? "Saving..." : editing ? "Save Changes" : "Edit"}
-            </button>
-          </div>
+          <h2 className="text-lg font-extrabold mb-4">📊 Details</h2>
           <div className="space-y-3">
-            {[
-              { key: "full_name", label: "Name" },
-              { key: "email", label: "Email" },
-              { key: "phone", label: "Phone" },
-              { key: "plan", label: "Plan" },
-              { key: "weight_start", label: "Starting Weight" },
-              { key: "weight_current", label: "Current Weight" },
-              { key: "weight_goal", label: "Goal Weight" },
-            ].map(f => (
-              <div key={f.key} className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
-                <span className="text-xs font-bold text-gray-400 uppercase">{f.label}</span>
-                {editing ? (
-                  <input value={form[f.key] || ""} onChange={e => setForm(p => ({ ...p, [f.key]: e.target.value }))}
-                    className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 w-40 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]" />
-                ) : (
-                  f.key === "phone" && client.phone ? (
-                    <a href={`tel:${phoneDigits(client.phone)}`} className="text-sm font-semibold text-[#E8735A] hover:underline">{formatPhoneDisplay(client.phone)}</a>
-                  ) : (
-                    <span className="text-sm font-semibold">{f.key === "phone" ? (client.phone ? formatPhoneDisplay(client.phone) : "—") : (client[f.key] || "—")}{(f.key.includes("weight") && client[f.key]) ? " lbs" : ""}</span>
-                  )
-                )}
-              </div>
-            ))}
-            {/* Status */}
+            {/* Name */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Name</span>
+              <InlineEditField value={client.full_name} field="full_name" onSave={saveField} placeholder="Add name..." />
+            </div>
+            {/* Email */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Email</span>
+              <InlineEditField value={client.email} field="email" onSave={saveField} placeholder="Add email..." />
+            </div>
+            {/* Phone */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Phone</span>
+              <InlineEditField
+                value={client.phone}
+                field="phone"
+                type="phone"
+                onSave={saveField}
+                placeholder="Add phone..."
+                displayRender={(v) => v ? (
+                  <PhonePopover digits={phoneDigits(v)} display={formatPhoneDisplay(v)} className="text-sm font-semibold text-[#E8735A] hover:underline" />
+                ) : null}
+              />
+            </div>
+            {/* Weight fields */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Starting Weight</span>
+              <InlineEditField value={client.weight_start} field="weight_start" onSave={saveField} placeholder="Add..." suffix=" lbs" />
+            </div>
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Current Weight</span>
+              <InlineEditField value={client.weight_current} field="weight_current" onSave={saveField} placeholder="Add..." suffix=" lbs" />
+            </div>
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Goal Weight</span>
+              <InlineEditField value={client.weight_goal} field="weight_goal" onSave={saveField} placeholder="Add..." suffix=" lbs" />
+            </div>
+            {/* Plan — inline dropdown */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Plan</span>
+              <InlineSelectField
+                value={client.plan}
+                field="plan"
+                onSave={async (field, val) => {
+                  setClient(prev => ({ ...prev, plan: val }));
+                  await supabase.from("clients").update({ plan: val, updated_at: new Date().toISOString() }).eq("id", client.id);
+                  await supabase.from("activities").insert({ coach_id: coach.id, client_id: client.id, action: "Updated plan", details: val || "Cleared" });
+                }}
+                options={[{ value: "", label: "Select plan..." }, ...planOptions.map(p => ({ value: p, label: p }))]}
+              />
+            </div>
+            {/* Status — inline dropdown */}
             <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
               <span className="text-xs font-bold text-gray-400 uppercase">Status</span>
-              {editing ? (
-                <select value={form.status || "active"} onChange={e => setForm(p => ({ ...p, status: e.target.value }))}
-                  className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]">
-                  {statusOptions.map(s => <option key={s} value={s}>{statusEmojis[s]} {statusLabels[s]}</option>)}
-                </select>
-              ) : (
-                <span className="text-sm font-semibold">{statusEmojis[client.status]} {statusLabels[client.status]}</span>
-              )}
+              <InlineSelectField
+                value={client.status}
+                field="status"
+                onSave={saveField}
+                options={statusOptions.map(s => ({ value: s, label: `${statusEmojis[s]} ${statusLabels[s]}` }))}
+              />
             </div>
-            {/* Program Phase */}
+            {/* Program Phase — inline dropdown */}
             <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
               <span className="text-xs font-bold text-gray-400 uppercase">Program Phase</span>
-              {editing ? (
-                <select value={form.program_phase || "active_losing"} onChange={e => setForm(p => ({ ...p, program_phase: e.target.value }))}
-                  className="text-right text-base font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px]">
-                  {programPhaseOptions.map(o => <option key={o.value} value={o.value}>{o.label}</option>)}
-                </select>
-              ) : (
-                <span className="text-sm font-semibold">{programPhaseOptions.find(o => o.value === client.program_phase)?.label || "Active - Losing"}</span>
-              )}
+              <InlineSelectField
+                value={client.program_phase || "active_losing"}
+                field="program_phase"
+                onSave={saveField}
+                options={programPhaseOptions}
+              />
+            </div>
+            {/* Optavia ID */}
+            <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
+              <span className="text-xs font-bold text-gray-400 uppercase">Optavia ID</span>
+              <InlineEditField value={client.optavia_id} field="optavia_id" onSave={saveField} placeholder="Add ID..." />
             </div>
             {/* Weight Progress */}
             {client.program_phase === "maintenance" && client.weight_current ? (
@@ -943,14 +1255,16 @@ export default function ClientDetailPage() {
               </div>
             ) : null}
           </div>
-          <div className="mt-4">
-            <label className="text-xs font-bold text-gray-400 uppercase">Notes</label>
-            {editing ? (
-              <textarea value={form.notes || ""} onChange={e => setForm(p => ({ ...p, notes: e.target.value }))} rows={3}
-                className="w-full mt-1 px-4 py-3 text-base border-2 border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150" />
-            ) : (
-              <p className="mt-1 text-sm text-gray-600 bg-[#faf7f2] p-3 rounded-xl">{client.notes || "No notes yet."}</p>
-            )}
+          {/* Notes — inline editable */}
+          <div className="mt-4 p-3 bg-[#faf7f2] rounded-xl">
+            <label className="text-xs font-bold text-gray-400 uppercase block mb-1">Notes</label>
+            <InlineEditField
+              value={client.notes}
+              field="notes"
+              type="textarea"
+              onSave={saveField}
+              placeholder="Add notes..."
+            />
           </div>
           <button onClick={handleDeleteClick} className="mt-4 px-4 py-2 text-xs font-bold text-red-400 hover:text-red-600 transition-colors duration-150">
             Delete this client
@@ -1110,6 +1424,61 @@ export default function ClientDetailPage() {
           </div>
         </div>
       )}
+      {backdateModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setBackdateModal(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-xs p-5">
+            <h2 className="font-display text-base font-bold text-gray-900 mb-1">
+              {backdateModal === "call" ? "📞 Log a Call" : "💬 Log a Text"}
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">When did this happen?</p>
+            <button
+              onClick={async () => { setBackdateModal(null); await logQuickAction(backdateModal); }}
+              className="w-full py-3 rounded-xl bg-[#E8735A] text-white font-bold text-sm hover:bg-[#d4634d] transition-colors min-h-[44px] touch-manipulation mb-3"
+            >
+              Today
+            </button>
+            {!backdateExpanded ? (
+              <button
+                onClick={() => setBackdateExpanded(true)}
+                className="w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors py-1 touch-manipulation"
+              >
+                It was a different day →
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="date"
+                  value={backdateDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setBackdateDate(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors min-h-[44px] font-body"
+                  autoFocus
+                />
+                <button
+                  onClick={async () => {
+                    const type = backdateModal;
+                    setBackdateModal(null);
+                    await logQuickAction(type, undefined, backdateDate);
+                  }}
+                  disabled={!backdateDate}
+                  className="w-full py-2.5 rounded-xl border-2 border-[#E8735A] text-[#E8735A] font-bold text-sm hover:bg-[#E8735A]/5 transition-colors min-h-[44px] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Log for {backdateDate ? new Date(backdateDate + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "selected date"}
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+      <ConfirmDialog
+        isOpen={moveToLeadsConfirm}
+        title="Move to Leads Pipeline?"
+        message={`Move ${client.full_name} to your leads pipeline? They'll appear in your Leads tab as a past client.`}
+        confirmLabel={movingToLeads ? "Moving..." : "Move to Leads"}
+        onConfirm={handleMoveToLeads}
+        onCancel={() => setMoveToLeadsConfirm(false)}
+      />
       <ConfirmDialog
         isOpen={deleteConfirm}
         title="Delete this client?"

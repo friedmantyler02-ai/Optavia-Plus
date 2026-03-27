@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useContext } from "react";
+import { useState, useEffect, useContext, useRef, useCallback } from "react";
 import { useCoach, ToastContext } from "../../layout";
 import { useRouter, useParams } from "next/navigation";
 import Link from "next/link";
@@ -108,6 +108,176 @@ function formatDate(dateStr) {
   });
 }
 
+function PhonePopover({ digits, display, className }) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(() => {
+    if (!open) return;
+    const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
+    document.addEventListener("mousedown", handler);
+    document.addEventListener("touchstart", handler);
+    return () => { document.removeEventListener("mousedown", handler); document.removeEventListener("touchstart", handler); };
+  }, [open]);
+
+  return (
+    <span ref={ref} className="relative inline-block">
+      <button
+        onClick={(e) => { e.stopPropagation(); setOpen((o) => !o); }}
+        className={className || "text-[#E8735A] hover:underline font-semibold"}
+      >
+        {display}
+      </button>
+      {open && (
+        <span className="absolute left-0 top-full mt-1.5 z-30 bg-white rounded-xl shadow-lg border border-gray-100 flex flex-col min-w-[130px] overflow-hidden">
+          <a href={`tel:${digits}`} onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-[#faf7f2] transition-colors">
+            📞 Call
+          </a>
+          <a href={`sms:${digits}`} onClick={() => setOpen(false)} className="flex items-center gap-2 px-4 py-3 text-sm font-semibold text-gray-700 hover:bg-[#faf7f2] transition-colors border-t border-gray-100">
+            💬 Text
+          </a>
+        </span>
+      )}
+    </span>
+  );
+}
+
+function InlineEditField({ value, field, onSave, type = "text", placeholder, displayRender, suffix }) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(value ?? "");
+  const [saveState, setSaveState] = useState(null);
+  const inputRef = useRef(null);
+  const timerRef = useRef(null);
+
+  useEffect(() => { if (!editing) setDraft(value ?? ""); }, [value, editing]);
+
+  useEffect(() => {
+    if (editing && inputRef.current) {
+      inputRef.current.focus();
+      if (type === "textarea") {
+        inputRef.current.style.height = "auto";
+        inputRef.current.style.height = inputRef.current.scrollHeight + "px";
+      }
+    }
+  }, [editing]);
+
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const flash = (state) => {
+    setSaveState(state);
+    timerRef.current = setTimeout(() => setSaveState(null), 1500);
+  };
+
+  const save = useCallback(async () => {
+    const trimmed = typeof draft === "string" ? draft.trim() : draft;
+    if (trimmed === (value ?? "")) { setEditing(false); return; }
+    try {
+      await onSave(field, trimmed || null);
+      flash("saved");
+      setEditing(false);
+    } catch {
+      flash("error");
+      setDraft(value ?? "");
+      setEditing(false);
+    }
+  }, [draft, value, field, onSave]);
+
+  const cancel = () => { setDraft(value ?? ""); setEditing(false); };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && type !== "textarea") { e.preventDefault(); save(); }
+    if (e.key === "Enter" && type === "textarea" && (e.metaKey || e.ctrlKey)) { e.preventDefault(); save(); }
+    if (e.key === "Escape") cancel();
+  };
+
+  if (editing) {
+    const cls = "w-full text-sm font-semibold bg-white px-3 py-2 rounded-lg border-2 border-[#E8735A] focus:outline-none focus:ring-2 focus:ring-[#E8735A]/30 transition-colors duration-150 min-h-[44px] font-body";
+    return type === "textarea" ? (
+      <textarea
+        ref={inputRef}
+        value={draft}
+        onChange={(e) => { setDraft(e.target.value); e.target.style.height = "auto"; e.target.style.height = e.target.scrollHeight + "px"; }}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        rows={2}
+        className={cls + " resize-none text-left"}
+      />
+    ) : (
+      <input
+        ref={inputRef}
+        type={type === "phone" ? "tel" : "text"}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onBlur={save}
+        onKeyDown={handleKeyDown}
+        placeholder={placeholder}
+        className={cls}
+      />
+    );
+  }
+
+  const hasValue = value !== null && value !== undefined && value !== "";
+  const isTextarea = type === "textarea";
+
+  return (
+    <button
+      onClick={() => setEditing(true)}
+      className={`group flex items-center gap-1.5 min-h-[44px] touch-manipulation ${isTextarea ? "w-full text-left" : ""}`}
+    >
+      {saveState === "saved" && <span className="text-green-500 text-sm font-bold animate-fade-up shrink-0">✓</span>}
+      {saveState === "error" && <span className="text-red-500 text-xs font-bold animate-fade-up shrink-0">Failed</span>}
+      {displayRender ? displayRender(value) : hasValue ? (
+        <span className={`text-sm font-semibold text-gray-800 ${isTextarea ? "whitespace-pre-wrap" : "truncate"}`}>{value}{suffix || ""}</span>
+      ) : (
+        <span className="text-sm italic text-gray-400">{placeholder || "Add..."}</span>
+      )}
+      <svg className="w-3.5 h-3.5 text-gray-300 group-hover:text-gray-500 transition-colors shrink-0 ml-1" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+      </svg>
+    </button>
+  );
+}
+
+function InlineSelectField({ value, field, onSave, options, displayRender }) {
+  const [saveState, setSaveState] = useState(null);
+  const timerRef = useRef(null);
+  useEffect(() => () => clearTimeout(timerRef.current), []);
+
+  const flash = (state) => {
+    setSaveState(state);
+    timerRef.current = setTimeout(() => setSaveState(null), 1500);
+  };
+
+  return (
+    <div className="flex items-center gap-1.5">
+      {saveState === "saved" && <span className="text-green-500 text-sm font-bold animate-fade-up shrink-0">✓</span>}
+      {saveState === "error" && <span className="text-red-500 text-xs font-bold animate-fade-up shrink-0">Failed</span>}
+      <select
+        value={value || ""}
+        onChange={async (e) => {
+          const newVal = e.target.value || null;
+          try {
+            await onSave(field, newVal);
+            flash("saved");
+          } catch {
+            flash("error");
+          }
+        }}
+        className="text-sm font-semibold bg-white px-3 py-2 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-[#E8735A] focus:border-transparent transition-colors duration-150 min-h-[44px] cursor-pointer font-body"
+      >
+        {options.map((o) =>
+          typeof o === "string" ? (
+            <option key={o} value={o}>{o}</option>
+          ) : (
+            <option key={o.value} value={o.value}>{o.label}</option>
+          )
+        )}
+      </select>
+    </div>
+  );
+}
+
 export default function LeadDetailPage() {
   const { coach } = useCoach();
   const router = useRouter();
@@ -122,11 +292,10 @@ export default function LeadDetailPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [deleting, setDeleting] = useState(false);
 
-  // Edit modal
-  const [showEdit, setShowEdit] = useState(false);
-  const [editData, setEditData] = useState({});
-  const [editError, setEditError] = useState(null);
-  const [saving, setSaving] = useState(false);
+  // Backdate modal
+  const [backdateModal, setBackdateModal] = useState(null); // "call" | "text" | null
+  const [backdateDate, setBackdateDate] = useState("");
+  const [backdateExpanded, setBackdateExpanded] = useState(false);
 
   // Stage change
   const [stageConfirm, setStageConfirm] = useState(null); // { stage, label }
@@ -199,24 +368,11 @@ export default function LeadDetailPage() {
     return data;
   };
 
-  // --- Edit Lead ---
-  const openEdit = () => {
-    setEditData({
-      full_name: lead.full_name || "",
-      email: lead.email || "",
-      phone: lead.phone || "",
-      facebook_url: lead.facebook_url || "",
-      instagram_url: lead.instagram_url || "",
-      source: lead.source || "",
-      stage: lead.stage || "prospect",
-      groups: lead.groups || "",
-      notes: lead.notes || "",
-      next_followup_date: lead.next_followup_date ? lead.next_followup_date.slice(0, 10) : "",
-      originally_met_date: lead.originally_met_date ? lead.originally_met_date.slice(0, 10) : "",
-    });
-    setEditError(null);
-    setShowEdit(true);
-  };
+  // --- Inline Save ---
+  const saveField = useCallback(async (field, value) => {
+    await patchLead({ [field]: value });
+    setLead((prev) => ({ ...prev, [field]: value }));
+  }, [leadId]);
 
   const handleDeleteLead = async () => {
     setDeleting(true);
@@ -236,39 +392,14 @@ export default function LeadDetailPage() {
     }
   };
 
-  const handleEditSave = async (e) => {
-    e.preventDefault();
-    if (!editData.full_name.trim()) {
-      setEditError("Name is required");
-      return;
-    }
-    setSaving(true);
-    setEditError(null);
-    try {
-      const body = { ...editData };
-      Object.keys(body).forEach((k) => {
-        if (body[k] === "") body[k] = null;
-      });
-      body.full_name = editData.full_name.trim();
-      await patchLead(body);
-      setShowEdit(false);
-      fetchLead();
-    } catch (err) {
-      setEditError(err.message);
-    } finally {
-      setSaving(false);
-    }
-  };
-
   // --- Stage Change ---
   const handleStageClick = (stage) => {
     if (!lead || stage === lead.stage) return;
     const currentIdx = STAGE_INDEX[lead.stage] ?? -1;
     const targetIdx = STAGE_INDEX[stage] ?? -1;
-    if (targetIdx <= currentIdx) return; // Only forward moves via progression bar
     setHaDateInput("");
     setHaOutcomeInput("");
-    setStageConfirm({ stage, label: STAGE_MAP[stage]?.label || stage });
+    setStageConfirm({ stage, label: STAGE_MAP[stage]?.label || stage, isBackward: targetIdx < currentIdx });
   };
 
   const confirmStageChange = async () => {
@@ -282,6 +413,9 @@ export default function LeadDetailPage() {
         body.ha_outcome = haOutcomeInput;
       }
       await patchLead(body);
+      if (stageConfirm.isBackward) {
+        await postActivity("stage_change", `Stage moved back to ${stageConfirm.label}`);
+      }
       setStageConfirm(null);
       fetchLead();
     } catch (err) {
@@ -324,13 +458,23 @@ export default function LeadDetailPage() {
     }
   };
 
-  const quickFbAction = async (action) => {
+  // --- Log Quick Action (with optional backdate) ---
+  const logQuickAction = async (actionType, details, overrideDate) => {
     try {
-      await postActivity(action, null);
-      showToast({ message: "Activity logged" });
+      const activityDate = overrideDate || null;
+      await postActivity(actionType, details || null);
+      // Update last_contact_date only if the date is more recent than existing
+      const newTs = overrideDate ? new Date(overrideDate).toISOString() : new Date().toISOString();
+      const existingContact = lead.last_contact_date ? new Date(lead.last_contact_date) : null;
+      const newContact = new Date(newTs);
+      if (!existingContact || newContact > existingContact) {
+        await patchLead({ last_contact_date: newTs });
+        setLead((prev) => ({ ...prev, last_contact_date: newTs }));
+      }
+      showToast({ message: actionType === "call" ? "Call logged" : "Text logged" });
       fetchLead();
     } catch (err) {
-      showToast({ message: err.message, variant: "error" });
+      showToast({ message: err.message || "Something went wrong", variant: "error" });
     }
   };
 
@@ -356,7 +500,12 @@ export default function LeadDetailPage() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || "Conversion failed");
       setShowConvertConfirm(false);
-      fetchLead();
+      if (data.returning && data.client_id) {
+        // Returning past client — redirect to the reactivated client profile
+        router.push(`/dashboard/clients/${data.client_id}`);
+      } else {
+        fetchLead();
+      }
     } catch (err) {
       alert(err.message);
     } finally {
@@ -411,75 +560,100 @@ export default function LeadDetailPage() {
         &larr; Back to Leads
       </Link>
 
+      {/* Returning past client banner */}
+      {lead.source === "past_client" && lead.converted_client_id && (
+        <div className="flex items-center gap-3 px-4 py-3 mb-4 bg-blue-50 border-2 border-blue-100 rounded-2xl">
+          <span className="text-lg flex-shrink-0">🔄</span>
+          <div className="flex-1 min-w-0">
+            <span className="text-sm font-bold text-blue-700">Returning past client</span>
+            <span className="text-sm text-blue-600"> — this lead came from an existing client profile.</span>
+          </div>
+          <Link
+            href={`/dashboard/clients/${lead.converted_client_id}`}
+            className="flex-shrink-0 text-xs font-bold text-blue-700 hover:underline whitespace-nowrap"
+          >
+            View Client →
+          </Link>
+        </div>
+      )}
+
       {/* Lead Info Card */}
       <div className="bg-white rounded-2xl border-2 border-gray-100 p-6 mb-4">
-        <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-4">
-          <div>
-            <div className="flex items-center gap-3 mb-2">
-              <h1 className="font-display text-2xl font-bold text-gray-900">{lead.full_name}</h1>
-              {stageInfo && (
-                <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${stageInfo.color}`}>
-                  {stageInfo.label}
-                </span>
-              )}
-            </div>
+        <div className="flex items-center gap-3 mb-4">
+          <InlineEditField value={lead.full_name} field="full_name" onSave={saveField} placeholder="Full name"
+            displayRender={(v) => <h1 className="font-display text-2xl font-bold text-gray-900">{v}</h1>}
+          />
+          {stageInfo && (
+            <span className={`inline-block rounded-full px-3 py-1 text-xs font-bold ${stageInfo.color}`}>
+              {stageInfo.label}
+            </span>
+          )}
+        </div>
 
-            {/* Contact info */}
-            <div className="flex flex-wrap items-center gap-3 text-sm mb-3">
-              {lead.email && (
-                <a href={`mailto:${lead.email}`} className="text-[#E8735A] hover:underline flex items-center gap-1">
-                  <span className="text-xs">{"\u2709\uFE0F"}</span> {lead.email}
-                </a>
-              )}
-              {lead.phone && (
-                <a href={`tel:${lead.phone}`} className="text-[#E8735A] hover:underline flex items-center gap-1">
-                  <span className="text-xs">{"\uD83D\uDCDE"}</span> {formatPhoneDisplay(lead.phone)}
-                </a>
-              )}
-              {lead.facebook_url && (
-                <a href={lead.facebook_url} target="_blank" rel="noopener noreferrer" className="text-[#E8735A] underline hover:text-[#d4634d] flex items-center gap-1 truncate max-w-[300px]">
-                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  Facebook
-                </a>
-              )}
-              {lead.instagram_url && (
-                <a href={lead.instagram_url} target="_blank" rel="noopener noreferrer" className="text-[#E8735A] underline hover:text-[#d4634d] flex items-center gap-1 truncate max-w-[300px]">
-                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" /></svg>
-                  Instagram
-                </a>
-              )}
-            </div>
-
-            {/* Source & Groups */}
-            <div className="flex flex-wrap items-center gap-2 text-sm text-gray-500">
-              {lead.source && (
-                <span className="bg-gray-100 rounded-full px-2.5 py-0.5 text-xs font-semibold text-gray-600">
-                  {SOURCE_MAP[lead.source] || lead.source}
-                </span>
-              )}
-              {lead.groups && <span className="text-gray-400">|</span>}
-              {lead.groups && <span>{lead.groups}</span>}
-            </div>
-
-            {/* Notes */}
-            {lead.notes && (
-              <div className="mt-3 p-3 bg-gray-50 rounded-xl text-sm text-gray-600">
-                {lead.notes}
-              </div>
-            )}
-
-            <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-3">
-              <span>Added {formatDate(lead.created_at)}</span>
-              <span>Originally met: {lead.originally_met_date ? formatDate(lead.originally_met_date) : "Not set"}</span>
-            </div>
+        {/* Inline editable fields */}
+        <div className="space-y-2">
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide w-24 shrink-0">Email</span>
+            <InlineEditField value={lead.email} field="email" onSave={saveField} placeholder="Add email..." />
           </div>
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide w-24 shrink-0">Phone</span>
+            {lead.phone ? (
+              <div className="flex items-center gap-2">
+                <PhonePopover digits={String(lead.phone).replace(/\D/g, "")} display={formatPhoneDisplay(lead.phone)} className="text-[#E8735A] hover:underline font-semibold text-sm" />
+                <InlineEditField value={lead.phone} field="phone" onSave={saveField} type="phone" placeholder="Add phone..."
+                  displayRender={() => (
+                    <svg className="w-3.5 h-3.5 text-gray-300 hover:text-gray-500 transition-colors cursor-pointer" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                    </svg>
+                  )}
+                />
+              </div>
+            ) : (
+              <InlineEditField value={lead.phone} field="phone" onSave={saveField} type="phone" placeholder="Add phone..." />
+            )}
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide w-24 shrink-0">Facebook</span>
+            <InlineEditField value={lead.facebook_url} field="facebook_url" onSave={saveField} placeholder="Add Facebook URL..."
+              displayRender={(v) => (
+                <a href={v} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#E8735A] hover:underline text-sm font-semibold truncate max-w-[200px]">
+                  Facebook ↗
+                </a>
+              )}
+            />
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide w-24 shrink-0">Instagram</span>
+            <InlineEditField value={lead.instagram_url} field="instagram_url" onSave={saveField} placeholder="Add Instagram URL..."
+              displayRender={(v) => (
+                <a href={v} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="text-[#E8735A] hover:underline text-sm font-semibold truncate max-w-[200px]">
+                  Instagram ↗
+                </a>
+              )}
+            />
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide w-24 shrink-0">Source</span>
+            <InlineSelectField value={lead.source} field="source" onSave={saveField}
+              options={[{ value: "", label: "Select source..." }, ...SOURCE_OPTIONS]}
+            />
+          </div>
+          <div className="flex items-center justify-between py-1">
+            <span className="text-xs font-bold text-gray-400 uppercase tracking-wide w-24 shrink-0">Groups</span>
+            <InlineEditField value={lead.groups} field="groups" onSave={saveField} placeholder="Add groups..." />
+          </div>
+        </div>
 
-          <button
-            onClick={openEdit}
-            className="flex-shrink-0 px-4 py-2 rounded-xl text-sm font-bold text-[#E8735A] border-2 border-[#E8735A]/20 hover:bg-[#E8735A]/5 transition-colors duration-150"
-          >
-            Edit
-          </button>
+        {/* Notes */}
+        <div className="mt-4 border-t border-gray-100 pt-4">
+          <span className="text-xs font-bold text-gray-400 uppercase tracking-wide mb-2 block">Notes</span>
+          <InlineEditField value={lead.notes} field="notes" onSave={saveField} type="textarea" placeholder="Add notes..." />
+        </div>
+
+        <div className="flex flex-wrap items-center gap-3 text-xs text-gray-400 mt-3 border-t border-gray-100 pt-3">
+          <span>Added {formatDate(lead.created_at)}</span>
+          <span>Originally met: {lead.originally_met_date ? formatDate(lead.originally_met_date) : "Not set"}</span>
         </div>
       </div>
 
@@ -494,15 +668,15 @@ export default function LeadDetailPage() {
               <div key={s.value} className="flex items-center flex-1">
                 <div className="flex flex-col items-center w-full">
                   <button
-                    onClick={() => isFuture && handleStageClick(s.value)}
-                    disabled={!isFuture}
+                    onClick={() => !isCurrent && handleStageClick(s.value)}
+                    disabled={isCurrent}
                     className={`w-9 h-9 rounded-full flex items-center justify-center text-xs font-bold border-2 transition-all duration-150 ${
                       isCurrent
-                        ? "bg-[#E8735A] border-[#E8735A] text-white shadow-md"
+                        ? "bg-[#E8735A] border-[#E8735A] text-white shadow-md cursor-default"
                         : isCompleted
-                        ? "bg-[#E8735A]/20 border-[#E8735A] text-[#E8735A]"
+                        ? "bg-[#E8735A]/20 border-[#E8735A] text-[#E8735A] hover:bg-[#E8735A]/30 cursor-pointer"
                         : "bg-white border-gray-200 text-gray-400 hover:border-[#E8735A]/50 hover:text-[#E8735A] cursor-pointer"
-                    } ${!isFuture ? "cursor-default" : ""}`}
+                    }`}
                   >
                     {isCompleted ? "\u2713" : i + 1}
                   </button>
@@ -615,12 +789,22 @@ export default function LeadDetailPage() {
       {/* Quick Actions */}
       <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 mb-4">
         <div className="flex flex-wrap gap-2">
+          <button
+            onClick={() => { setBackdateDate(new Date().toISOString().slice(0, 10)); setBackdateExpanded(false); setBackdateModal("call"); }}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-100 hover:border-[#E8735A]/30 hover:bg-[#E8735A]/5 text-gray-600 hover:text-[#E8735A] transition-all duration-150"
+          >
+            <span className="mr-1">📞</span> Log Call
+          </button>
+          <button
+            onClick={() => { setBackdateDate(new Date().toISOString().slice(0, 10)); setBackdateExpanded(false); setBackdateModal("text"); }}
+            className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-100 hover:border-[#E8735A]/30 hover:bg-[#E8735A]/5 text-gray-600 hover:text-[#E8735A] transition-all duration-150"
+          >
+            <span className="mr-1">💬</span> Log Text
+          </button>
           {[
-            { action: "call", label: "Log Call", icon: "\uD83D\uDCDE" },
-            { action: "text", label: "Log Text", icon: "\uD83D\uDCAC" },
-            { action: "email", label: "Log Email", icon: "\uD83D\uDCE7" },
-            { action: "facebook_message", label: "Log Message", icon: "\uD83D\uDCAC" },
-            { action: "note", label: "Add Note", icon: "\uD83D\uDCDD" },
+            { action: "email", label: "Log Email", icon: "📧" },
+            { action: "facebook_message", label: "Log FB Message", icon: "💬" },
+            { action: "note", label: "Add Note", icon: "📝" },
           ].map((a) => (
             <button
               key={a.action}
@@ -645,66 +829,14 @@ export default function LeadDetailPage() {
             }}
             className="px-4 py-2.5 rounded-xl text-sm font-bold border-2 border-gray-100 hover:border-[#E8735A]/30 hover:bg-[#E8735A]/5 text-gray-600 hover:text-[#E8735A] transition-all duration-150"
           >
-            <span className="mr-1">{"\uD83D\uDCC5"}</span> Log Meeting
+            <span className="mr-1">📅</span> Log Meeting
           </button>
         </div>
       </div>
 
-      {/* Facebook Engagement */}
-      <div className="bg-white rounded-2xl border-2 border-gray-100 p-4 mb-4">
-        <h3 className="font-display text-base font-bold text-gray-900 mb-3 flex items-center gap-2">
-          <span className="w-5 h-5 rounded-full bg-[#1877F2]/10 flex items-center justify-center text-[10px]">{"\uD83D\uDCAC"}</span>
-          Facebook Engagement
-        </h3>
-        <div className="flex flex-wrap gap-2">
-          <button
-            onClick={() => openAction("facebook_comment", "Comment on Facebook", "\uD83D\uDCAC")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\uD83D\uDCAC"} Comment
-          </button>
-          <button
-            onClick={() => quickFbAction("facebook_group_invite_sent")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\uD83D\uDC65"} Group Invite Sent
-          </button>
-          <button
-            onClick={() => quickFbAction("facebook_group_invite_accepted")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\u2705"} Group Invite Accepted
-          </button>
-          <button
-            onClick={() => quickFbAction("facebook_friend_request_sent")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\uD83E\uDD1D"} Friend Request Sent
-          </button>
-          <button
-            onClick={() => quickFbAction("facebook_friend_request_accepted")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\u2705"} Friend Request Accepted
-          </button>
-          <button
-            onClick={() => openAction("facebook_tag", "Tagged on Post", "\uD83C\uDFF7\uFE0F")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\uD83C\uDFF7\uFE0F"} Tagged on Post
-          </button>
-          <button
-            onClick={() => openAction("facebook_message", "Facebook Message", "\uD83D\uDCAC")}
-            className="px-4 py-2 rounded-full text-sm font-bold bg-[#1877F2]/5 border-2 border-[#1877F2]/20 text-[#1877F2] hover:bg-[#1877F2]/10 transition-colors duration-150"
-          >
-            {"\uD83D\uDCAC"} FB Message
-          </button>
-        </div>
-      </div>
-
-      {/* Engagement */}
+      {/* Social Engagement */}
       <div className="bg-white rounded-2xl border-2 border-gray-100 p-5 mb-4">
-        <h3 className="font-display text-base font-bold text-gray-900 mb-3">{"\uD83D\uDCAC"} Engagement</h3>
+        <h3 className="font-display text-base font-bold text-gray-900 mb-3">Social Engagement</h3>
         <div className="space-y-3">
           <div className="flex items-center justify-between p-3 bg-[#faf7f2] rounded-xl">
             <span className="text-sm font-semibold text-gray-700">Friends on Facebook</span>
@@ -740,38 +872,6 @@ export default function LeadDetailPage() {
               className={`w-11 h-6 rounded-full transition-colors duration-200 relative ${lead.is_instagram_follower ? "bg-green-500" : "bg-gray-300"}`}
             >
               <span className={`absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform duration-200 ${lead.is_instagram_follower ? "translate-x-5" : ""}`} />
-            </button>
-          </div>
-          <div className="grid grid-cols-2 gap-3 pt-1">
-            <button
-              onClick={async () => {
-                try {
-                  await postActivity("facebook_comment", "Commented on lead's post");
-                  showToast({ message: "Comment logged" });
-                  fetchLead();
-                } catch (err) {
-                  showToast({ message: err.message, variant: "error" });
-                }
-              }}
-              className="bg-[#faf7f2] rounded-xl p-3 text-center hover:bg-[#f0ebe3] transition-colors active:scale-95 min-h-[44px] touch-manipulation"
-            >
-              <span className="text-lg">{"\uD83D\uDCAC"}</span>
-              <p className="text-xs font-bold text-gray-600 mt-1">Log Comment</p>
-            </button>
-            <button
-              onClick={async () => {
-                try {
-                  await postActivity("other", "Shared post with lead");
-                  showToast({ message: "Shared post logged" });
-                  fetchLead();
-                } catch (err) {
-                  showToast({ message: err.message, variant: "error" });
-                }
-              }}
-              className="bg-[#faf7f2] rounded-xl p-3 text-center hover:bg-[#f0ebe3] transition-colors active:scale-95 min-h-[44px] touch-manipulation"
-            >
-              <span className="text-lg">{"\uD83D\uDD04"}</span>
-              <p className="text-xs font-bold text-gray-600 mt-1">Log Shared Post</p>
             </button>
           </div>
         </div>
@@ -928,9 +1028,12 @@ export default function LeadDetailPage() {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setStageConfirm(null)} />
           <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-sm p-6">
-            <h2 className="font-display text-lg font-bold text-gray-900 mb-2">Change Stage</h2>
+            <h2 className="font-display text-lg font-bold text-gray-900 mb-2">{stageConfirm.isBackward ? "Move Back" : "Change Stage"}</h2>
             <p className="text-sm text-gray-500 mb-4">
-              Move <strong>{lead.full_name}</strong> to <strong>{stageConfirm.label}</strong>?
+              {stageConfirm.isBackward
+                ? <>Move <strong>{lead.full_name}</strong> back to <strong>{stageConfirm.label}</strong>? This will undo their current progress.</>
+                : <>Move <strong>{lead.full_name}</strong> to <strong>{stageConfirm.label}</strong>?</>
+              }
             </p>
 
             {stageConfirm.stage === "ha_scheduled" && (
@@ -1140,162 +1243,51 @@ export default function LeadDetailPage() {
         </div>
       )}
 
-      {/* Edit Lead Modal */}
-      {showEdit && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
-          <div className="fixed inset-0 bg-black/30 backdrop-blur-sm" onClick={() => setShowEdit(false)} />
-          <div className="relative bg-white rounded-2xl shadow-xl border-2 border-gray-100 w-full max-w-lg max-h-[90vh] overflow-y-auto">
-            <div className="p-6">
-              <h2 className="font-display text-xl font-bold text-gray-900 mb-1">Edit Lead</h2>
-              <p className="text-sm text-gray-500 mb-5">Update {lead.full_name}&apos;s information</p>
-
-              {editError && (
-                <div className="bg-red-50 border-2 border-red-200 rounded-xl px-4 py-2.5 mb-4">
-                  <p className="text-sm text-red-700">{editError}</p>
-                </div>
-              )}
-
-              <form onSubmit={handleEditSave} className="space-y-4">
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Full Name *</label>
-                  <input
-                    type="text"
-                    value={editData.full_name}
-                    onChange={(e) => setEditData((d) => ({ ...d, full_name: e.target.value }))}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Email</label>
-                    <input
-                      type="email"
-                      value={editData.email}
-                      onChange={(e) => setEditData((d) => ({ ...d, email: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Phone</label>
-                    <input
-                      type="tel"
-                      value={editData.phone}
-                      onChange={(e) => setEditData((d) => ({ ...d, phone: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Facebook Profile URL</label>
-                  <input
-                    type="url"
-                    value={editData.facebook_url}
-                    onChange={(e) => setEditData((d) => ({ ...d, facebook_url: e.target.value }))}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Instagram Profile URL</label>
-                  <input
-                    type="url"
-                    value={editData.instagram_url}
-                    onChange={(e) => setEditData((d) => ({ ...d, instagram_url: e.target.value }))}
-                    placeholder="https://instagram.com/..."
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Source</label>
-                    <select
-                      value={editData.source}
-                      onChange={(e) => setEditData((d) => ({ ...d, source: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                    >
-                      <option value="">Select source...</option>
-                      {SOURCE_OPTIONS.map((s) => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Stage</label>
-                    <select
-                      value={editData.stage}
-                      onChange={(e) => setEditData((d) => ({ ...d, stage: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm bg-white focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                    >
-                      {STAGES.map((s) => (
-                        <option key={s.value} value={s.value}>{s.label}</option>
-                      ))}
-                    </select>
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Next Follow-up</label>
-                    <input
-                      type="date"
-                      value={editData.next_followup_date}
-                      onChange={(e) => setEditData((d) => ({ ...d, next_followup_date: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                    />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Originally Met</label>
-                    <input
-                      type="date"
-                      value={editData.originally_met_date}
-                      onChange={(e) => setEditData((d) => ({ ...d, originally_met_date: e.target.value }))}
-                      className="w-full rounded-xl border-2 border-gray-200 px-3 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                    />
-                  </div>
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Groups</label>
-                  <input
-                    type="text"
-                    value={editData.groups}
-                    onChange={(e) => setEditData((d) => ({ ...d, groups: e.target.value }))}
-                    placeholder="e.g. Local running club, Mom's group on FB"
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors"
-                  />
-                </div>
-
-                <div>
-                  <label className="block text-xs font-bold text-gray-400 uppercase tracking-wide mb-1">Notes</label>
-                  <textarea
-                    value={editData.notes}
-                    onChange={(e) => setEditData((d) => ({ ...d, notes: e.target.value }))}
-                    rows={3}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:outline-none focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 transition-colors resize-none"
-                  />
-                </div>
-
-                <div className="flex gap-3 pt-2">
-                  <button
-                    type="submit"
-                    disabled={saving}
-                    className="flex-1 bg-[#E8735A] hover:bg-[#d4634d] disabled:bg-gray-300 text-white px-5 py-2.5 rounded-xl text-sm font-bold transition-all duration-150 active:scale-95"
-                  >
-                    {saving ? "Saving..." : "Save Changes"}
-                  </button>
-                  <button
-                    type="button"
-                    onClick={() => setShowEdit(false)}
-                    className="px-5 py-2.5 rounded-xl text-sm font-bold text-gray-500 border-2 border-gray-200 hover:border-gray-300 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                </div>
-              </form>
-            </div>
+      {/* Backdate Modal */}
+      {backdateModal && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center p-4">
+          <div className="fixed inset-0 bg-black/50" onClick={() => setBackdateModal(null)} />
+          <div className="relative bg-white rounded-2xl shadow-xl w-full max-w-xs p-5">
+            <h2 className="font-display text-base font-bold text-gray-900 mb-1">
+              {backdateModal === "call" ? "📞 Log a Call" : "💬 Log a Text"}
+            </h2>
+            <p className="text-xs text-gray-400 mb-4">When did this happen?</p>
+            <button
+              onClick={async () => { setBackdateModal(null); await logQuickAction(backdateModal); }}
+              className="w-full py-3 rounded-xl bg-[#E8735A] text-white font-bold text-sm hover:bg-[#d4634d] transition-colors min-h-[44px] touch-manipulation mb-3"
+            >
+              Today
+            </button>
+            {!backdateExpanded ? (
+              <button
+                onClick={() => setBackdateExpanded(true)}
+                className="w-full text-center text-sm text-gray-400 hover:text-gray-600 transition-colors py-1 touch-manipulation"
+              >
+                It was a different day →
+              </button>
+            ) : (
+              <div className="space-y-3">
+                <input
+                  type="date"
+                  value={backdateDate}
+                  max={new Date().toISOString().slice(0, 10)}
+                  onChange={(e) => setBackdateDate(e.target.value)}
+                  className="w-full px-4 py-2.5 text-sm border-2 border-gray-200 rounded-xl focus:border-[#E8735A] focus:ring-1 focus:ring-[#E8735A]/30 focus:outline-none transition-colors min-h-[44px] font-body"
+                  autoFocus
+                />
+                <button
+                  onClick={async () => {
+                    const type = backdateModal;
+                    setBackdateModal(null);
+                    await logQuickAction(type, undefined, backdateDate);
+                  }}
+                  disabled={!backdateDate}
+                  className="w-full py-2.5 rounded-xl border-2 border-[#E8735A] text-[#E8735A] font-bold text-sm hover:bg-[#E8735A]/5 transition-colors min-h-[44px] touch-manipulation disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Log for {backdateDate ? new Date(backdateDate + "T12:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric" }) : "selected date"}
+                </button>
+              </div>
+            )}
           </div>
         </div>
       )}

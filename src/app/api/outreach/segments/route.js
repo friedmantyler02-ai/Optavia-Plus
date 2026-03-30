@@ -33,7 +33,7 @@ export async function GET(request) {
 
     const { data: clients, error } = await supabaseAdmin
       .from("clients")
-      .select("id, first_name, last_name, email, last_order_date")
+      .select("id, full_name, email, last_order_date")
       .in("coach_id", coachIds)
       .or("do_not_contact.is.null,do_not_contact.eq.false")
       .or("bad_email.is.null,bad_email.eq.false")
@@ -59,8 +59,7 @@ export async function GET(request) {
       return NextResponse.json({
         clients: segClients.slice(0, 50).map((c) => ({
           id: c.id,
-          first_name: c.first_name,
-          last_name: c.last_name,
+          full_name: c.full_name,
           last_order_date: c.last_order_date,
         })),
         count: segClients.length,

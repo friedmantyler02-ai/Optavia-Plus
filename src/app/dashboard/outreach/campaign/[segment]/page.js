@@ -344,7 +344,7 @@ export default function CampaignSetupPage() {
                   className="flex items-center justify-between rounded-xl bg-gray-50 px-3 py-2.5 font-body text-sm"
                 >
                   <span className="text-gray-800 font-medium">
-                    {c.first_name} {c.last_name}
+                    {c.full_name}
                   </span>
                   <span className="text-gray-400 text-xs">
                     {c.last_order_date

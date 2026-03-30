@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { getSubtreeCoachIds } from "@/lib/org-auth";
+import { createClient as createServerClient } from "@/lib/supabase-server";
 
 const supabaseAdmin = createSupabaseClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -19,28 +19,33 @@ function getSegmentBucket(last_order_date) {
 
 export async function GET(request) {
   try {
-    const subtreeResult = await getSubtreeCoachIds();
-    if (subtreeResult.error) {
-      return NextResponse.json(
-        { error: subtreeResult.error },
-        { status: subtreeResult.status }
-      );
+    // Auth check — same pattern as campaigns route
+    const supabase = await createServerClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      console.error("[segments] Auth failed:", authError?.message);
+      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
     }
 
-    const { coachIds } = subtreeResult;
     const { searchParams } = new URL(request.url);
+    const coach_id = searchParams.get("coach_id");
     const segmentFilter = searchParams.get("segment");
+
+    if (!coach_id) {
+      return NextResponse.json({ error: "coach_id is required" }, { status: 400 });
+    }
 
     const { data: clients, error } = await supabaseAdmin
       .from("clients")
       .select("id, full_name, email, last_order_date")
-      .in("coach_id", coachIds)
+      .eq("coach_id", coach_id)
       .or("do_not_contact.is.null,do_not_contact.eq.false")
       .or("bad_email.is.null,bad_email.eq.false")
       .not("email", "is", null)
       .neq("email", "");
 
     if (error) {
+      console.error("[segments] DB query failed:", error.message);
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
@@ -75,6 +80,7 @@ export async function GET(request) {
       total_reachable: segments.warm + segments.moderate + segments.cold + segments.dormant,
     });
   } catch (err) {
+    console.error("[segments] Unexpected error:", err);
     return NextResponse.json(
       { error: err instanceof Error ? err.message : "Internal server error" },
       { status: 500 }

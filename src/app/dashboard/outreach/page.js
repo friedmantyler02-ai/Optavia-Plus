@@ -332,9 +332,13 @@ export default function OutreachPage() {
     try {
       const res = await fetch(`/api/outreach/segments?coach_id=${coach.id}`);
       const data = await res.json();
-      setSegments(data);
-    } catch {
-      // ignore
+      if (!res.ok) {
+        console.error("[Outreach] segments API error:", res.status, data);
+      } else {
+        setSegments(data);
+      }
+    } catch (err) {
+      console.error("[Outreach] segments fetch failed:", err);
     }
     setLoadingSegments(false);
   };

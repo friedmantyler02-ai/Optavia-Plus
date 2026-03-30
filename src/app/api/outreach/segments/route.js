@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
-import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createSupabaseClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -19,24 +19,22 @@ function getSegmentBucket(last_order_date) {
 
 export async function GET(request) {
   try {
-    const supabase = await createServerClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
-      return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+    const subtreeResult = await getSubtreeCoachIds();
+    if (subtreeResult.error) {
+      return NextResponse.json(
+        { error: subtreeResult.error },
+        { status: subtreeResult.status }
+      );
     }
 
+    const { coachIds } = subtreeResult;
     const { searchParams } = new URL(request.url);
-    const coach_id = searchParams.get("coach_id");
     const segmentFilter = searchParams.get("segment");
-
-    if (!coach_id) {
-      return NextResponse.json({ error: "coach_id is required" }, { status: 400 });
-    }
 
     const { data: clients, error } = await supabaseAdmin
       .from("clients")
       .select("id, first_name, last_name, email, last_order_date")
-      .eq("coach_id", coach_id)
+      .in("coach_id", coachIds)
       .or("do_not_contact.is.null,do_not_contact.eq.false")
       .or("bad_email.is.null,bad_email.eq.false")
       .not("email", "is", null)

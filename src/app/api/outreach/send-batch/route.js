@@ -241,15 +241,22 @@ export async function POST(request) {
             }
 
             // Success — update the email row
+            const sentAt = new Date().toISOString();
             await supabaseAdmin
               .from("reactivation_emails")
               .update({
                 status: "sent",
                 gmail_message_id: result.messageId,
                 gmail_thread_id: result.threadId,
-                sent_at: new Date().toISOString(),
+                sent_at: sentAt,
               })
               .eq("id", emailRow.id);
+
+            // Update last_contact_date on the client
+            await supabaseAdmin
+              .from("clients")
+              .update({ last_contact_date: sentAt })
+              .eq("id", emailRow.client_id);
 
             batchSent++;
             totalEmailsSent++;

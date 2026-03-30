@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createClient as createSupabaseClient } from "@supabase/supabase-js";
 import { createClient as createServerClient } from "@/lib/supabase-server";
+import { getSubtreeCoachIds } from "@/lib/org-auth";
 
 const supabaseAdmin = createSupabaseClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL,
@@ -111,17 +112,20 @@ export async function POST(request) {
       return NextResponse.json({ error: campaignError.message }, { status: 500 });
     }
 
-    // Fetch all eligible clients for this coach
+    // Fetch all eligible clients across the coach's subtree
+    const subtreeResult = await getSubtreeCoachIds();
+    const coachIds = subtreeResult.coachIds || [coach_id];
+
     const { data: allClients } = await supabaseAdmin
       .from("clients")
       .select("id, email, last_order_date")
-      .eq("coach_id", coach_id);
+      .in("coach_id", coachIds);
 
-    // Fetch client_ids already in any active campaign for this coach
+    // Fetch client_ids already in any active campaign for this coach's org
     const { data: activeCampaigns } = await supabaseAdmin
       .from("reactivation_campaigns")
       .select("id")
-      .eq("coach_id", coach_id)
+      .in("coach_id", coachIds)
       .eq("status", "active")
       .neq("id", campaign.id);
 

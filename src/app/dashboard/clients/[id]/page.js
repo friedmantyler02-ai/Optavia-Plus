@@ -456,16 +456,19 @@ function OrdersShipping({ clientId }) {
                       <span className="text-xs font-bold text-gray-500">{order.cv} CV</span>
                     )}
                   </div>
-                  {hasTracking && (
+                  {hasTracking ? (
                     <a
                       href={`https://www.fedex.com/fedextrack/?trknbr=${order.tracking_number}`}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="text-xs text-[#E8735A] hover:underline font-medium"
+                      className="text-xs text-[#E8735A] hover:underline font-medium flex items-center gap-1"
                       onClick={(e) => e.stopPropagation()}
                     >
+                      <span>📦</span>
                       {order.tracking_number}
                     </a>
+                  ) : (
+                    <span className="text-xs text-gray-400 italic">No tracking info</span>
                   )}
                 </div>
                 <div>

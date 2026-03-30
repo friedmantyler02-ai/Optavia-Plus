@@ -14,11 +14,11 @@
     },
     {
       "path": "/api/outreach/send-batch",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 13 * * *"
     },
     {
       "path": "/api/outreach/check-replies",
-      "schedule": "*/15 * * * *"
+      "schedule": "0 13 * * *"
     }
   ]
 }

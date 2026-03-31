@@ -87,7 +87,7 @@ function CampaignSkeleton() {
   );
 }
 
-// ─── New Campaign Modal ─────────────────────────────────────────────
+// ─── Campaign Builder Modal (Single-Screen) ────────────────────────
 
 // Segment key → trigger_type mapping
 const SEGMENT_TO_TRIGGER = {
@@ -105,316 +105,697 @@ const SEGMENT_LABELS = {
   dormant: "Dormant (24+ months)",
 };
 
-function NewCampaignModal({ isOpen, onClose, onCreated, initialSegment }) {
-  const showToast = useShowToast();
-  const [step, setStep] = useState(1);
-  const [triggers, setTriggers] = useState([]);
-  const [loadingTriggers, setLoadingTriggers] = useState(true);
-  const [selectedTrigger, setSelectedTrigger] = useState(null);
-  const [selectedTone, setSelectedTone] = useState(null);
-  const [campaignName, setCampaignName] = useState("");
-  const [templatePreview, setTemplatePreview] = useState(null);
-  const [loadingPreview, setLoadingPreview] = useState(false);
-  const [creating, setCreating] = useState(false);
-  const [skippedStep1, setSkippedStep1] = useState(false);
-  const hasChanges = step > 1 && (selectedTrigger || selectedTone || campaignName);
+// Humanize template variables for preview display
+function humanizeTemplate(text) {
+  if (!text) return "";
+  return text
+    .replace(/\{\{client_first_name\}\}/gi, "[Client Name]")
+    .replace(/\{\{client_name\}\}/gi, "[Client Name]")
+    .replace(/\{\{coach_name\}\}/gi, "[Your Name]")
+    .replace(/\{\{coach_email\}\}/gi, "[Your Email]")
+    .replace(/\{\{FirstName\}\}/gi, "[Client Name]")
+    .replace(/\{\{CoachName\}\}/gi, "[Your Name]");
+}
 
+const BUILDER_TONE_CARDS = [
+  {
+    key: "warm_friendly",
+    label: "Warm & Friendly",
+    desc: "Casual, feels like a friend texting",
+    borderColor: "border-l-pink-400",
+    tint: "bg-pink-50/50",
+    selectedBorder: "border-pink-500 ring-2 ring-pink-300",
+  },
+  {
+    key: "encouraging",
+    label: "Encouraging",
+    desc: "Motivational, supportive, cheerleader energy",
+    borderColor: "border-l-purple-400",
+    tint: "bg-purple-50/50",
+    selectedBorder: "border-purple-500 ring-2 ring-purple-300",
+  },
+  {
+    key: "business_professional",
+    label: "Professional",
+    desc: "Polished, respectful, business tone",
+    borderColor: "border-l-blue-400",
+    tint: "bg-blue-50/50",
+    selectedBorder: "border-blue-500 ring-2 ring-blue-300",
+  },
+];
+
+function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialSegment }) {
+  const showToast = useShowToast();
+
+  // Campaign state
+  const [campaignId, setCampaignId] = useState(null);
+  const [campaign, setCampaign] = useState(null);
+  const [initializing, setInitializing] = useState(true);
+  const [initError, setInitError] = useState(null);
+
+  // Recipients state
+  const [recipients, setRecipients] = useState([]);
+  const [pagination, setPagination] = useState(null);
+  const [search, setSearch] = useState("");
+  const [loadingMore, setLoadingMore] = useState(false);
+
+  // Template previews (all 3 tones)
+  const [previews, setPreviews] = useState({});
+  const [loadingPreviews, setLoadingPreviews] = useState(true);
+
+  // Selected tone
+  const [selectedTone, setSelectedTone] = useState("warm_friendly");
+
+  // Sending state
+  const [sending, setSending] = useState(false);
+  const [sent, setSent] = useState(false);
+  const [sentCount, setSentCount] = useState(0);
+
+  // Track local inclusion changes
+  const pendingChanges = useRef({});
+  const debounceTimer = useRef(null);
+  const campaignIdRef = useRef(null);
+
+  // ─── Initialize on open ──────────────────────────────────────────
   useEffect(() => {
-    if (isOpen) {
-      fetchTriggers();
-      // Reset state
-      setStep(initialSegment ? 2 : 1);
-      setSkippedStep1(!!initialSegment);
-      setSelectedTrigger(null);
-      setSelectedTone(null);
-      setCampaignName(initialSegment ? `${SEGMENT_LABELS[initialSegment] || initialSegment} Outreach` : "");
-      setTemplatePreview(null);
-    }
+    if (!isOpen) return;
+
+    // Reset all state
+    setCampaignId(null);
+    setCampaign(null);
+    setInitializing(true);
+    setInitError(null);
+    setRecipients([]);
+    setPagination(null);
+    setSearch("");
+    setPreviews({});
+    setLoadingPreviews(true);
+    setSelectedTone("warm_friendly");
+    setSending(false);
+    setSent(false);
+    setSentCount(0);
+    pendingChanges.current = {};
+    campaignIdRef.current = null;
+
+    initializeCampaign();
   }, [isOpen]);
 
-  const fetchTriggers = async () => {
-    setLoadingTriggers(true);
+  const initializeCampaign = async () => {
     try {
-      const res = await fetch("/api/email/triggers", { credentials: "include" });
-      if (res.ok) {
-        const data = await res.json();
-        const fetched = data.triggers || [];
-        setTriggers(fetched);
-        // Auto-select trigger if opened from a segment card
-        if (initialSegment && fetched.length > 0) {
-          const targetType = SEGMENT_TO_TRIGGER[initialSegment];
-          const match = fetched.find((t) => t.trigger_type === targetType) || fetched[0];
-          setSelectedTrigger(match);
-        }
+      // 1. Fetch triggers to find the matching one
+      const trigRes = await fetch("/api/email/triggers", { credentials: "include" });
+      if (!trigRes.ok) throw new Error("Failed to load triggers");
+      const trigData = await trigRes.json();
+      const triggers = trigData.triggers || [];
+
+      if (triggers.length === 0) throw new Error("No email triggers configured");
+
+      // Find matching trigger for this segment
+      const targetType = SEGMENT_TO_TRIGGER[initialSegment] || "time_since_last_order";
+      const trigger = triggers.find((t) => t.trigger_type === targetType) || triggers[0];
+
+      // 2. Create draft campaign
+      const createRes = await fetch("/api/email/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          trigger_id: trigger.id,
+          tone: "warm_friendly",
+          name: `${SEGMENT_LABELS[initialSegment] || initialSegment} Outreach`,
+          send_mode: "review",
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) throw new Error(createData.error || "Failed to create campaign");
+
+      const newCampaign = createData.campaign;
+      setCampaignId(newCampaign.id);
+      setCampaign(newCampaign);
+      campaignIdRef.current = newCampaign.id;
+
+      // Tell parent about the new campaign
+      if (onCreated) onCreated(newCampaign);
+
+      // 3. Fetch recipients and all 3 template previews in parallel
+      const [recipientData, ...previewResults] = await Promise.all([
+        fetchRecipientsData(newCampaign.id, 1, ""),
+        fetchPreviewData(trigger.id, "warm_friendly"),
+        fetchPreviewData(trigger.id, "encouraging"),
+        fetchPreviewData(trigger.id, "business_professional"),
+      ]);
+
+      // Set recipients
+      const allRecipients = recipientData?.recipients || [];
+      const totalCount = recipientData?.pagination?.total ?? allRecipients.length;
+
+      // Apply default checkbox logic: >40 = all unchecked, <=40 = all checked
+      if (totalCount > 40) {
+        // Exclude all on server
+        await fetch(`/api/email/campaigns/${newCampaign.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "exclude_all" }),
+        });
+        setRecipients(allRecipients.map((r) => ({ ...r, included: false })));
+      } else {
+        setRecipients(allRecipients);
       }
-    } catch {
-      // ignore
+      setPagination(recipientData?.pagination || null);
+
+      // Set previews
+      const previewMap = {};
+      const tones = ["warm_friendly", "encouraging", "business_professional"];
+      tones.forEach((tone, i) => {
+        previewMap[tone] = previewResults[i];
+      });
+      setPreviews(previewMap);
+      setLoadingPreviews(false);
+      setInitializing(false);
+    } catch (err) {
+      console.error("[CampaignBuilder] Init error:", err);
+      setInitError(err.message);
+      setInitializing(false);
     }
-    setLoadingTriggers(false);
   };
 
-  const fetchTemplatePreview = async (triggerId, tone) => {
-    setLoadingPreview(true);
+  const fetchRecipientsData = async (cId, page, searchTerm) => {
+    const params = new URLSearchParams({ page: String(page), per_page: "50" });
+    if (searchTerm) params.set("search", searchTerm);
+    const res = await fetch(`/api/email/campaigns/${cId}?${params}`, {
+      credentials: "include",
+    });
+    if (!res.ok) return null;
+    return await res.json();
+  };
+
+  const fetchPreviewData = async (triggerId, tone) => {
     try {
       const res = await fetch(
         `/api/email/templates/preview?trigger_id=${triggerId}&tone=${tone}`,
         { credentials: "include" }
       );
-      if (res.ok) {
-        const data = await res.json();
-        setTemplatePreview(data.template || null);
-      }
+      if (!res.ok) return null;
+      const data = await res.json();
+      return data.template || null;
     } catch {
-      setTemplatePreview(null);
-    }
-    setLoadingPreview(false);
-  };
-
-  const handleToneSelect = (tone) => {
-    setSelectedTone(tone);
-    if (selectedTrigger) {
-      fetchTemplatePreview(selectedTrigger.id, tone);
+      return null;
     }
   };
 
-  const handleCreate = async () => {
-    if (!selectedTrigger || !selectedTone) return;
-    setCreating(true);
-    try {
-      const res = await fetch("/api/email/campaigns", {
-        method: "POST",
+  // ─── Recipient search ────────────────────────────────────────────
+  const handleSearch = (val) => {
+    setSearch(val);
+    clearTimeout(debounceTimer.current);
+    debounceTimer.current = setTimeout(async () => {
+      if (!campaignIdRef.current) return;
+      const data = await fetchRecipientsData(campaignIdRef.current, 1, val);
+      if (data) {
+        let recs = data.recipients || [];
+        // Apply local pending changes
+        const changes = pendingChanges.current;
+        if (changes.__all === true) {
+          recs = recs.map((r) => ({ ...r, included: true }));
+        } else if (changes.__all === false) {
+          recs = recs.map((r) => ({ ...r, included: false }));
+        } else {
+          recs = recs.map((r) =>
+            changes[r.client_id] !== undefined ? { ...r, included: changes[r.client_id] } : r
+          );
+        }
+        setRecipients(recs);
+        setPagination(data.pagination);
+      }
+    }, 400);
+  };
+
+  const handleLoadMore = async () => {
+    if (!pagination || pagination.page >= pagination.total_pages || !campaignIdRef.current) return;
+    setLoadingMore(true);
+    const data = await fetchRecipientsData(campaignIdRef.current, pagination.page + 1, search);
+    if (data) {
+      let recs = data.recipients || [];
+      const changes = pendingChanges.current;
+      if (changes.__all === true) {
+        recs = recs.map((r) => ({ ...r, included: true }));
+      } else if (changes.__all === false) {
+        recs = recs.map((r) => ({ ...r, included: false }));
+      } else {
+        recs = recs.map((r) =>
+          changes[r.client_id] !== undefined ? { ...r, included: changes[r.client_id] } : r
+        );
+      }
+      setRecipients((prev) => [...prev, ...recs]);
+      setPagination(data.pagination);
+    }
+    setLoadingMore(false);
+  };
+
+  // ─── Recipient toggling ──────────────────────────────────────────
+  const toggleRecipient = (clientId, currentIncluded) => {
+    const newIncluded = !currentIncluded;
+    setRecipients((prev) =>
+      prev.map((r) => (r.client_id === clientId ? { ...r, included: newIncluded } : r))
+    );
+    // Clear __all if it was set, then track individual
+    if (pendingChanges.current.__all !== undefined) {
+      // Convert __all to individual changes for all current recipients
+      const allVal = pendingChanges.current.__all;
+      const newChanges = {};
+      recipients.forEach((r) => {
+        newChanges[r.client_id] = r.client_id === clientId ? newIncluded : allVal;
+      });
+      pendingChanges.current = newChanges;
+    } else {
+      pendingChanges.current[clientId] = newIncluded;
+    }
+  };
+
+  const handleSelectAll = () => {
+    setRecipients((prev) => prev.map((r) => ({ ...r, included: true })));
+    pendingChanges.current = { __all: true };
+  };
+
+  const handleDeselectAll = () => {
+    setRecipients((prev) => prev.map((r) => ({ ...r, included: false })));
+    pendingChanges.current = { __all: false };
+  };
+
+  // ─── Flush changes + send ────────────────────────────────────────
+  const flushChanges = async () => {
+    const changes = { ...pendingChanges.current };
+    pendingChanges.current = {};
+    const cId = campaignIdRef.current;
+    if (!cId) return;
+
+    if (changes.__all === true) {
+      await fetch(`/api/email/campaigns/${cId}`, {
+        method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({
-          trigger_id: selectedTrigger.id,
-          tone: selectedTone,
-          name: campaignName || undefined,
-          send_mode: "review",
-        }),
+        body: JSON.stringify({ action: "include_all" }),
       });
-      const data = await res.json();
-      if (!res.ok) {
-        showToast({ message: data.error || "Failed to create campaign", variant: "error" });
-        setCreating(false);
+      return;
+    }
+    if (changes.__all === false) {
+      await fetch(`/api/email/campaigns/${cId}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ action: "exclude_all" }),
+      });
+      return;
+    }
+
+    const toExclude = [];
+    const toInclude = [];
+    for (const [clientId, included] of Object.entries(changes)) {
+      if (included) toInclude.push(clientId);
+      else toExclude.push(clientId);
+    }
+
+    const requests = [];
+    if (toExclude.length > 0) {
+      requests.push(
+        fetch(`/api/email/campaigns/${cId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "exclude", client_ids: toExclude }),
+        })
+      );
+    }
+    if (toInclude.length > 0) {
+      requests.push(
+        fetch(`/api/email/campaigns/${cId}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "include", client_ids: toInclude }),
+        })
+      );
+    }
+    await Promise.all(requests);
+  };
+
+  const handleSend = async () => {
+    if (!campaignIdRef.current) return;
+    setSending(true);
+    try {
+      // 1. Flush recipient inclusion changes
+      await flushChanges();
+
+      // 2. If tone changed from default, update it
+      if (selectedTone !== "warm_friendly") {
+        const toneRes = await fetch(`/api/email/campaigns/${campaignIdRef.current}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          credentials: "include",
+          body: JSON.stringify({ action: "update_tone", tone: selectedTone }),
+        });
+        if (!toneRes.ok) {
+          const toneData = await toneRes.json();
+          showToast({ message: toneData.error || "Failed to update message style", variant: "error" });
+          setSending(false);
+          return;
+        }
+      }
+
+      // 3. Launch
+      const launchRes = await fetch(`/api/email/campaigns/${campaignIdRef.current}/launch`, {
+        method: "POST",
+        credentials: "include",
+      });
+      const launchData = await launchRes.json();
+      if (!launchRes.ok) {
+        showToast({ message: launchData.error || "Failed to send campaign", variant: "error" });
+        setSending(false);
         return;
       }
-      showToast({ message: "Campaign created!", variant: "success" });
-      onCreated(data.campaign);
+
+      setSentCount(launchData.queued_count || 0);
+      setSent(true);
+      if (onLaunched) onLaunched(launchData.campaign);
     } catch {
       showToast({ message: "Something went wrong", variant: "error" });
     }
-    setCreating(false);
+    setSending(false);
   };
 
+  // ─── Close / cleanup ─────────────────────────────────────────────
   const handleClose = () => {
-    if (hasChanges && !confirm("You have unsaved changes. Discard them?")) return;
+    // If we created a campaign but didn't send, it stays as draft (can be managed from list)
     onClose();
   };
 
   if (!isOpen) return null;
 
+  const includedCount = recipients.filter((r) => r.included).length;
+  const totalCount = pagination?.total ?? recipients.length;
+  const toneLabel = BUILDER_TONE_CARDS.find((t) => t.key === selectedTone)?.label || "";
+  const canSend = includedCount > 0 && selectedTone;
+  const allSelected = recipients.length > 0 && recipients.every((r) => r.included);
+
+  // ─── Success state ───────────────────────────────────────────────
+  if (sent) {
+    return (
+      <>
+        <div className="fixed inset-0 z-40 bg-black/30" onClick={handleClose} />
+        <div
+          className="fixed z-50 bg-white rounded-2xl shadow-xl w-[calc(100%-2rem)] max-w-lg p-8 text-center"
+          style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+        >
+          <div className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center text-3xl mx-auto mb-4">
+            ✓
+          </div>
+          <h2 className="font-display text-2xl font-bold text-gray-900 mb-2">
+            Campaign Sent!
+          </h2>
+          <p className="font-body text-base text-gray-600 mb-6">
+            {sentCount} email{sentCount !== 1 ? "s" : ""} queued for delivery
+          </p>
+          <button
+            onClick={handleClose}
+            className="rounded-xl bg-[#E8735A] px-8 py-3 font-body text-base font-semibold text-white hover:bg-[#d4634d] transition-all active:scale-95"
+          >
+            Done
+          </button>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Main builder UI ─────────────────────────────────────────────
   return (
     <>
       {/* Backdrop */}
       <div className="fixed inset-0 z-40 bg-black/30" onClick={handleClose} />
 
-      {/* Modal */}
-      <div className="fixed z-50 bg-white rounded-2xl shadow-xl w-[calc(100%-2rem)] max-w-2xl max-h-[90vh] overflow-y-auto"
-        style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}>
+      {/* Modal — nearly full screen on mobile, max-w-4xl on desktop */}
+      <div className="fixed inset-2 sm:inset-auto sm:top-[2.5%] sm:left-1/2 sm:-translate-x-1/2 sm:w-[calc(100%-3rem)] sm:max-w-4xl sm:max-h-[95vh] z-50 bg-[#faf7f2] rounded-2xl shadow-xl overflow-hidden flex flex-col">
 
         {/* Header */}
-        <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-4 flex items-center justify-between rounded-t-2xl">
-          <h2 className="font-display text-xl font-bold text-gray-900">
-            New Email Campaign
-          </h2>
+        <div className="shrink-0 bg-white border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between">
+          <div>
+            <h2 className="font-display text-xl font-bold text-gray-900">
+              New Campaign
+            </h2>
+            {initialSegment && (
+              <p className="font-body text-sm text-gray-500 mt-0.5">
+                {SEGMENT_LABELS[initialSegment] || initialSegment} clients
+              </p>
+            )}
+          </div>
           <button
             onClick={handleClose}
-            className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
+            className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 text-xl transition-colors"
           >
             &times;
           </button>
         </div>
 
-        {/* Step indicator */}
-        <div className="px-6 pt-4 flex items-center gap-2">
-          {(skippedStep1 ? [2] : [1, 2]).map((s, idx) => (
-            <div key={s} className="flex items-center gap-2">
-              <div className={`w-7 h-7 rounded-full flex items-center justify-center font-body text-xs font-bold ${
-                step >= s ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-400"
-              }`}>
-                {skippedStep1 ? idx + 1 : s}
-              </div>
-              <span className={`font-body text-sm ${step >= s ? "text-gray-700" : "text-gray-400"}`}>
-                {s === 1 ? "Campaign Type" : "Tone & Preview"}
-              </span>
-              {!skippedStep1 && s < 2 && <div className="w-8 h-px bg-gray-200" />}
-            </div>
-          ))}
-        </div>
+        {/* Scrollable content */}
+        <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-6">
 
-        {/* Segment context banner */}
-        {skippedStep1 && initialSegment && (
-          <div className="mx-6 mt-3 rounded-xl bg-orange-50 border border-orange-200 px-4 py-3">
-            <p className="font-body text-sm text-gray-700">
-              Creating campaign for <span className="font-semibold">{SEGMENT_LABELS[initialSegment] || initialSegment}</span> clients
-            </p>
-          </div>
-        )}
-
-        <div className="px-6 py-5">
-          {/* Step 1: Choose trigger */}
-          {step === 1 && (
-            <>
-              <p className="font-body text-sm text-gray-500 mb-4">
-                Choose who to reach out to
-              </p>
-              {loadingTriggers ? (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {/* Loading / error state */}
+          {initializing ? (
+            <div className="space-y-6">
+              {/* Recipients skeleton */}
+              <div className="rounded-2xl border-2 border-gray-100 bg-white p-5 animate-pulse">
+                <div className="h-5 w-48 rounded bg-gray-200 mb-4" />
+                <div className="h-10 w-full rounded-xl bg-gray-100 mb-3" />
+                <div className="space-y-3">
                   {[1, 2, 3, 4].map((i) => (
-                    <div key={i} className="h-24 animate-pulse rounded-2xl bg-gray-100" />
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-[44px] h-[44px] rounded bg-gray-100" />
+                      <div className="flex-1 space-y-2">
+                        <div className="h-4 w-32 rounded bg-gray-200" />
+                        <div className="h-3 w-48 rounded bg-gray-100" />
+                      </div>
+                    </div>
                   ))}
                 </div>
-              ) : (
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  {triggers.map((trigger) => {
-                    const isSelected = selectedTrigger?.id === trigger.id;
+              </div>
+              {/* Message skeleton */}
+              <div className="rounded-2xl border-2 border-gray-100 bg-white p-5 animate-pulse">
+                <div className="h-5 w-40 rounded bg-gray-200 mb-4" />
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  {[1, 2, 3].map((i) => (
+                    <div key={i} className="h-40 rounded-2xl bg-gray-100" />
+                  ))}
+                </div>
+              </div>
+            </div>
+          ) : initError ? (
+            <div className="rounded-2xl border-2 border-red-100 bg-red-50 p-6 text-center">
+              <p className="font-body text-sm text-red-700 mb-3">{initError}</p>
+              <button
+                onClick={handleClose}
+                className="rounded-xl border-2 border-red-200 px-5 py-2 font-body text-sm font-semibold text-red-600 hover:bg-red-100 transition-colors"
+              >
+                Close
+              </button>
+            </div>
+          ) : (
+            <>
+              {/* ═══ TOP SECTION: Recipients ═══ */}
+              <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                  <h3 className="font-display text-lg font-bold text-gray-900">
+                    Sending to{" "}
+                    <span className="text-[#E8735A]">{includedCount}</span>{" "}
+                    of {totalCount} clients
+                  </h3>
+                  <button
+                    onClick={allSelected ? handleDeselectAll : handleSelectAll}
+                    className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors whitespace-nowrap"
+                  >
+                    {allSelected ? "Deselect All" : "Select All"}
+                  </button>
+                </div>
+
+                {/* Search */}
+                <div className="mb-3">
+                  <input
+                    type="text"
+                    placeholder="Search by name..."
+                    value={search}
+                    onChange={(e) => handleSearch(e.target.value)}
+                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:border-[#E8735A] focus:outline-none transition-colors"
+                  />
+                </div>
+
+                {/* Recipient list */}
+                <div className="max-h-72 overflow-y-auto rounded-xl border-2 border-gray-100">
+                  {recipients.length === 0 ? (
+                    <p className="p-6 font-body text-sm text-gray-400 text-center">
+                      No clients found for this segment
+                    </p>
+                  ) : (
+                    <div className="divide-y divide-gray-50">
+                      {recipients.map((r) => {
+                        const isOld =
+                          r.last_order_date &&
+                          Date.now() - new Date(r.last_order_date).getTime() >
+                            365 * 24 * 60 * 60 * 1000;
+                        return (
+                          <div
+                            key={r.id}
+                            onClick={() => toggleRecipient(r.client_id, r.included)}
+                            className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
+                              !r.included ? "opacity-50" : ""
+                            }`}
+                          >
+                            <div className="shrink-0 flex items-center justify-center"
+                              style={{ minWidth: 44, minHeight: 44 }}>
+                              <input
+                                type="checkbox"
+                                checked={r.included}
+                                onChange={() => {}}
+                                className="w-6 h-6 rounded border-gray-300 text-[#E8735A] focus:ring-[#E8735A] cursor-pointer"
+                              />
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className="font-body text-sm font-semibold text-gray-800 truncate">
+                                {r.full_name || "Unknown"}
+                              </p>
+                              <p className="font-body text-xs text-gray-400 truncate">
+                                {r.email}
+                              </p>
+                            </div>
+                            <div className="text-right shrink-0">
+                              {r.last_order_date ? (
+                                <span
+                                  className={`font-body text-xs ${
+                                    isOld
+                                      ? "text-amber-600 font-semibold"
+                                      : "text-gray-400"
+                                  }`}
+                                >
+                                  {timeAgo(r.last_order_date)}
+                                </span>
+                              ) : (
+                                <span className="font-body text-xs text-gray-300">
+                                  No orders
+                                </span>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* Load more */}
+                {pagination && pagination.page < pagination.total_pages && (
+                  <div className="mt-3 text-center">
+                    <button
+                      onClick={handleLoadMore}
+                      disabled={loadingMore}
+                      className="rounded-xl border-2 border-gray-200 px-5 py-2 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
+                    >
+                      {loadingMore
+                        ? "Loading..."
+                        : `Load More (${totalCount - recipients.length} remaining)`}
+                    </button>
+                  </div>
+                )}
+              </div>
+
+              {/* ═══ MIDDLE SECTION: Choose Message Style ═══ */}
+              <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
+                <h3 className="font-display text-lg font-bold text-gray-900 mb-4">
+                  Choose a message style
+                </h3>
+
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                  {BUILDER_TONE_CARDS.map((tone) => {
+                    const isSelected = selectedTone === tone.key;
+                    const preview = previews[tone.key];
                     return (
                       <button
-                        key={trigger.id}
-                        onClick={() => setSelectedTrigger(trigger)}
-                        className={`rounded-2xl border-2 p-4 text-left transition-all ${
+                        key={tone.key}
+                        onClick={() => setSelectedTone(tone.key)}
+                        className={`rounded-2xl border-2 border-l-4 p-4 text-left transition-all ${tone.borderColor} ${tone.tint} ${
                           isSelected
-                            ? "border-[#E8735A] bg-orange-50 ring-2 ring-[#E8735A]/30"
-                            : "border-gray-100 bg-white hover:border-gray-300"
+                            ? tone.selectedBorder
+                            : "border-gray-100 hover:border-gray-300"
                         }`}
                       >
-                        <div className="flex items-center gap-2 mb-1">
-                          <span className="text-xl">
-                            {TRIGGER_ICONS[trigger.trigger_type] || "📧"}
-                          </span>
-                          <span className="font-display text-sm font-bold text-gray-900">
-                            {trigger.name}
-                          </span>
+                        <div className="flex items-center justify-between mb-2">
+                          <p className="font-display text-sm font-bold text-gray-900">
+                            {tone.label}
+                          </p>
+                          {isSelected && (
+                            <span className="w-5 h-5 rounded-full bg-[#E8735A] text-white flex items-center justify-center text-xs">
+                              ✓
+                            </span>
+                          )}
                         </div>
-                        <p className="font-body text-xs text-gray-500">
-                          {trigger.description || `${trigger.trigger_type} trigger`}
+                        <p className="font-body text-xs text-gray-500 mb-3">
+                          {tone.desc}
                         </p>
+
+                        {/* Full email preview */}
+                        {loadingPreviews ? (
+                          <div className="animate-pulse space-y-2 mt-3 pt-3 border-t border-gray-100">
+                            <div className="h-3 w-3/4 rounded bg-gray-200" />
+                            <div className="h-2 w-full rounded bg-gray-100" />
+                            <div className="h-2 w-5/6 rounded bg-gray-100" />
+                          </div>
+                        ) : preview ? (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="font-body text-xs font-semibold text-gray-800 mb-1.5">
+                              {humanizeTemplate(preview.subject)}
+                            </p>
+                            <p className="font-body text-xs text-gray-500 whitespace-pre-line leading-relaxed">
+                              {humanizeTemplate(preview.body)}
+                            </p>
+                          </div>
+                        ) : (
+                          <div className="mt-3 pt-3 border-t border-gray-100">
+                            <p className="font-body text-xs text-gray-400 italic">
+                              No preview available
+                            </p>
+                          </div>
+                        )}
                       </button>
                     );
                   })}
                 </div>
-              )}
-              <div className="mt-6 flex justify-end">
-                <button
-                  onClick={() => setStep(2)}
-                  disabled={!selectedTrigger}
-                  className="rounded-xl bg-[#E8735A] px-6 py-2.5 font-body text-sm font-semibold text-white hover:bg-[#d4634d] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
-                >
-                  Next
-                </button>
-              </div>
-            </>
-          )}
-
-          {/* Step 2: Choose tone + preview */}
-          {step === 2 && (
-            <>
-              <p className="font-body text-sm text-gray-500 mb-4">
-                Pick the vibe for your emails
-              </p>
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-                {TONE_CARDS.map((tone) => {
-                  const isSelected = selectedTone === tone.key;
-                  return (
-                    <button
-                      key={tone.key}
-                      onClick={() => handleToneSelect(tone.key)}
-                      className={`rounded-2xl border-2 p-4 text-left transition-all ${
-                        isSelected ? tone.selectedBg : tone.bg
-                      }`}
-                    >
-                      <p className="font-display text-sm font-bold text-gray-900 mb-1">
-                        {tone.label}
-                      </p>
-                      <p className="font-body text-xs text-gray-600">
-                        {tone.desc}
-                      </p>
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Template preview */}
-              {selectedTone && (
-                <div className="mt-4 rounded-2xl border-2 border-gray-100 bg-gray-50 p-5">
-                  <p className="font-body text-xs font-semibold uppercase tracking-wide text-gray-400 mb-3">
-                    Email Preview
-                  </p>
-                  {loadingPreview ? (
-                    <div className="animate-pulse space-y-2">
-                      <div className="h-4 w-3/4 rounded bg-gray-200" />
-                      <div className="h-3 w-full rounded bg-gray-200" />
-                      <div className="h-3 w-5/6 rounded bg-gray-200" />
-                      <div className="h-3 w-4/6 rounded bg-gray-200" />
-                    </div>
-                  ) : templatePreview ? (
-                    <>
-                      <p className="font-body text-sm font-semibold text-gray-900 mb-2">
-                        Subject: {templatePreview.subject}
-                      </p>
-                      <div className="font-body text-sm text-gray-600 whitespace-pre-line leading-relaxed">
-                        {templatePreview.body}
-                      </div>
-                    </>
-                  ) : (
-                    <p className="font-body text-sm text-gray-400">
-                      No preview available for this combination
-                    </p>
-                  )}
-                </div>
-              )}
-
-              {/* Campaign name */}
-              <div className="mt-4">
-                <label className="font-body text-xs text-gray-500">
-                  Campaign name (optional)
-                </label>
-                <input
-                  type="text"
-                  placeholder="e.g. Spring check-in"
-                  value={campaignName}
-                  onChange={(e) => setCampaignName(e.target.value)}
-                  className="mt-1 w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:border-[#E8735A] focus:outline-none transition-colors"
-                />
-              </div>
-
-              <div className="mt-6 flex items-center justify-between">
-                {!skippedStep1 ? (
-                  <button
-                    onClick={() => setStep(1)}
-                    className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    Back
-                  </button>
-                ) : (
-                  <button
-                    onClick={handleClose}
-                    className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
-                  >
-                    Cancel
-                  </button>
-                )}
-                <button
-                  onClick={handleCreate}
-                  disabled={!selectedTone || creating}
-                  className="rounded-xl bg-[#E8735A] px-6 py-2.5 font-body text-sm font-semibold text-white hover:bg-[#d4634d] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95"
-                >
-                  {creating ? "Creating..." : "Create Campaign"}
-                </button>
               </div>
             </>
           )}
         </div>
+
+        {/* ═══ BOTTOM SECTION: Sticky Action Bar ═══ */}
+        {!initializing && !initError && !sent && (
+          <div className="shrink-0 border-t border-gray-200 bg-white px-5 sm:px-6 py-4 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            <p className="font-body text-sm text-gray-600">
+              <span className="font-semibold">{includedCount}</span> client{includedCount !== 1 ? "s" : ""} selected
+              {selectedTone && (
+                <> · <span className="font-semibold">{toneLabel}</span> chosen</>
+              )}
+            </p>
+            <div className="flex gap-3">
+              <button
+                onClick={handleClose}
+                className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSend}
+                disabled={!canSend || sending}
+                className="rounded-xl bg-[#E8735A] px-6 py-2.5 font-body text-sm font-semibold text-white hover:bg-[#d4634d] disabled:opacity-40 disabled:cursor-not-allowed transition-all active:scale-95 sm:min-w-[160px]"
+              >
+                {sending ? "Sending..." : "Send Campaign"}
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </>
   );
@@ -906,12 +1287,22 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
     setLoading(false);
   };
 
-  const handleCreated = (campaign) => {
+  const handleBuilderCreated = (campaign) => {
+    // Add campaign to list but keep builder modal open
+    setCampaigns((prev) => [campaign, ...prev]);
+  };
+
+  const handleBuilderLaunched = (updatedCampaign) => {
+    setCampaigns((prev) =>
+      prev.map((c) => (c.id === updatedCampaign.id ? { ...c, ...updatedCampaign } : c))
+    );
+  };
+
+  const handleBuilderClose = () => {
     setShowNewModal(false);
     setNewModalSegment(null);
-    // Open detail view immediately to review recipients
-    setCampaigns((prev) => [campaign, ...prev]);
-    setDetailId(campaign.id);
+    // Refresh campaigns to pick up any draft that was created
+    fetchCampaigns();
   };
 
   const handleDeleted = (id) => {
@@ -1083,10 +1474,11 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
       )}
 
       {/* Modals */}
-      <NewCampaignModal
+      <CampaignBuilderModal
         isOpen={showNewModal}
-        onClose={() => { setShowNewModal(false); setNewModalSegment(null); }}
-        onCreated={handleCreated}
+        onClose={handleBuilderClose}
+        onCreated={handleBuilderCreated}
+        onLaunched={handleBuilderLaunched}
         initialSegment={newModalSegment}
       />
 

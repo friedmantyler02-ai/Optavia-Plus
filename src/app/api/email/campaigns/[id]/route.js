@@ -301,6 +301,68 @@ export async function PUT(request, { params }) {
         return NextResponse.json({ campaign: updated });
       }
 
+      case "update_tone": {
+        const { tone } = body;
+        const validTones = ["warm_friendly", "encouraging", "business_professional"];
+        if (!tone || !validTones.includes(tone)) {
+          return NextResponse.json(
+            { error: `tone must be one of: ${validTones.join(", ")}` },
+            { status: 400 }
+          );
+        }
+
+        if (campaign.status !== "draft") {
+          return NextResponse.json(
+            { error: "Can only update tone on draft campaigns" },
+            { status: 400 }
+          );
+        }
+
+        // Re-resolve template: coach-specific first, then system default
+        let template = null;
+        const { data: coachTpl } = await supabaseAdmin
+          .from("email_templates")
+          .select("id")
+          .eq("trigger_id", campaign.trigger_id)
+          .eq("tone", tone)
+          .eq("coach_id", coachId)
+          .single();
+
+        if (coachTpl) {
+          template = coachTpl;
+        } else {
+          const { data: defaultTpl } = await supabaseAdmin
+            .from("email_templates")
+            .select("id")
+            .eq("trigger_id", campaign.trigger_id)
+            .eq("tone", tone)
+            .is("coach_id", null)
+            .single();
+          template = defaultTpl;
+        }
+
+        if (!template) {
+          return NextResponse.json(
+            { error: "No template found for this tone" },
+            { status: 404 }
+          );
+        }
+
+        const { data: updated, error } = await supabaseAdmin
+          .from("email_campaigns")
+          .update({ tone, template_id: template.id })
+          .eq("id", id)
+          .select()
+          .single();
+
+        if (error) {
+          console.error("[campaigns] Update tone error:", error);
+          return NextResponse.json({ error: "Failed to update tone" }, { status: 500 });
+        }
+
+        return NextResponse.json({ campaign: updated });
+      }
+
       default:
         return NextResponse.json(
           { error: `Unknown action: ${action}` },

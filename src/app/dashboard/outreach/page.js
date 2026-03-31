@@ -278,8 +278,6 @@ export default function OutreachPage() {
   const [segments, setSegments] = useState(null);
   const [loadingSegments, setLoadingSegments] = useState(true);
 
-  const [campaigns, setCampaigns] = useState([]);
-  const [loadingCampaigns, setLoadingCampaigns] = useState(true);
 
   const [replies, setReplies] = useState([]);
   const [loadingReplies, setLoadingReplies] = useState(true);
@@ -305,7 +303,6 @@ export default function OutreachPage() {
   useEffect(() => {
     if (!coach?.id) return;
     fetchSegments();
-    fetchCampaigns();
     fetchGmailStatus();
     fetchReplies();
     fetchStats();
@@ -343,17 +340,6 @@ export default function OutreachPage() {
       console.error("[Outreach] segments fetch failed:", err);
     }
     setLoadingSegments(false);
-  };
-
-  const fetchCampaigns = async () => {
-    try {
-      const res = await fetch(`/api/outreach/campaigns?coach_id=${coach.id}`);
-      const data = await res.json();
-      setCampaigns(data.campaigns || []);
-    } catch {
-      // ignore
-    }
-    setLoadingCampaigns(false);
   };
 
   const fetchReplies = async () => {
@@ -518,12 +504,6 @@ export default function OutreachPage() {
       showToast({ message: "Something went wrong.", variant: "error" });
     }
   }, [followUps]);
-
-  // Build a map of segment key → campaign
-  const campaignBySegment = {};
-  for (const c of campaigns) {
-    campaignBySegment[c.segment] = c;
-  }
 
   const pendingReplies = replies.filter((r) => r.response_type === null);
   const attentionCount = pendingReplies.length + followUps.length;
@@ -780,7 +760,6 @@ export default function OutreachPage() {
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
           {SEGMENTS.map((seg) => {
             const count = segments?.segments?.[seg.key] || 0;
-            const campaign = campaignBySegment[seg.key];
 
             return (
               <button
@@ -792,15 +771,9 @@ export default function OutreachPage() {
               >
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-2xl">{seg.emoji}</span>
-                  {campaign ? (
-                    <span className={`rounded-full px-2.5 py-0.5 font-body text-xs font-bold text-white ${campaign.status === "paused" ? "bg-amber-400" : "bg-green-500"}`}>
-                      {campaign.status === "paused" ? "Paused" : "Active"}
-                    </span>
-                  ) : (
-                    <span className={`rounded-full px-3 py-0.5 font-body text-sm font-bold ${seg.badge}`}>
-                      {count}
-                    </span>
-                  )}
+                  <span className={`rounded-full px-3 py-0.5 font-body text-sm font-bold ${seg.badge}`}>
+                    {count}
+                  </span>
                 </div>
                 <h3 className="font-display text-lg font-bold text-gray-900">
                   {seg.label}
@@ -808,28 +781,9 @@ export default function OutreachPage() {
                 <p className="font-body text-xs text-gray-500 mt-0.5">
                   {seg.range}
                 </p>
-                {campaign ? (
-                  <div className="mt-2">
-                    <p className="font-body text-xs font-semibold text-gray-700">
-                      {campaign.total_sent}/{campaign.total_queued} sent
-                    </p>
-                    <div className="mt-1 h-1.5 w-full rounded-full bg-white/60">
-                      <div
-                        className="h-1.5 rounded-full bg-green-500 transition-all duration-300"
-                        style={{
-                          width:
-                            campaign.total_queued > 0
-                              ? `${Math.round((campaign.total_sent / campaign.total_queued) * 100)}%`
-                              : "0%",
-                        }}
-                      />
-                    </div>
-                  </div>
-                ) : (
-                  <p className="font-body text-xs text-gray-600 mt-2 leading-snug">
-                    {seg.description}
-                  </p>
-                )}
+                <p className="font-body text-xs text-gray-600 mt-2 leading-snug">
+                  {seg.description}
+                </p>
               </button>
             );
           })}

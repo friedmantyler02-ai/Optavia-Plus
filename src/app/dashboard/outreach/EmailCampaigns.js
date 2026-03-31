@@ -619,91 +619,122 @@ function CampaignBuilderModal({ isOpen, onClose, onLaunched, initialSegment }) {
                 </div>
               </div>
 
-              {/* ═══ MIDDLE SECTION: Choose Message Style ═══ */}
+              {/* ═══ MIDDLE SECTION: Choose Message Style (Carousel) ═══ */}
               <div className="rounded-2xl border-2 border-gray-100 bg-white p-5">
                 <h3 className="font-display text-lg font-bold text-gray-900 mb-4">
                   Choose a message style
                 </h3>
 
-                <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                  {BUILDER_TONE_CARDS.map((tone) => {
-                    const isSelected = selectedTone === tone.key;
-                    const preview = previews[tone.key];
-                    const previewBody = preview?.body_html
-                      ? stripHtml(preview.body_html)
-                      : (preview?.body || "");
-                    return (
-                      <button
-                        key={tone.key}
-                        onClick={() => {
-                          setSelectedTone(tone.key);
-                          // Clear custom message when switching tones
-                          setCustomMessage(null);
-                        }}
-                        className={`rounded-2xl border-2 border-l-4 p-4 text-left transition-all ${tone.borderColor} ${tone.tint} ${
-                          isSelected
-                            ? tone.selectedBorder
-                            : "border-gray-100 hover:border-gray-300"
-                        }`}
-                      >
-                        <div className="flex items-center justify-between mb-2">
-                          <p className="font-display text-sm font-bold text-gray-900">
-                            {tone.label}
-                          </p>
-                          {isSelected && (
+                {/* Carousel: one card at a time with arrows */}
+                <div className="flex items-center gap-3">
+                  {/* Left arrow */}
+                  <button
+                    onClick={() => {
+                      const idx = BUILDER_TONE_CARDS.findIndex((t) => t.key === selectedTone);
+                      const prev = idx <= 0 ? BUILDER_TONE_CARDS.length - 1 : idx - 1;
+                      setSelectedTone(BUILDER_TONE_CARDS[prev].key);
+                      setCustomMessage(null);
+                    }}
+                    className="shrink-0 w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:border-gray-400 transition-colors"
+                    aria-label="Previous message style"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                      <path fillRule="evenodd" d="M11.78 5.22a.75.75 0 0 1 0 1.06L8.06 10l3.72 3.72a.75.75 0 1 1-1.06 1.06l-4.25-4.25a.75.75 0 0 1 0-1.06l4.25-4.25a.75.75 0 0 1 1.06 0Z" clipRule="evenodd" />
+                    </svg>
+                  </button>
+
+                  {/* Active card */}
+                  <div className="flex-1 min-w-0">
+                    {(() => {
+                      const toneIdx = BUILDER_TONE_CARDS.findIndex((t) => t.key === selectedTone);
+                      const tone = BUILDER_TONE_CARDS[toneIdx] || BUILDER_TONE_CARDS[0];
+                      const preview = previews[tone.key];
+                      const previewBody = preview?.body_html
+                        ? stripHtml(preview.body_html)
+                        : (preview?.body || "");
+                      return (
+                        <div
+                          key={tone.key}
+                          className={`rounded-2xl border-2 border-l-4 p-5 text-left transition-all duration-200 ${tone.borderColor} ${tone.tint} ${tone.selectedBorder}`}
+                        >
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="font-display text-base font-bold text-gray-900">
+                              {tone.label}
+                            </p>
                             <span className="w-5 h-5 rounded-full bg-[#E8735A] text-white flex items-center justify-center text-xs">
                               ✓
                             </span>
+                          </div>
+                          <p className="font-body text-sm text-gray-500 mb-3">
+                            {tone.desc}
+                          </p>
+
+                          {/* Full email preview */}
+                          {loadingPreviews ? (
+                            <div className="animate-pulse space-y-2 mt-3 pt-3 border-t border-gray-100">
+                              <div className="h-3 w-3/4 rounded bg-gray-200" />
+                              <div className="h-2 w-full rounded bg-gray-100" />
+                              <div className="h-2 w-5/6 rounded bg-gray-100" />
+                            </div>
+                          ) : preview ? (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <p className="font-body text-sm font-semibold text-gray-800 mb-2">
+                                {customMessage?.subject || humanizeTemplate(preview.subject)}
+                              </p>
+                              <p className="font-body text-sm text-gray-600 whitespace-pre-line leading-relaxed max-h-64 overflow-y-auto">
+                                {customMessage?.body || humanizeTemplate(previewBody)}
+                              </p>
+                            </div>
+                          ) : (
+                            <div className="mt-3 pt-3 border-t border-gray-100">
+                              <p className="font-body text-sm text-gray-400 italic">
+                                No preview available
+                              </p>
+                            </div>
+                          )}
+
+                          {/* Edit Message button inside the card */}
+                          {(preview || customMessage) && (
+                            <div className="mt-4 pt-3 border-t border-gray-100 flex items-center gap-3">
+                              <button
+                                onClick={handleStartEdit}
+                                className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                              >
+                                Edit Message
+                              </button>
+                              {customMessage && (
+                                <span className="font-body text-xs text-green-600 font-semibold">
+                                  Custom message saved
+                                </span>
+                              )}
+                            </div>
                           )}
                         </div>
-                        <p className="font-body text-xs text-gray-500 mb-3">
-                          {tone.desc}
-                        </p>
+                      );
+                    })()}
+                  </div>
 
-                        {/* Full email preview */}
-                        {loadingPreviews ? (
-                          <div className="animate-pulse space-y-2 mt-3 pt-3 border-t border-gray-100">
-                            <div className="h-3 w-3/4 rounded bg-gray-200" />
-                            <div className="h-2 w-full rounded bg-gray-100" />
-                            <div className="h-2 w-5/6 rounded bg-gray-100" />
-                          </div>
-                        ) : preview ? (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <p className="font-body text-xs font-semibold text-gray-800 mb-1.5">
-                              {humanizeTemplate(preview.subject)}
-                            </p>
-                            <p className="font-body text-xs text-gray-500 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
-                              {humanizeTemplate(previewBody)}
-                            </p>
-                          </div>
-                        ) : (
-                          <div className="mt-3 pt-3 border-t border-gray-100">
-                            <p className="font-body text-xs text-gray-400 italic">
-                              No preview available
-                            </p>
-                          </div>
-                        )}
-                      </button>
-                    );
-                  })}
+                  {/* Right arrow */}
+                  <button
+                    onClick={() => {
+                      const idx = BUILDER_TONE_CARDS.findIndex((t) => t.key === selectedTone);
+                      const next = idx >= BUILDER_TONE_CARDS.length - 1 ? 0 : idx + 1;
+                      setSelectedTone(BUILDER_TONE_CARDS[next].key);
+                      setCustomMessage(null);
+                    }}
+                    className="shrink-0 w-10 h-10 rounded-full border-2 border-gray-200 flex items-center justify-center text-gray-400 hover:text-gray-700 hover:border-gray-400 transition-colors"
+                    aria-label="Next message style"
+                  >
+                    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" className="w-5 h-5">
+                      <path fillRule="evenodd" d="M8.22 5.22a.75.75 0 0 1 1.06 0l4.25 4.25a.75.75 0 0 1 0 1.06l-4.25 4.25a.75.75 0 0 1-1.06-1.06L11.94 10 8.22 6.28a.75.75 0 0 1 0-1.06Z" clipRule="evenodd" />
+                    </svg>
+                  </button>
                 </div>
 
-                {/* Edit Message button for selected tone */}
-                {selectedPreview && (
-                  <div className="mt-4 flex items-center gap-3">
-                    <button
-                      onClick={handleStartEdit}
-                      className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
-                    >
-                      Edit Message
-                    </button>
-                    {customMessage && (
-                      <span className="font-body text-xs text-green-600 font-semibold">
-                        Custom message saved
-                      </span>
-                    )}
-                  </div>
-                )}
+                {/* Carousel indicator */}
+                <p className="mt-3 text-center font-body text-xs text-gray-400">
+                  {BUILDER_TONE_CARDS.findIndex((t) => t.key === selectedTone) + 1} of {BUILDER_TONE_CARDS.length} · {BUILDER_TONE_CARDS.find((t) => t.key === selectedTone)?.label}
+                </p>
               </div>
             </>
           )}

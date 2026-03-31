@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, forwardRef, useImperativeHandle } from "react";
 import { useCoach } from "../layout";
 import useShowToast from "@/hooks/useShowToast";
 import ConfirmDialog from "../components/ConfirmDialog";
@@ -89,7 +89,23 @@ function CampaignSkeleton() {
 
 // ─── New Campaign Modal ─────────────────────────────────────────────
 
-function NewCampaignModal({ isOpen, onClose, onCreated }) {
+// Segment key → trigger_type mapping
+const SEGMENT_TO_TRIGGER = {
+  warm: "time_since_last_order",
+  moderate: "time_since_last_order",
+  cold: "time_since_last_order",
+  dormant: "time_since_last_order",
+};
+
+// Segment key → friendly label for campaign name default
+const SEGMENT_LABELS = {
+  warm: "Warm (2-6 months)",
+  moderate: "Moderate (6-12 months)",
+  cold: "Cold (12-24 months)",
+  dormant: "Dormant (24+ months)",
+};
+
+function NewCampaignModal({ isOpen, onClose, onCreated, initialSegment }) {
   const showToast = useShowToast();
   const [step, setStep] = useState(1);
   const [triggers, setTriggers] = useState([]);
@@ -100,16 +116,18 @@ function NewCampaignModal({ isOpen, onClose, onCreated }) {
   const [templatePreview, setTemplatePreview] = useState(null);
   const [loadingPreview, setLoadingPreview] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [skippedStep1, setSkippedStep1] = useState(false);
   const hasChanges = step > 1 && (selectedTrigger || selectedTone || campaignName);
 
   useEffect(() => {
     if (isOpen) {
       fetchTriggers();
       // Reset state
-      setStep(1);
+      setStep(initialSegment ? 2 : 1);
+      setSkippedStep1(!!initialSegment);
       setSelectedTrigger(null);
       setSelectedTone(null);
-      setCampaignName("");
+      setCampaignName(initialSegment ? `${SEGMENT_LABELS[initialSegment] || initialSegment} Outreach` : "");
       setTemplatePreview(null);
     }
   }, [isOpen]);
@@ -120,7 +138,14 @@ function NewCampaignModal({ isOpen, onClose, onCreated }) {
       const res = await fetch("/api/email/triggers", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
-        setTriggers(data.triggers || []);
+        const fetched = data.triggers || [];
+        setTriggers(fetched);
+        // Auto-select trigger if opened from a segment card
+        if (initialSegment && fetched.length > 0) {
+          const targetType = SEGMENT_TO_TRIGGER[initialSegment];
+          const match = fetched.find((t) => t.trigger_type === targetType) || fetched[0];
+          setSelectedTrigger(match);
+        }
       }
     } catch {
       // ignore
@@ -212,20 +237,29 @@ function NewCampaignModal({ isOpen, onClose, onCreated }) {
 
         {/* Step indicator */}
         <div className="px-6 pt-4 flex items-center gap-2">
-          {[1, 2].map((s) => (
+          {(skippedStep1 ? [2] : [1, 2]).map((s, idx) => (
             <div key={s} className="flex items-center gap-2">
               <div className={`w-7 h-7 rounded-full flex items-center justify-center font-body text-xs font-bold ${
                 step >= s ? "bg-[#E8735A] text-white" : "bg-gray-100 text-gray-400"
               }`}>
-                {s}
+                {skippedStep1 ? idx + 1 : s}
               </div>
               <span className={`font-body text-sm ${step >= s ? "text-gray-700" : "text-gray-400"}`}>
                 {s === 1 ? "Campaign Type" : "Tone & Preview"}
               </span>
-              {s < 2 && <div className="w-8 h-px bg-gray-200" />}
+              {!skippedStep1 && s < 2 && <div className="w-8 h-px bg-gray-200" />}
             </div>
           ))}
         </div>
+
+        {/* Segment context banner */}
+        {skippedStep1 && initialSegment && (
+          <div className="mx-6 mt-3 rounded-xl bg-orange-50 border border-orange-200 px-4 py-3">
+            <p className="font-body text-sm text-gray-700">
+              Creating campaign for <span className="font-semibold">{SEGMENT_LABELS[initialSegment] || initialSegment}</span> clients
+            </p>
+          </div>
+        )}
 
         <div className="px-6 py-5">
           {/* Step 1: Choose trigger */}
@@ -355,12 +389,21 @@ function NewCampaignModal({ isOpen, onClose, onCreated }) {
               </div>
 
               <div className="mt-6 flex items-center justify-between">
-                <button
-                  onClick={() => setStep(1)}
-                  className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
-                >
-                  Back
-                </button>
+                {!skippedStep1 ? (
+                  <button
+                    onClick={() => setStep(1)}
+                    className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Back
+                  </button>
+                ) : (
+                  <button
+                    onClick={handleClose}
+                    className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                  >
+                    Cancel
+                  </button>
+                )}
                 <button
                   onClick={handleCreate}
                   disabled={!selectedTone || creating}
@@ -724,7 +767,7 @@ function CampaignDetailModal({ campaignId, isOpen, onClose, onDeleted, onLaunche
                                 type="checkbox"
                                 checked={r.included}
                                 onChange={() => toggleRecipient(r.client_id, r.included)}
-                                className="w-4 h-4 rounded border-gray-300 text-[#E8735A] focus:ring-[#E8735A] shrink-0"
+                                className="w-6 h-6 min-w-[24px] rounded border-gray-300 text-[#E8735A] focus:ring-[#E8735A] shrink-0 cursor-pointer"
                               />
                             )}
                             <div className="flex-1 min-w-0">
@@ -829,14 +872,22 @@ function CampaignDetailModal({ campaignId, isOpen, onClose, onDeleted, onLaunche
 
 // ─── Main EmailCampaigns Section ────────────────────────────────────
 
-export default function EmailCampaigns() {
+const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
   const { coach } = useCoach();
   const showToast = useShowToast();
 
   const [campaigns, setCampaigns] = useState([]);
   const [loading, setLoading] = useState(true);
   const [showNewModal, setShowNewModal] = useState(false);
+  const [newModalSegment, setNewModalSegment] = useState(null);
   const [detailId, setDetailId] = useState(null);
+
+  useImperativeHandle(ref, () => ({
+    openNewCampaign(segmentKey) {
+      setNewModalSegment(segmentKey || null);
+      setShowNewModal(true);
+    },
+  }));
 
   useEffect(() => {
     if (coach?.id) fetchCampaigns();
@@ -857,6 +908,7 @@ export default function EmailCampaigns() {
 
   const handleCreated = (campaign) => {
     setShowNewModal(false);
+    setNewModalSegment(null);
     // Open detail view immediately to review recipients
     setCampaigns((prev) => [campaign, ...prev]);
     setDetailId(campaign.id);
@@ -864,6 +916,55 @@ export default function EmailCampaigns() {
 
   const handleDeleted = (id) => {
     setCampaigns((prev) => prev.filter((c) => c.id !== id));
+  };
+
+  const [confirmDeleteId, setConfirmDeleteId] = useState(null);
+  const [deletingId, setDeletingId] = useState(null);
+
+  const handleDirectDelete = async (id) => {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/email/campaigns/${id}`, {
+        method: "DELETE",
+        credentials: "include",
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast({ message: data.error || "Failed to delete", variant: "error" });
+      } else {
+        showToast({ message: "Campaign deleted", variant: "success" });
+        setCampaigns((prev) => prev.filter((c) => c.id !== id));
+      }
+    } catch {
+      showToast({ message: "Something went wrong", variant: "error" });
+    }
+    setDeletingId(null);
+    setConfirmDeleteId(null);
+  };
+
+  const handleCancelCampaign = async (id) => {
+    setDeletingId(id);
+    try {
+      const res = await fetch(`/api/email/campaigns/${id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ status: "cancelled" }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        showToast({ message: data.error || "Failed to cancel", variant: "error" });
+      } else {
+        showToast({ message: "Campaign cancelled", variant: "success" });
+        setCampaigns((prev) =>
+          prev.map((c) => (c.id === id ? { ...c, status: "cancelled" } : c))
+        );
+      }
+    } catch {
+      showToast({ message: "Something went wrong", variant: "error" });
+    }
+    setDeletingId(null);
+    setConfirmDeleteId(null);
   };
 
   const handleLaunched = (updatedCampaign) => {
@@ -880,7 +981,7 @@ export default function EmailCampaigns() {
           Email Campaigns
         </h2>
         <button
-          onClick={() => setShowNewModal(true)}
+          onClick={() => { setNewModalSegment(null); setShowNewModal(true); }}
           className="rounded-xl bg-[#E8735A] px-4 py-2.5 font-body text-sm font-semibold text-white hover:bg-[#d4634d] transition-all active:scale-95"
         >
           + New Campaign
@@ -911,6 +1012,7 @@ export default function EmailCampaigns() {
             const toneBadge = TONE_BADGE[c.tone] || TONE_BADGE.warm_friendly;
             const statusBadge = STATUS_BADGE[c.status] || STATUS_BADGE.draft;
             const canDelete = ["draft", "cancelled"].includes(c.status);
+            const canCancel = ["sending", "active"].includes(c.status);
 
             return (
               <div
@@ -954,12 +1056,22 @@ export default function EmailCampaigns() {
                     >
                       View
                     </button>
+                    {canCancel && (
+                      <button
+                        onClick={() => setConfirmDeleteId(c.id)}
+                        disabled={deletingId === c.id}
+                        className="rounded-xl border-2 border-red-200 px-3 py-1.5 font-body text-xs font-semibold text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
+                      >
+                        {deletingId === c.id ? "..." : "Cancel"}
+                      </button>
+                    )}
                     {canDelete && (
                       <button
-                        onClick={() => setDetailId(c.id)}
-                        className="rounded-xl border-2 border-red-100 px-3 py-1.5 font-body text-xs font-semibold text-red-500 hover:bg-red-50 transition-colors"
+                        onClick={() => setConfirmDeleteId(c.id)}
+                        disabled={deletingId === c.id}
+                        className="rounded-xl border-2 border-red-200 px-3 py-1.5 font-body text-xs font-semibold text-red-500 hover:bg-red-50 disabled:opacity-50 transition-colors"
                       >
-                        Delete
+                        {deletingId === c.id ? "..." : "Delete"}
                       </button>
                     )}
                   </div>
@@ -973,8 +1085,9 @@ export default function EmailCampaigns() {
       {/* Modals */}
       <NewCampaignModal
         isOpen={showNewModal}
-        onClose={() => setShowNewModal(false)}
+        onClose={() => { setShowNewModal(false); setNewModalSegment(null); }}
         onCreated={handleCreated}
+        initialSegment={newModalSegment}
       />
 
       <CampaignDetailModal
@@ -984,6 +1097,38 @@ export default function EmailCampaigns() {
         onDeleted={handleDeleted}
         onLaunched={handleLaunched}
       />
+
+      {/* Confirm delete/cancel dialog */}
+      <ConfirmDialog
+        isOpen={!!confirmDeleteId}
+        title={
+          campaigns.find((c) => c.id === confirmDeleteId && ["sending", "active"].includes(c.status))
+            ? "Cancel this campaign?"
+            : "Delete this campaign?"
+        }
+        message={
+          campaigns.find((c) => c.id === confirmDeleteId && ["sending", "active"].includes(c.status))
+            ? "This will stop sending emails for this campaign. Already-sent emails will not be recalled."
+            : "This will permanently remove the campaign and all its data. This cannot be undone."
+        }
+        confirmLabel={
+          campaigns.find((c) => c.id === confirmDeleteId && ["sending", "active"].includes(c.status))
+            ? "Yes, Cancel Campaign"
+            : "Yes, Delete"
+        }
+        confirmVariant="danger"
+        onConfirm={() => {
+          const c = campaigns.find((c) => c.id === confirmDeleteId);
+          if (c && ["sending", "active"].includes(c.status)) {
+            handleCancelCampaign(confirmDeleteId);
+          } else {
+            handleDirectDelete(confirmDeleteId);
+          }
+        }}
+        onCancel={() => setConfirmDeleteId(null)}
+      />
     </div>
   );
-}
+});
+
+export default EmailCampaigns;

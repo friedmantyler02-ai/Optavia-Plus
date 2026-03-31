@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { useCoach } from "../layout";
@@ -273,6 +273,7 @@ export default function OutreachPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const showToast = useShowToast();
+  const emailCampaignsRef = useRef(null);
 
   const [segments, setSegments] = useState(null);
   const [loadingSegments, setLoadingSegments] = useState(true);
@@ -290,7 +291,7 @@ export default function OutreachPage() {
   const [gmailLoading, setGmailLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState(false);
 
-  const [togglingCampaign, setTogglingCampaign] = useState(null);
+
 
   const [followUps, setFollowUps] = useState([]);
   const [loadingFollowUps, setLoadingFollowUps] = useState(true);
@@ -518,33 +519,6 @@ export default function OutreachPage() {
     }
   }, [followUps]);
 
-  const handleToggleCampaign = async (campaign) => {
-    const newStatus = campaign.status === "active" ? "paused" : "active";
-    setTogglingCampaign(campaign.id);
-    try {
-      const res = await fetch(`/api/outreach/campaigns/${campaign.id}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ status: newStatus }),
-      });
-      const data = await res.json();
-      if (data.campaign) {
-        setCampaigns((prev) =>
-          prev.map((c) => (c.id === campaign.id ? data.campaign : c))
-        );
-        showToast({
-          message: newStatus === "paused" ? "Campaign paused." : "Campaign resumed.",
-          variant: "success",
-        });
-      } else {
-        showToast({ message: data.error || "Failed to update campaign.", variant: "error" });
-      }
-    } catch {
-      showToast({ message: "Something went wrong.", variant: "error" });
-    }
-    setTogglingCampaign(null);
-  };
-
   // Build a map of segment key → campaign
   const campaignBySegment = {};
   for (const c of campaigns) {
@@ -553,10 +527,6 @@ export default function OutreachPage() {
 
   const pendingReplies = replies.filter((r) => r.response_type === null);
   const attentionCount = pendingReplies.length + followUps.length;
-  const activeCampaigns = campaigns.filter((c) => c.status === "active");
-  const pausedCampaigns = campaigns.filter((c) => c.status === "paused");
-  const allManagedCampaigns = [...activeCampaigns, ...pausedCampaigns];
-
   return (
     <div className="animate-fade-up">
       <PageHeader title="Outreach" />
@@ -797,7 +767,7 @@ export default function OutreachPage() {
       )}
 
       {/* Email Campaigns */}
-      <EmailCampaigns />
+      <EmailCampaigns ref={emailCampaignsRef} />
 
       {/* Segment cards */}
       {loadingSegments ? (
@@ -819,7 +789,7 @@ export default function OutreachPage() {
               <button
                 key={seg.key}
                 onClick={() =>
-                  router.push(`/dashboard/outreach/campaign/${seg.key}`)
+                  emailCampaignsRef.current?.openNewCampaign(seg.key)
                 }
                 className={`rounded-2xl border-2 p-5 text-left transition-shadow hover:shadow-md ${seg.accent}`}
               >
@@ -880,103 +850,6 @@ export default function OutreachPage() {
         </p>
       </div>
 
-      {/* Campaigns (active + paused) */}
-      {(loadingCampaigns || allManagedCampaigns.length > 0) && (
-        <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-white p-6">
-          <h2 className="font-display text-xl font-bold text-gray-900 mb-4">
-            Campaigns
-          </h2>
-
-          {loadingCampaigns ? (
-            <div className="animate-pulse space-y-3">
-              <div className="h-20 rounded-xl bg-gray-100" />
-              <div className="h-20 rounded-xl bg-gray-100" />
-            </div>
-          ) : (
-            <div className="space-y-3">
-              {allManagedCampaigns.map((campaign) => {
-                const seg = SEGMENTS.find((s) => s.key === campaign.segment);
-                const pct =
-                  campaign.total_queued > 0
-                    ? Math.round((campaign.total_sent / campaign.total_queued) * 100)
-                    : 0;
-                const isActive = campaign.status === "active";
-                const toggling = togglingCampaign === campaign.id;
-
-                return (
-                  <div
-                    key={campaign.id}
-                    className="rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4"
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <button
-                        onClick={() =>
-                          router.push(`/dashboard/outreach/campaign/${campaign.segment}`)
-                        }
-                        className="flex items-center gap-2 text-left hover:opacity-80 transition-opacity"
-                      >
-                        <span className="text-lg">{seg?.emoji}</span>
-                        <span className="font-display font-bold text-gray-900">
-                          {seg?.label} Campaign
-                        </span>
-                      </button>
-                      <div className="flex items-center gap-2">
-                        <span
-                          className={`rounded-full px-3 py-0.5 font-body text-xs font-semibold ${
-                            isActive
-                              ? "bg-green-100 text-green-700"
-                              : "bg-amber-100 text-amber-700"
-                          }`}
-                        >
-                          {isActive ? "Active" : "Paused"}
-                        </span>
-                        <button
-                          onClick={() => handleToggleCampaign(campaign)}
-                          disabled={toggling}
-                          className={`rounded-xl border-2 px-3 py-1.5 font-body text-xs font-semibold transition-colors duration-150 disabled:opacity-50 ${
-                            isActive
-                              ? "border-gray-200 text-gray-600 hover:bg-gray-100"
-                              : "border-green-300 text-green-700 hover:bg-green-50"
-                          }`}
-                        >
-                          {toggling ? "..." : isActive ? "Pause" : "Resume"}
-                        </button>
-                      </div>
-                    </div>
-                    <div className="flex items-center justify-between mb-1.5">
-                      <p className="font-body text-xs text-gray-500">
-                        {campaign.total_sent} of {campaign.total_queued} emails sent
-                      </p>
-                      <p className="font-body text-xs font-semibold text-gray-600">
-                        {pct}%
-                      </p>
-                    </div>
-                    <div className="h-2 w-full rounded-full bg-gray-200">
-                      <div
-                        className="h-2 rounded-full bg-green-500 transition-all duration-300"
-                        style={{ width: `${pct}%` }}
-                      />
-                    </div>
-                    {campaign.started_at && (
-                      <p className="mt-2 font-body text-xs text-gray-400">
-                        Started{" "}
-                        {new Date(campaign.started_at).toLocaleDateString("en-US", {
-                          month: "short",
-                          day: "numeric",
-                          year: "numeric",
-                        })}
-                        {campaign.total_replied > 0 && (
-                          <> · {campaign.total_replied} {campaign.total_replied === 1 ? "reply" : "replies"}</>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
     </div>
   );
 }

@@ -11,7 +11,7 @@ const supabaseAdmin = createSupabaseClient(
 // List all campaigns for the logged-in coach.
 // ─────────────────────────────────────────────────────────────────────
 
-export async function GET() {
+export async function GET(request) {
   try {
     const supabase = await createServerClient();
     const {
@@ -23,14 +23,23 @@ export async function GET() {
     }
 
     const coachId = user.id;
+    const { searchParams } = new URL(request.url);
+    const status = searchParams.get("status");
 
-    const { data: campaigns, error } = await supabaseAdmin
+    let query = supabaseAdmin
       .from("email_campaigns")
       .select(
         "*, email_triggers(name), email_templates(subject)"
       )
       .eq("coach_id", coachId)
       .order("created_at", { ascending: false });
+
+    // Filter to active campaigns only (exclude drafts)
+    if (status === "active") {
+      query = query.in("status", ["sending", "complete", "cancelled"]);
+    }
+
+    const { data: campaigns, error } = await query;
 
     if (error) {
       console.error("[campaigns] List error:", error);

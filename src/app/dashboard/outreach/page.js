@@ -766,9 +766,6 @@ export default function OutreachPage() {
         </div>
       )}
 
-      {/* Email Campaigns */}
-      <EmailCampaigns ref={emailCampaignsRef} />
-
       {/* Segment cards */}
       {loadingSegments ? (
         <div className="mb-6 grid grid-cols-2 gap-4 lg:grid-cols-4">
@@ -838,6 +835,9 @@ export default function OutreachPage() {
           })}
         </div>
       )}
+
+      {/* Email Campaigns */}
+      <EmailCampaigns ref={emailCampaignsRef} />
 
       {/* Active clients info */}
       <div className="mb-6 rounded-2xl border-2 border-gray-100 bg-gray-50 px-5 py-4">

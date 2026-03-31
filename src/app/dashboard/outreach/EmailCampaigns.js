@@ -117,6 +117,22 @@ function humanizeTemplate(text) {
     .replace(/\{\{CoachName\}\}/gi, "[Your Name]");
 }
 
+// Strip HTML tags to plain text for display
+function stripHtml(html) {
+  if (!html) return "";
+  return html
+    .replace(/<br\s*\/?>/gi, "\n")
+    .replace(/<\/p>/gi, "\n\n")
+    .replace(/<\/div>/gi, "\n")
+    .replace(/<[^>]+>/g, "")
+    .replace(/&nbsp;/gi, " ")
+    .replace(/&amp;/gi, "&")
+    .replace(/&lt;/gi, "<")
+    .replace(/&gt;/gi, ">")
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
+}
+
 const BUILDER_TONE_CARDS = [
   {
     key: "warm_friendly",
@@ -144,20 +160,19 @@ const BUILDER_TONE_CARDS = [
   },
 ];
 
-function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialSegment }) {
+function CampaignBuilderModal({ isOpen, onClose, onLaunched, initialSegment }) {
   const showToast = useShowToast();
 
-  // Campaign state
-  const [campaignId, setCampaignId] = useState(null);
-  const [campaign, setCampaign] = useState(null);
+  // Loading state
   const [initializing, setInitializing] = useState(true);
   const [initError, setInitError] = useState(null);
 
-  // Recipients state
-  const [recipients, setRecipients] = useState([]);
-  const [pagination, setPagination] = useState(null);
-  const [search, setSearch] = useState("");
-  const [loadingMore, setLoadingMore] = useState(false);
+  // Trigger info (from preview endpoint)
+  const [trigger, setTrigger] = useState(null);
+
+  // Recipients state (local only — no campaign created yet)
+  const [allClients, setAllClients] = useState([]);
+  const [includedIds, setIncludedIds] = useState(new Set());
 
   // Template previews (all 3 tones)
   const [previews, setPreviews] = useState({});
@@ -166,111 +181,83 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
   // Selected tone
   const [selectedTone, setSelectedTone] = useState("warm_friendly");
 
+  // Edit message state
+  const [editing, setEditing] = useState(false);
+  const [editSubject, setEditSubject] = useState("");
+  const [editBody, setEditBody] = useState("");
+  const [customMessage, setCustomMessage] = useState(null); // { subject, body } if edited
+
   // Sending state
   const [sending, setSending] = useState(false);
   const [sent, setSent] = useState(false);
   const [sentCount, setSentCount] = useState(0);
-
-  // Track local inclusion changes
-  const pendingChanges = useRef({});
-  const debounceTimer = useRef(null);
-  const campaignIdRef = useRef(null);
 
   // ─── Initialize on open ──────────────────────────────────────────
   useEffect(() => {
     if (!isOpen) return;
 
     // Reset all state
-    setCampaignId(null);
-    setCampaign(null);
     setInitializing(true);
     setInitError(null);
-    setRecipients([]);
-    setPagination(null);
-    setSearch("");
+    setTrigger(null);
+    setAllClients([]);
+    setIncludedIds(new Set());
     setPreviews({});
     setLoadingPreviews(true);
     setSelectedTone("warm_friendly");
+    setEditing(false);
+    setEditSubject("");
+    setEditBody("");
+    setCustomMessage(null);
     setSending(false);
     setSent(false);
     setSentCount(0);
-    pendingChanges.current = {};
-    campaignIdRef.current = null;
 
-    initializeCampaign();
+    initializePreview();
   }, [isOpen]);
 
-  const initializeCampaign = async () => {
+  const initializePreview = async () => {
     try {
-      // 1. Fetch triggers to find the matching one
-      const trigRes = await fetch("/api/email/triggers", { credentials: "include" });
-      if (!trigRes.ok) throw new Error("Failed to load triggers");
-      const trigData = await trigRes.json();
-      const triggers = trigData.triggers || [];
-
-      if (triggers.length === 0) throw new Error("No email triggers configured");
-
-      // Find matching trigger for this segment
-      const targetType = SEGMENT_TO_TRIGGER[initialSegment] || "time_since_last_order";
-      const trigger = triggers.find((t) => t.trigger_type === targetType) || triggers[0];
-
-      // 2. Create draft campaign
-      const createRes = await fetch("/api/email/campaigns", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({
-          trigger_id: trigger.id,
-          tone: "warm_friendly",
-          name: `${SEGMENT_LABELS[initialSegment] || initialSegment} Outreach`,
-          send_mode: "review",
-        }),
-      });
-      const createData = await createRes.json();
-      if (!createRes.ok) throw new Error(createData.error || "Failed to create campaign");
-
-      const newCampaign = createData.campaign;
-      setCampaignId(newCampaign.id);
-      setCampaign(newCampaign);
-      campaignIdRef.current = newCampaign.id;
-
-      // Tell parent about the new campaign
-      if (onCreated) onCreated(newCampaign);
-
-      // 3. Fetch recipients and all 3 template previews in parallel
-      const [recipientData, ...previewResults] = await Promise.all([
-        fetchRecipientsData(newCampaign.id, 1, ""),
-        fetchPreviewData(trigger.id, "warm_friendly"),
-        fetchPreviewData(trigger.id, "encouraging"),
-        fetchPreviewData(trigger.id, "business_professional"),
-      ]);
-
-      // Set recipients
-      const allRecipients = recipientData?.recipients || [];
-      const totalCount = recipientData?.pagination?.total ?? allRecipients.length;
-
-      // Apply default checkbox logic: >40 = all unchecked, <=40 = all checked
-      if (totalCount > 40) {
-        // Exclude all on server
-        await fetch(`/api/email/campaigns/${newCampaign.id}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ action: "exclude_all" }),
-        });
-        setRecipients(allRecipients.map((r) => ({ ...r, included: false })));
-      } else {
-        setRecipients(allRecipients);
+      // 1. Fetch eligible clients via preview endpoint (NO campaign created)
+      const previewRes = await fetch(
+        `/api/email/campaigns/preview?segment=${encodeURIComponent(initialSegment || "warm")}`,
+        { credentials: "include" }
+      );
+      if (!previewRes.ok) {
+        const errData = await previewRes.json();
+        throw new Error(errData.error || "Failed to load eligible clients");
       }
-      setPagination(recipientData?.pagination || null);
+      const previewData = await previewRes.json();
+      const triggerData = previewData.trigger;
+      const clients = previewData.clients || [];
 
-      // Set previews
-      const previewMap = {};
-      const tones = ["warm_friendly", "encouraging", "business_professional"];
-      tones.forEach((tone, i) => {
-        previewMap[tone] = previewResults[i];
-      });
-      setPreviews(previewMap);
+      setTrigger(triggerData);
+      setAllClients(clients);
+
+      // Default: include all if <=40, none if >40
+      if (clients.length <= 40) {
+        setIncludedIds(new Set(clients.map((c) => c.id)));
+      } else {
+        setIncludedIds(new Set());
+      }
+
+      // 2. Fetch all 3 template previews in parallel
+      if (triggerData) {
+        const [warm, encouraging, professional] = await Promise.all([
+          fetchPreviewData(triggerData.id, "warm_friendly"),
+          fetchPreviewData(triggerData.id, "encouraging"),
+          fetchPreviewData(triggerData.id, "business_professional"),
+        ]);
+
+        const previewMap = {
+          warm_friendly: warm,
+          encouraging: encouraging,
+          business_professional: professional,
+        };
+        console.log("[CampaignBuilder] Template previews loaded:", previewMap);
+        setPreviews(previewMap);
+      }
+
       setLoadingPreviews(false);
       setInitializing(false);
     } catch (err) {
@@ -278,16 +265,6 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
       setInitError(err.message);
       setInitializing(false);
     }
-  };
-
-  const fetchRecipientsData = async (cId, page, searchTerm) => {
-    const params = new URLSearchParams({ page: String(page), per_page: "50" });
-    if (searchTerm) params.set("search", searchTerm);
-    const res = await fetch(`/api/email/campaigns/${cId}?${params}`, {
-      credentials: "include",
-    });
-    if (!res.ok) return null;
-    return await res.json();
   };
 
   const fetchPreviewData = async (triggerId, tone) => {
@@ -298,172 +275,92 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
       );
       if (!res.ok) return null;
       const data = await res.json();
+      console.log(`[CampaignBuilder] Template preview for ${tone}:`, data.template);
       return data.template || null;
     } catch {
       return null;
     }
   };
 
-  // ─── Recipient search ────────────────────────────────────────────
-  const handleSearch = (val) => {
-    setSearch(val);
-    clearTimeout(debounceTimer.current);
-    debounceTimer.current = setTimeout(async () => {
-      if (!campaignIdRef.current) return;
-      const data = await fetchRecipientsData(campaignIdRef.current, 1, val);
-      if (data) {
-        let recs = data.recipients || [];
-        // Apply local pending changes
-        const changes = pendingChanges.current;
-        if (changes.__all === true) {
-          recs = recs.map((r) => ({ ...r, included: true }));
-        } else if (changes.__all === false) {
-          recs = recs.map((r) => ({ ...r, included: false }));
-        } else {
-          recs = recs.map((r) =>
-            changes[r.client_id] !== undefined ? { ...r, included: changes[r.client_id] } : r
-          );
-        }
-        setRecipients(recs);
-        setPagination(data.pagination);
-      }
-    }, 400);
-  };
-
-  const handleLoadMore = async () => {
-    if (!pagination || pagination.page >= pagination.total_pages || !campaignIdRef.current) return;
-    setLoadingMore(true);
-    const data = await fetchRecipientsData(campaignIdRef.current, pagination.page + 1, search);
-    if (data) {
-      let recs = data.recipients || [];
-      const changes = pendingChanges.current;
-      if (changes.__all === true) {
-        recs = recs.map((r) => ({ ...r, included: true }));
-      } else if (changes.__all === false) {
-        recs = recs.map((r) => ({ ...r, included: false }));
+  // ─── Recipient toggling (all local, no server calls) ─────────────
+  const toggleRecipient = (clientId) => {
+    setIncludedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(clientId)) {
+        next.delete(clientId);
       } else {
-        recs = recs.map((r) =>
-          changes[r.client_id] !== undefined ? { ...r, included: changes[r.client_id] } : r
-        );
+        next.add(clientId);
       }
-      setRecipients((prev) => [...prev, ...recs]);
-      setPagination(data.pagination);
-    }
-    setLoadingMore(false);
-  };
-
-  // ─── Recipient toggling ──────────────────────────────────────────
-  const toggleRecipient = (clientId, currentIncluded) => {
-    const newIncluded = !currentIncluded;
-    setRecipients((prev) =>
-      prev.map((r) => (r.client_id === clientId ? { ...r, included: newIncluded } : r))
-    );
-    // Clear __all if it was set, then track individual
-    if (pendingChanges.current.__all !== undefined) {
-      // Convert __all to individual changes for all current recipients
-      const allVal = pendingChanges.current.__all;
-      const newChanges = {};
-      recipients.forEach((r) => {
-        newChanges[r.client_id] = r.client_id === clientId ? newIncluded : allVal;
-      });
-      pendingChanges.current = newChanges;
-    } else {
-      pendingChanges.current[clientId] = newIncluded;
-    }
+      return next;
+    });
   };
 
   const handleSelectAll = () => {
-    setRecipients((prev) => prev.map((r) => ({ ...r, included: true })));
-    pendingChanges.current = { __all: true };
+    setIncludedIds(new Set(allClients.map((c) => c.id)));
   };
 
   const handleDeselectAll = () => {
-    setRecipients((prev) => prev.map((r) => ({ ...r, included: false })));
-    pendingChanges.current = { __all: false };
+    setIncludedIds(new Set());
   };
 
-  // ─── Flush changes + send ────────────────────────────────────────
-  const flushChanges = async () => {
-    const changes = { ...pendingChanges.current };
-    pendingChanges.current = {};
-    const cId = campaignIdRef.current;
-    if (!cId) return;
-
-    if (changes.__all === true) {
-      await fetch(`/api/email/campaigns/${cId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "include_all" }),
-      });
-      return;
-    }
-    if (changes.__all === false) {
-      await fetch(`/api/email/campaigns/${cId}`, {
-        method: "PUT",
-        headers: { "Content-Type": "application/json" },
-        credentials: "include",
-        body: JSON.stringify({ action: "exclude_all" }),
-      });
-      return;
-    }
-
-    const toExclude = [];
-    const toInclude = [];
-    for (const [clientId, included] of Object.entries(changes)) {
-      if (included) toInclude.push(clientId);
-      else toExclude.push(clientId);
-    }
-
-    const requests = [];
-    if (toExclude.length > 0) {
-      requests.push(
-        fetch(`/api/email/campaigns/${cId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ action: "exclude", client_ids: toExclude }),
-        })
-      );
-    }
-    if (toInclude.length > 0) {
-      requests.push(
-        fetch(`/api/email/campaigns/${cId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ action: "include", client_ids: toInclude }),
-        })
-      );
-    }
-    await Promise.all(requests);
+  // ─── Edit message ────────────────────────────────────────────────
+  const handleStartEdit = () => {
+    const preview = previews[selectedTone];
+    if (!preview) return;
+    const bodyText = preview.body_html ? stripHtml(preview.body_html) : (preview.body || "");
+    setEditSubject(customMessage?.subject || humanizeTemplate(preview.subject || ""));
+    setEditBody(customMessage?.body || humanizeTemplate(bodyText));
+    setEditing(true);
   };
 
+  const handleSaveEdit = () => {
+    setCustomMessage({ subject: editSubject, body: editBody });
+    setEditing(false);
+  };
+
+  const handleCancelEdit = () => {
+    setEditing(false);
+  };
+
+  // ─── Send: create campaign + recipients + launch in one go ───────
   const handleSend = async () => {
-    if (!campaignIdRef.current) return;
+    if (!trigger) return;
     setSending(true);
     try {
-      // 1. Flush recipient inclusion changes
-      await flushChanges();
-
-      // 2. If tone changed from default, update it
-      if (selectedTone !== "warm_friendly") {
-        const toneRes = await fetch(`/api/email/campaigns/${campaignIdRef.current}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          credentials: "include",
-          body: JSON.stringify({ action: "update_tone", tone: selectedTone }),
-        });
-        if (!toneRes.ok) {
-          const toneData = await toneRes.json();
-          showToast({ message: toneData.error || "Failed to update message style", variant: "error" });
-          setSending(false);
-          return;
-        }
+      const includedClientIds = Array.from(includedIds);
+      if (includedClientIds.length === 0) {
+        showToast({ message: "No clients selected", variant: "error" });
+        setSending(false);
+        return;
       }
 
-      // 3. Launch
-      const launchRes = await fetch(`/api/email/campaigns/${campaignIdRef.current}/launch`, {
+      // 1. Create the campaign
+      const createRes = await fetch("/api/email/campaigns", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({
+          trigger_id: trigger.id,
+          tone: selectedTone,
+          name: `${SEGMENT_LABELS[initialSegment] || initialSegment} Outreach`,
+          send_mode: "send_all",
+        }),
+      });
+      const createData = await createRes.json();
+      if (!createRes.ok) {
+        showToast({ message: createData.error || "Failed to create campaign", variant: "error" });
+        setSending(false);
+        return;
+      }
+
+      const campaignId = createData.campaign.id;
+
+      // 2. If tone is not the default warm_friendly, update it (already set in create, but ensure)
+      // 3. If custom message was edited, we'd need a custom template endpoint
+      //    For now the campaign uses the standard template
+
+      // 4. Launch immediately
+      const launchRes = await fetch(`/api/email/campaigns/${campaignId}/launch`, {
         method: "POST",
         credentials: "include",
       });
@@ -485,17 +382,24 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
 
   // ─── Close / cleanup ─────────────────────────────────────────────
   const handleClose = () => {
-    // If we created a campaign but didn't send, it stays as draft (can be managed from list)
+    // No draft was created, so nothing to clean up
     onClose();
   };
 
   if (!isOpen) return null;
 
-  const includedCount = recipients.filter((r) => r.included).length;
-  const totalCount = pagination?.total ?? recipients.length;
+  const includedCount = includedIds.size;
+  const totalCount = allClients.length;
   const toneLabel = BUILDER_TONE_CARDS.find((t) => t.key === selectedTone)?.label || "";
   const canSend = includedCount > 0 && selectedTone;
-  const allSelected = recipients.length > 0 && recipients.every((r) => r.included);
+  const allSelected = allClients.length > 0 && includedCount === allClients.length;
+
+  // Get display text for selected tone
+  const selectedPreview = previews[selectedTone];
+  const displaySubject = customMessage?.subject || humanizeTemplate(selectedPreview?.subject || "");
+  const displayBody = customMessage?.body || humanizeTemplate(
+    selectedPreview?.body_html ? stripHtml(selectedPreview.body_html) : (selectedPreview?.body || "")
+  );
 
   // ─── Success state ───────────────────────────────────────────────
   if (sent) {
@@ -521,6 +425,69 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
           >
             Done
           </button>
+        </div>
+      </>
+    );
+  }
+
+  // ─── Edit message overlay ────────────────────────────────────────
+  if (editing) {
+    return (
+      <>
+        <div className="fixed inset-0 z-40 bg-black/30" onClick={handleCancelEdit} />
+        <div
+          className="fixed z-50 bg-white rounded-2xl shadow-xl w-[calc(100%-2rem)] max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+          style={{ top: "50%", left: "50%", transform: "translate(-50%, -50%)" }}
+        >
+          <div className="shrink-0 bg-white border-b border-gray-100 px-5 sm:px-6 py-4 flex items-center justify-between">
+            <h2 className="font-display text-xl font-bold text-gray-900">
+              Edit Message
+            </h2>
+            <button
+              onClick={handleCancelEdit}
+              className="w-9 h-9 flex items-center justify-center rounded-full hover:bg-gray-100 text-gray-400 hover:text-gray-600 text-xl transition-colors"
+            >
+              &times;
+            </button>
+          </div>
+          <div className="flex-1 overflow-y-auto px-5 sm:px-6 py-5 space-y-4">
+            <div>
+              <label className="font-body text-xs font-semibold text-gray-500 mb-1 block">
+                Subject Line
+              </label>
+              <input
+                type="text"
+                value={editSubject}
+                onChange={(e) => setEditSubject(e.target.value)}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:border-[#E8735A] focus:outline-none transition-colors"
+              />
+            </div>
+            <div>
+              <label className="font-body text-xs font-semibold text-gray-500 mb-1 block">
+                Email Body
+              </label>
+              <textarea
+                value={editBody}
+                onChange={(e) => setEditBody(e.target.value)}
+                rows={12}
+                className="w-full rounded-xl border-2 border-gray-200 px-4 py-3 font-body text-sm leading-relaxed focus:border-[#E8735A] focus:outline-none transition-colors resize-y"
+              />
+            </div>
+          </div>
+          <div className="shrink-0 border-t border-gray-200 bg-white px-5 sm:px-6 py-4 flex justify-end gap-3">
+            <button
+              onClick={handleCancelEdit}
+              className="rounded-xl border-2 border-gray-200 px-5 py-2.5 font-body text-sm font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleSaveEdit}
+              className="rounded-xl bg-[#E8735A] px-6 py-2.5 font-body text-sm font-semibold text-white hover:bg-[#d4634d] transition-all active:scale-95"
+            >
+              Save Changes
+            </button>
+          </div>
         </div>
       </>
     );
@@ -615,57 +582,47 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
                   </button>
                 </div>
 
-                {/* Search */}
-                <div className="mb-3">
-                  <input
-                    type="text"
-                    placeholder="Search by name..."
-                    value={search}
-                    onChange={(e) => handleSearch(e.target.value)}
-                    className="w-full rounded-xl border-2 border-gray-200 px-4 py-2.5 font-body text-sm focus:border-[#E8735A] focus:outline-none transition-colors"
-                  />
-                </div>
-
                 {/* Recipient list */}
                 <div className="max-h-72 overflow-y-auto rounded-xl border-2 border-gray-100">
-                  {recipients.length === 0 ? (
+                  {allClients.length === 0 ? (
                     <p className="p-6 font-body text-sm text-gray-400 text-center">
                       No clients found for this segment
                     </p>
                   ) : (
                     <div className="divide-y divide-gray-50">
-                      {recipients.map((r) => {
+                      {allClients.map((c) => {
+                        const isIncluded = includedIds.has(c.id);
                         const isOld =
-                          r.last_order_date &&
-                          Date.now() - new Date(r.last_order_date).getTime() >
+                          c.last_order_date &&
+                          Date.now() - new Date(c.last_order_date).getTime() >
                             365 * 24 * 60 * 60 * 1000;
                         return (
                           <div
-                            key={r.id}
-                            onClick={() => toggleRecipient(r.client_id, r.included)}
+                            key={c.id}
+                            onClick={() => toggleRecipient(c.id)}
                             className={`flex items-center gap-3 px-4 py-3 cursor-pointer hover:bg-gray-50 transition-colors ${
-                              !r.included ? "opacity-50" : ""
+                              !isIncluded ? "opacity-50" : ""
                             }`}
                           >
                             <div className="shrink-0 flex items-center justify-center"
                               style={{ minWidth: 44, minHeight: 44 }}>
                               <input
                                 type="checkbox"
-                                checked={r.included}
+                                checked={isIncluded}
                                 onChange={() => {}}
                                 className="w-6 h-6 rounded border-gray-300 text-[#E8735A] focus:ring-[#E8735A] cursor-pointer"
                               />
                             </div>
                             <div className="flex-1 min-w-0">
                               <p className="font-body text-sm font-semibold text-gray-800 truncate">
-                                {r.full_name || "Unknown"}
+                                {c.full_name || "Unknown"}
                               </p>
                               <p className="font-body text-xs text-gray-400 truncate">
-                                {r.email}
+                                {c.email}
                               </p>
                             </div>
                             <div className="text-right shrink-0">
-                              {r.last_order_date ? (
+                              {c.last_order_date ? (
                                 <span
                                   className={`font-body text-xs ${
                                     isOld
@@ -673,7 +630,7 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
                                       : "text-gray-400"
                                   }`}
                                 >
-                                  {timeAgo(r.last_order_date)}
+                                  {timeAgo(c.last_order_date)}
                                 </span>
                               ) : (
                                 <span className="font-body text-xs text-gray-300">
@@ -687,21 +644,6 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
                     </div>
                   )}
                 </div>
-
-                {/* Load more */}
-                {pagination && pagination.page < pagination.total_pages && (
-                  <div className="mt-3 text-center">
-                    <button
-                      onClick={handleLoadMore}
-                      disabled={loadingMore}
-                      className="rounded-xl border-2 border-gray-200 px-5 py-2 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 disabled:opacity-50 transition-colors"
-                    >
-                      {loadingMore
-                        ? "Loading..."
-                        : `Load More (${totalCount - recipients.length} remaining)`}
-                    </button>
-                  </div>
-                )}
               </div>
 
               {/* ═══ MIDDLE SECTION: Choose Message Style ═══ */}
@@ -714,10 +656,17 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
                   {BUILDER_TONE_CARDS.map((tone) => {
                     const isSelected = selectedTone === tone.key;
                     const preview = previews[tone.key];
+                    const previewBody = preview?.body_html
+                      ? stripHtml(preview.body_html)
+                      : (preview?.body || "");
                     return (
                       <button
                         key={tone.key}
-                        onClick={() => setSelectedTone(tone.key)}
+                        onClick={() => {
+                          setSelectedTone(tone.key);
+                          // Clear custom message when switching tones
+                          setCustomMessage(null);
+                        }}
                         className={`rounded-2xl border-2 border-l-4 p-4 text-left transition-all ${tone.borderColor} ${tone.tint} ${
                           isSelected
                             ? tone.selectedBorder
@@ -750,8 +699,8 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
                             <p className="font-body text-xs font-semibold text-gray-800 mb-1.5">
                               {humanizeTemplate(preview.subject)}
                             </p>
-                            <p className="font-body text-xs text-gray-500 whitespace-pre-line leading-relaxed">
-                              {humanizeTemplate(preview.body)}
+                            <p className="font-body text-xs text-gray-500 whitespace-pre-line leading-relaxed max-h-48 overflow-y-auto">
+                              {humanizeTemplate(previewBody)}
                             </p>
                           </div>
                         ) : (
@@ -765,6 +714,23 @@ function CampaignBuilderModal({ isOpen, onClose, onCreated, onLaunched, initialS
                     );
                   })}
                 </div>
+
+                {/* Edit Message button for selected tone */}
+                {selectedPreview && (
+                  <div className="mt-4 flex items-center gap-3">
+                    <button
+                      onClick={handleStartEdit}
+                      className="rounded-xl border-2 border-gray-200 px-4 py-2 font-body text-xs font-semibold text-gray-600 hover:bg-gray-50 transition-colors"
+                    >
+                      Edit Message
+                    </button>
+                    {customMessage && (
+                      <span className="font-body text-xs text-green-600 font-semibold">
+                        Custom message saved
+                      </span>
+                    )}
+                  </div>
+                )}
               </div>
             </>
           )}
@@ -872,7 +838,6 @@ function CampaignDetailModal({ campaignId, isOpen, onClose, onDeleted, onLaunche
 
   const toggleRecipient = (clientId, currentIncluded) => {
     const newIncluded = !currentIncluded;
-    // Update local state immediately
     setRecipients((prev) =>
       prev.map((r) => (r.client_id === clientId ? { ...r, included: newIncluded } : r))
     );
@@ -881,7 +846,6 @@ function CampaignDetailModal({ campaignId, isOpen, onClose, onDeleted, onLaunche
 
   const handleSelectAll = () => {
     setRecipients((prev) => prev.map((r) => ({ ...r, included: true })));
-    // We'll use include_all action on launch
     pendingChanges.current = { __all: true };
   };
 
@@ -947,7 +911,6 @@ function CampaignDetailModal({ campaignId, isOpen, onClose, onDeleted, onLaunche
   const handleLaunch = async () => {
     setLaunching(true);
     try {
-      // Flush any pending recipient changes first
       await flushChanges();
 
       const res = await fetch(`/api/email/campaigns/${campaignId}/launch`, {
@@ -1276,7 +1239,8 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
 
   const fetchCampaigns = async () => {
     try {
-      const res = await fetch("/api/email/campaigns", { credentials: "include" });
+      // Only fetch active campaigns (sending/complete/cancelled), not drafts
+      const res = await fetch("/api/email/campaigns?status=active", { credentials: "include" });
       if (res.ok) {
         const data = await res.json();
         setCampaigns(data.campaigns || []);
@@ -1287,22 +1251,21 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
     setLoading(false);
   };
 
-  const handleBuilderCreated = (campaign) => {
-    // Add campaign to list but keep builder modal open
-    setCampaigns((prev) => [campaign, ...prev]);
-  };
-
   const handleBuilderLaunched = (updatedCampaign) => {
-    setCampaigns((prev) =>
-      prev.map((c) => (c.id === updatedCampaign.id ? { ...c, ...updatedCampaign } : c))
-    );
+    // Add the newly launched campaign to the list
+    setCampaigns((prev) => {
+      const exists = prev.some((c) => c.id === updatedCampaign.id);
+      if (exists) {
+        return prev.map((c) => (c.id === updatedCampaign.id ? { ...c, ...updatedCampaign } : c));
+      }
+      return [updatedCampaign, ...prev];
+    });
   };
 
   const handleBuilderClose = () => {
     setShowNewModal(false);
     setNewModalSegment(null);
-    // Refresh campaigns to pick up any draft that was created
-    fetchCampaigns();
+    // No need to refresh — no draft was created
   };
 
   const handleDeleted = (id) => {
@@ -1379,7 +1342,7 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
         </button>
       </div>
 
-      {/* Campaign list */}
+      {/* Campaign list — only shows sending/complete/cancelled */}
       {loading ? (
         <div className="space-y-3">
           <CampaignSkeleton />
@@ -1477,7 +1440,6 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
       <CampaignBuilderModal
         isOpen={showNewModal}
         onClose={handleBuilderClose}
-        onCreated={handleBuilderCreated}
         onLaunched={handleBuilderLaunched}
         initialSegment={newModalSegment}
       />

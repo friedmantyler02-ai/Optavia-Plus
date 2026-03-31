@@ -241,22 +241,10 @@ function CampaignBuilderModal({ isOpen, onClose, onLaunched, initialSegment }) {
         setIncludedIds(new Set());
       }
 
-      // 2. Fetch all 3 template previews in parallel
-      if (triggerData) {
-        const [warm, encouraging, professional] = await Promise.all([
-          fetchPreviewData(triggerData.id, "warm_friendly"),
-          fetchPreviewData(triggerData.id, "encouraging"),
-          fetchPreviewData(triggerData.id, "business_professional"),
-        ]);
-
-        const previewMap = {
-          warm_friendly: warm,
-          encouraging: encouraging,
-          business_professional: professional,
-        };
-        console.log("[CampaignBuilder] Template previews loaded:", previewMap);
-        setPreviews(previewMap);
-      }
+      // 2. Read templates directly from the preview response (no separate calls)
+      const templateMap = previewData.templates || {};
+      console.log("[CampaignBuilder] Templates from preview response:", templateMap);
+      setPreviews(templateMap);
 
       setLoadingPreviews(false);
       setInitializing(false);
@@ -264,25 +252,6 @@ function CampaignBuilderModal({ isOpen, onClose, onLaunched, initialSegment }) {
       console.error("[CampaignBuilder] Init error:", err);
       setInitError(err.message);
       setInitializing(false);
-    }
-  };
-
-  const fetchPreviewData = async (triggerId, tone) => {
-    try {
-      const url = `/api/email/templates/preview?trigger_id=${triggerId}&tone=${tone}`;
-      console.log(`[CampaignBuilder] Fetching template preview: ${url}`);
-      console.log(`[CampaignBuilder] trigger_id type=${typeof triggerId}, value=${JSON.stringify(triggerId)}`);
-      const res = await fetch(url, { credentials: "include" });
-      if (!res.ok) {
-        console.log(`[CampaignBuilder] Template preview ${tone} failed: ${res.status}`);
-        return null;
-      }
-      const data = await res.json();
-      console.log(`[CampaignBuilder] Template preview for ${tone}:`, data.template);
-      return data.template || null;
-    } catch (err) {
-      console.error(`[CampaignBuilder] Template preview ${tone} error:`, err);
-      return null;
     }
   };
 

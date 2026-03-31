@@ -116,6 +116,64 @@ export async function GET(request) {
       filteredClients = filteredClients.filter((c) => !excludeIds.has(c.id));
     }
 
+    // ── Fetch templates for this trigger ──────────────────────────────
+    const { data: templates, error: tErr } = await supabaseAdmin
+      .from("email_templates")
+      .select("id, subject, body_html, body_text, tone, trigger_id")
+      .eq("trigger_id", trigger.id)
+      .is("coach_id", null);
+
+    console.log(
+      "[campaigns/preview] Templates query for trigger_id=" + trigger.id + ":",
+      JSON.stringify(templates),
+      "error:",
+      tErr
+    );
+
+    // Fallback: if nothing found, query all system templates for diagnostics
+    let templatesByTone = {};
+    if (!templates || templates.length === 0) {
+      const { data: allTemplates } = await supabaseAdmin
+        .from("email_templates")
+        .select("id, subject, body_html, body_text, tone, trigger_id")
+        .is("coach_id", null);
+
+      console.log(
+        "[campaigns/preview] ALL system templates:",
+        JSON.stringify(
+          allTemplates?.map((t) => ({
+            id: t.id,
+            trigger_id: t.trigger_id,
+            tone: t.tone,
+            subject: t.subject,
+          }))
+        )
+      );
+
+      // Try to use allTemplates grouped by tone as fallback
+      (allTemplates || []).forEach((t) => {
+        if (t.tone && !templatesByTone[t.tone]) {
+          templatesByTone[t.tone] = {
+            id: t.id,
+            subject: t.subject,
+            body_html: t.body_html,
+            body_text: t.body_text,
+          };
+        }
+      });
+    } else {
+      templates.forEach((t) => {
+        if (t.tone) {
+          templatesByTone[t.tone] = {
+            id: t.id,
+            subject: t.subject,
+            body_html: t.body_html,
+            body_text: t.body_text,
+          };
+        }
+      });
+    }
+
     return NextResponse.json({
       trigger: {
         id: trigger.id,
@@ -130,6 +188,11 @@ export async function GET(request) {
         email: c.email,
         last_order_date: c.last_order_date,
       })),
+      templates: {
+        warm_friendly: templatesByTone.warm_friendly || null,
+        encouraging: templatesByTone.encouraging || null,
+        business_professional: templatesByTone.business_professional || null,
+      },
     });
   } catch (err) {
     console.error("[campaigns/preview] GET error:", err);

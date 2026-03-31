@@ -271,6 +271,7 @@ function CampaignBuilderModal({ isOpen, onClose, onLaunched, initialSegment }) {
     try {
       const url = `/api/email/templates/preview?trigger_id=${triggerId}&tone=${tone}`;
       console.log(`[CampaignBuilder] Fetching template preview: ${url}`);
+      console.log(`[CampaignBuilder] trigger_id type=${typeof triggerId}, value=${JSON.stringify(triggerId)}`);
       const res = await fetch(url, { credentials: "include" });
       if (!res.ok) {
         console.log(`[CampaignBuilder] Template preview ${tone} failed: ${res.status}`);
@@ -1306,7 +1307,7 @@ const EmailCampaigns = forwardRef(function EmailCampaigns(props, ref) {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
-        body: JSON.stringify({ status: "cancelled" }),
+        body: JSON.stringify({ action: "cancel" }),
       });
       const data = await res.json();
       if (!res.ok) {

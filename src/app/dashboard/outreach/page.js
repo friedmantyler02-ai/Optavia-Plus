@@ -7,6 +7,7 @@ import { useCoach } from "../layout";
 import useShowToast from "@/hooks/useShowToast";
 import PageHeader from "../components/PageHeader";
 import ConfirmDialog from "../components/ConfirmDialog";
+import EmailCampaigns from "./EmailCampaigns";
 import { SEGMENTS } from "./segments";
 
 function timeAgo(dateStr) {
@@ -794,6 +795,9 @@ export default function OutreachPage() {
           )}
         </div>
       )}
+
+      {/* Email Campaigns */}
+      <EmailCampaigns />
 
       {/* Segment cards */}
       {loadingSegments ? (

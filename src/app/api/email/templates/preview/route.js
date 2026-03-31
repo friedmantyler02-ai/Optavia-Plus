@@ -23,6 +23,8 @@ export async function GET(request) {
     const triggerId = searchParams.get("trigger_id");
     const tone = searchParams.get("tone");
 
+    console.log("[templates/preview] Query params:", { triggerId, tone, coachId });
+
     if (!triggerId || !tone) {
       return NextResponse.json(
         { error: "trigger_id and tone are required" },
@@ -30,10 +32,17 @@ export async function GET(request) {
       );
     }
 
+    // Diagnostic: fetch ALL templates for this trigger_id to see what exists
+    const { data: allForTrigger, error: diagErr } = await supabaseAdmin
+      .from("email_templates")
+      .select("id, trigger_id, tone, coach_id, subject")
+      .eq("trigger_id", triggerId);
+    console.log("[templates/preview] All templates for trigger_id:", JSON.stringify(allForTrigger), "error:", diagErr);
+
     // Try coach-specific template first, then system default
     let template = null;
 
-    const { data: coachTemplate } = await supabaseAdmin
+    const { data: coachTemplate, error: coachErr } = await supabaseAdmin
       .from("email_templates")
       .select("id, subject, body, tone")
       .eq("trigger_id", triggerId)
@@ -41,10 +50,12 @@ export async function GET(request) {
       .eq("coach_id", coachId)
       .single();
 
+    console.log("[templates/preview] Coach template query result:", coachTemplate, "error:", coachErr?.message);
+
     if (coachTemplate) {
       template = coachTemplate;
     } else {
-      const { data: defaultTemplate } = await supabaseAdmin
+      const { data: defaultTemplate, error: defaultErr } = await supabaseAdmin
         .from("email_templates")
         .select("id, subject, body, tone")
         .eq("trigger_id", triggerId)
@@ -52,6 +63,7 @@ export async function GET(request) {
         .is("coach_id", null)
         .single();
 
+      console.log("[templates/preview] Default template query result:", defaultTemplate, "error:", defaultErr?.message);
       template = defaultTemplate;
     }
 

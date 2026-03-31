@@ -56,6 +56,7 @@ export async function GET(request) {
       .limit(1);
 
     const trigger = triggers?.[0] || null;
+    console.log("[campaigns/preview] Found trigger:", trigger ? { id: trigger.id, slug: trigger.slug, name: trigger.name } : null);
     if (!trigger) {
       return NextResponse.json(
         { error: "No matching trigger found" },

@@ -269,15 +269,18 @@ function CampaignBuilderModal({ isOpen, onClose, onLaunched, initialSegment }) {
 
   const fetchPreviewData = async (triggerId, tone) => {
     try {
-      const res = await fetch(
-        `/api/email/templates/preview?trigger_id=${triggerId}&tone=${tone}`,
-        { credentials: "include" }
-      );
-      if (!res.ok) return null;
+      const url = `/api/email/templates/preview?trigger_id=${triggerId}&tone=${tone}`;
+      console.log(`[CampaignBuilder] Fetching template preview: ${url}`);
+      const res = await fetch(url, { credentials: "include" });
+      if (!res.ok) {
+        console.log(`[CampaignBuilder] Template preview ${tone} failed: ${res.status}`);
+        return null;
+      }
       const data = await res.json();
       console.log(`[CampaignBuilder] Template preview for ${tone}:`, data.template);
       return data.template || null;
-    } catch {
+    } catch (err) {
+      console.error(`[CampaignBuilder] Template preview ${tone} error:`, err);
       return null;
     }
   };
